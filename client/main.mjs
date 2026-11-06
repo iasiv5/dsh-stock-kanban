@@ -13,7 +13,7 @@ const store = createStore();
 
 function App() {
   const snapshot = useStore(store);
-  const { ui, business, quotes } = snapshot;
+  const { ui, business, quotes, quoteMeta } = snapshot;
 
   useEffect(() => {
     injectStyles();
