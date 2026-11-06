@@ -1,0 +1,405 @@
+{
+  "at": "2026-11-06T13:26:01.947Z",
+  "results": [
+    {
+      "name": "tencent-batch-snapshot",
+      "ok": true,
+      "ms": 242,
+      "detail": {
+        "bytes": 2452,
+        "rows": 5,
+        "sample": "v_sh600519=\"1~贵州茅台~600519~1453.00~1452.00~1450.00~42848~23139~19709~1452.00~2~1451.60~1~1451.33~1~1451.01~1~1451.00~5~14",
+        "fields0": [
+          "v_sh600519=\"",
+          "贵州茅台",
+          "600519",
+          "1453.00",
+          "1452.00",
+          "1450.00",
+          "42848",
+          "23139",
+          "19709",
+          "1452.00",
+          "2",
+          "1451.60",
+          "1",
+          "1451.33",
+          "1",
+          "1451.01",
+          "1",
+          "1451.00",
+          "5",
+          "1453.00",
+          "2",
+          "1453.01",
+          "2",
+          "1453.06",
+          "1",
+          "1453.07",
+          "8",
+          "1453.19",
+          "1",
+          "",
+          "202611061614",
+          "1.00",
+          "0.07",
+          "1457.72",
+          "1436.00",
+          "1453.00/4284",
+          "42848",
+          "619953",
+          "0.34",
+          "22.11"
+        ]
+      }
+    },
+    {
+      "name": "tencent-minute https://proxy.finance.qq.com/ifzqgtimg",
+      "ok": true,
+      "ms": 143,
+      "detail": {
+        "code": 0,
+        "hasData": true,
+        "minutePoints": 267,
+        "qtLen": 88,
+        "date": "20261106"
+      }
+    },
+    {
+      "name": "tencent-minute https://web.ifzq.gtimg.cn",
+      "ok": true,
+      "ms": 228,
+      "detail": {
+        "code": 0,
+        "hasData": true,
+        "minutePoints": 267,
+        "qtLen": 88,
+        "date": "20261106"
+      }
+    },
+    {
+      "name": "tencent-fqkline-day",
+      "ok": true,
+      "ms": 57,
+      "detail": {
+        "code": 0,
+        "rows": 21,
+        "first": [
+          "2026-10-09",
+          "1255.420",
+          "1263.000",
+          "1282.000",
+          "1255.420",
+          "35111.000"
+        ],
+        "last": [
+          "2026-11-06",
+          "1450.00",
+          "1453.00",
+          "1457.72",
+          "1436.00",
+          "42848"
+        ],
+        "keyFound": [
+          "qfqday"
+        ]
+      }
+    },
+    {
+      "name": "tencent-fqkline-week",
+      "ok": true,
+      "ms": 59,
+      "detail": {
+        "code": 0,
+        "rows": 20,
+        "first": [
+          "2026-06-26",
+          "1186.286",
+          "1168.630",
+          "1235.976",
+          "1168.100",
+          "260102.000"
+        ],
+        "last": [
+          "2026-11-06",
+          "1410.000",
+          "1453.00",
+          "1480.600",
+          "1395.020",
+          "311806"
+        ],
+        "keyFound": [
+          "qfqweek"
+        ]
+      }
+    },
+    {
+      "name": "tencent-fqkline-month",
+      "ok": true,
+      "ms": 58,
+      "detail": {
+        "code": 0,
+        "rows": 20,
+        "first": [
+          "2025-04-30",
+          "1484.419",
+          "1467.419",
+          "1506.419",
+          "1382.419",
+          "641055.000"
+        ],
+        "last": [
+          "2026-11-06",
+          "1410.000",
+          "1453.00",
+          "1480.600",
+          "1395.020",
+          "311806.000"
+        ],
+        "keyFound": [
+          "qfqmonth"
+        ]
+      }
+    },
+    {
+      "name": "tencent-fqkline-hk",
+      "ok": true,
+      "ms": 62,
+      "detail": {
+        "code": 0,
+        "rows": 20,
+        "keys": [
+          "day",
+          "qt",
+          "prec",
+          "vcm",
+          "version"
+        ]
+      }
+    },
+    {
+      "name": "em-us-snapshot",
+      "ok": true,
+      "ms": 1035,
+      "detail": {
+        "name": "苹果",
+        "price": 344.17,
+        "pct": -1.53
+      }
+    },
+    {
+      "name": "em-us-kline-day",
+      "ok": true,
+      "ms": 312,
+      "detail": {
+        "name": "苹果",
+        "rows": 20,
+        "first": [
+          "2026-10-09",
+          "331.695",
+          "336.640",
+          "338.610",
+          "330.700",
+          "37881199"
+        ],
+        "last": [
+          "2026-11-05",
+          "353.890",
+          "344.170",
+          "355.380",
+          "342.060",
+          "75678945"
+        ]
+      }
+    },
+    {
+      "name": "em-us-kline-week",
+      "ok": true,
+      "ms": 87,
+      "detail": {
+        "name": "苹果",
+        "rows": 20,
+        "first": [
+          "2026-06-26",
+          "297.040",
+          "283.510",
+          "302.150",
+          "273.480",
+          "519001811"
+        ],
+        "last": [
+          "2026-11-05",
+          "342.670",
+          "344.170",
+          "355.380",
+          "325.330",
+          "293234411"
+        ]
+      }
+    },
+    {
+      "name": "em-us-kline-month",
+      "ok": true,
+      "ms": 79,
+      "detail": {
+        "name": "苹果",
+        "rows": 20,
+        "first": [
+          "2025-04-30",
+          "218.225",
+          "210.920",
+          "223.610",
+          "167.630",
+          "1607318483"
+        ],
+        "last": [
+          "2026-11-05",
+          "342.670",
+          "344.170",
+          "355.380",
+          "325.330",
+          "293234411"
+        ]
+      }
+    },
+    {
+      "name": "em-us-trends2",
+      "ok": true,
+      "ms": 77,
+      "detail": {
+        "points": 391,
+        "first": "2026-11-05 22:30,354.425",
+        "last": "2026-11-06 05:00,344.170"
+      }
+    },
+    {
+      "name": "okx-ticker",
+      "ok": true,
+      "ms": 61,
+      "detail": {
+        "code": "0",
+        "last": "75944.9",
+        "open24h": "79670.2",
+        "ts": "1793971563465"
+      }
+    },
+    {
+      "name": "okx-candles-day",
+      "ok": true,
+      "ms": 47,
+      "detail": {
+        "code": "0",
+        "rows": 20,
+        "firstTs": "1793894400000",
+        "firstClose": "75944.9"
+      }
+    },
+    {
+      "name": "okx-candles-week",
+      "ok": true,
+      "ms": 50,
+      "detail": {
+        "code": "0",
+        "rows": 20,
+        "firstTs": "1793548800000",
+        "firstClose": "75944.9"
+      }
+    },
+    {
+      "name": "okx-candles-month",
+      "ok": true,
+      "ms": 54,
+      "detail": {
+        "code": "0",
+        "rows": 20,
+        "firstTs": "1793462400000",
+        "firstClose": "75944.9"
+      }
+    },
+    {
+      "name": "okx-candles-minute",
+      "ok": true,
+      "ms": 49,
+      "detail": {
+        "code": "0",
+        "rows": 20,
+        "firstTs": "1793971500000",
+        "firstClose": "75944.9"
+      }
+    },
+    {
+      "name": "okx-instruments",
+      "ok": true,
+      "ms": 150,
+      "detail": {
+        "code": "0",
+        "total": 1210,
+        "usdtPairs": 466
+      }
+    },
+    {
+      "name": "smartbox \"茅台\"",
+      "ok": true,
+      "ms": 137,
+      "detail": {
+        "hits": 1,
+        "sample": [
+          "sh|600519|\\u8d35\\u5dde\\u8305\\u53f0|gzmt|GP-A"
+        ]
+      }
+    },
+    {
+      "name": "smartbox \"00700\"",
+      "ok": true,
+      "ms": 54,
+      "detail": {
+        "hits": 10,
+        "sample": [
+          "hk|00700|\\u817e\\u8baf\\u63a7\\u80a1|txkg|GP",
+          "jj|007005|\\u4e2d\\u91d1\\u65b0\\u533b\\u836f\\u80a1\\u7968C|zjxyygpc|KJ",
+          "jj|007000|\\u9e4f\\u534e\\u4e2d\\u503a13\\u5e74\\u56fd\\u5f00\\u884c\\u503a\\u5238\\u6307\\u6570A|phzz13ngkhzqzsa|KJ",
+          "jj|007008|\\u4e2d\\u90ae\\u7eaf\\u503a\\u4f18\\u9009\\u4e00\\u5e74\\u5b9a\\u671f\\u5f00\\u653e\\u503a\\u5238A|zyczyxyndqkfzqa|KJ-CX",
+          "jj|007001|\\u9e4f\\u534e\\u4e2d\\u503a13\\u5e74\\u56fd\\u5f00\\u884c\\u503a\\u5238\\u6307\\u6570C|phzz13ngkhzqzsc|KJ",
+          "jj|007002|\\u56fd\\u878d\\u7a33\\u5eb7\\u503a\\u5238|grwkzq|KJ"
+        ]
+      }
+    },
+    {
+      "name": "smartbox \"aapl\"",
+      "ok": true,
+      "ms": 52,
+      "detail": {
+        "hits": 1,
+        "sample": [
+          "us|aapl.oq|\\u82f9\\u679c|pg|GP"
+        ]
+      }
+    },
+    {
+      "name": "smartbox \"沪深300ETF\"",
+      "ok": true,
+      "ms": 71,
+      "detail": {
+        "hits": 10,
+        "sample": [
+          "sh|510300|\\u6caa\\u6df1300ETF\\u534e\\u6cf0\\u67cf\\u745e|hs300etfhtbr|ETF",
+          "sh|510310|\\u6caa\\u6df1300ETF\\u6613\\u65b9\\u8fbe|hs300etfyfd|ETF",
+          "sz|159919|\\u6caa\\u6df1300ETF\\u5609\\u5b9e|hs300etfjs|ETF",
+          "sh|510330|\\u6caa\\u6df1300ETF\\u534e\\u590f|hs300etfhx|ETF",
+          "sz|159300|\\u6caa\\u6df1300ETF\\u5bcc\\u56fd|hs300etffg|ETF",
+          "sh|510360|\\u6caa\\u6df1300ETF\\u5e7f\\u53d1|hs300etfgf|ETF"
+        ]
+      }
+    },
+    {
+      "name": "em-cn-snapshot",
+      "ok": true,
+      "ms": 427,
+      "detail": {
+        "name": "贵州茅台",
+        "price": 1453,
+        "pct": 0.07
+      }
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+# dsh-stock-kanban bundle patch.
+# Registers the host-side plugin entry; the browser half is supplied by
+# dsh.client in package.json (loaded by dsh-client-modules).
+- insert:
+    - id: stock-kanban
+      name: dsh-stock-kanban

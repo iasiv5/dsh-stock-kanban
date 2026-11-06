@@ -1,0 +1,10 @@
+node_modules/
+.npm-cache/
+.npm-logs/
+*.tgz
+*.log
+*.bak
+.env
+.env.*
+.credentials.yaml
+.DS_Store
