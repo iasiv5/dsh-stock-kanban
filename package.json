@@ -9,12 +9,14 @@
     ".": "./src/host.mjs",
     "./client": "./lib/client.js",
     "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
     "src/**/*.mjs",
     "lib/client.js",
     "icon.svg",
+    "locale/*.json",
     "data/*.json",
     "cordis.patch.yml",
     "README.md",
