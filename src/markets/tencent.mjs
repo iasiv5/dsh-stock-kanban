@@ -109,7 +109,7 @@ export async function fetchMinuteDetail(code) {
     try {
       const json = await fetchJson(host + MINUTE_PATH.replace("{code}", apiCode));
       const sd = json?.data?.[apiCode];
-      if (!sd?.data) return { date: null, prevClose: null, points: [], error: "无分时数据" };
+      if (!sd?.data) return { date: null, prevClose: null, points: [], error: "no-data" };
       const dateText = typeof sd.data.date === "string" ? sd.data.date : "";
       const isoDate = dateText.length === 8 ? `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6, 8)}` : null;
       const points = [];
@@ -138,13 +138,13 @@ export async function fetchMinuteDetail(code) {
         const chg = num(qt[32]);
         if (price != null && price > 0 && chg != null) prevClose = price / (1 + chg / 100);
       }
-      if (points.length === 0) return { date: dateText || null, prevClose, points: [], error: "无分时数据" };
+      if (points.length === 0) return { date: dateText || null, prevClose, points: [], error: "no-data" };
       return { date: dateText || null, prevClose, points, error: null };
     } catch (e) {
       lastError = e;
     }
   }
-  return { date: null, prevClose: null, points: [], error: lastError ? `行情获取失败(${lastError.message})` : "行情获取失败" };
+  return { date: null, prevClose: null, points: [], error: "fetch-failed", errorDetail: lastError ? String(lastError.message ?? lastError).slice(0, 80) : null };
 }
 
 const KLINE_COUNT = { day: 180, week: 150, month: 120 };
@@ -161,11 +161,11 @@ export async function fetchKline(code, period = "day") {
   try {
     json = await fetchJson(url);
   } catch (e) {
-    return { candles: [], adjust: null, error: `行情获取失败(${e.message})` };
+    return { candles: [], adjust: null, error: "fetch-failed", errorDetail: String(e.message ?? e).slice(0, 80) };
   }
-  if (!json || json.code !== 0) return { candles: [], adjust: null, error: "接口返回异常" };
+  if (!json || json.code !== 0) return { candles: [], adjust: null, error: "api-error" };
   const sd = json?.data?.[apiCode];
-  if (!sd) return { candles: [], adjust: null, error: "无K线数据" };
+  if (!sd) return { candles: [], adjust: null, error: "no-data" };
   const keys = per === "day" ? ["qfqday", "day"] : per === "week" ? ["qfqweek", "week"] : ["qfqmonth", "month"];
   let rows = null;
   let adjust = null;
@@ -176,7 +176,7 @@ export async function fetchKline(code, period = "day") {
       break;
     }
   }
-  if (!rows) return { candles: [], adjust: null, error: "无K线数据" };
+  if (!rows) return { candles: [], adjust: null, error: "no-data" };
   const candles = [];
   for (const row of rows) {
     if (!Array.isArray(row) || row.length < 5) continue;
@@ -189,6 +189,6 @@ export async function fetchKline(code, period = "day") {
     if (!/^\d{4}-\d{2}-\d{2}/.test(time) || !Number.isFinite(open) || !Number.isFinite(close) || !Number.isFinite(high) || !Number.isFinite(low)) continue;
     candles.push({ time: time.slice(0, 10), open, high, low, close, volume });
   }
-  if (candles.length === 0) return { candles: [], adjust: null, error: "无K线数据" };
+  if (candles.length === 0) return { candles: [], adjust: null, error: "no-data" };
   return { candles, adjust, error: null };
 }

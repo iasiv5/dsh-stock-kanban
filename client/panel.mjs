@@ -10,20 +10,20 @@ import { AddDialog } from "./add.mjs";
 import { BackupSection } from "./backup.mjs";
 import { Capsule } from "./capsule.mjs";
 import { shouldDrag } from "./fmt.mjs";
-import { MARKET_LABELS } from "../src/identity.mjs";
+import { t } from "./i18n.mjs";
 
 /** 胶囊标的切换器（面板底部；按访问端记忆） */
 function CapsulePicker({ store, snapshot }) {
   const { ui, business } = snapshot;
   return h("label", { className: "skc-capsule-picker" },
-    "胶囊标的",
+    t("picker.label"),
     h("select", {
       className: "skc-select",
       value: ui.capsuleSymbolId ?? "",
       onChange: (e) => store.setCapsuleSymbol(e.target.value),
     },
-      business.symbols.length === 0 ? h("option", { value: "" }, "（先添加标的）") : null,
-      business.symbols.map((s) => h("option", { key: s.id, value: s.id }, `${s.name} · ${MARKET_LABELS[s.market]}`)),
+      business.symbols.length === 0 ? h("option", { value: "" }, t("picker.empty")) : null,
+      business.symbols.map((s) => h("option", { key: s.id, value: s.id }, `${s.name} · ${t("market." + s.market)}`)),
     ));
 }
 
@@ -92,24 +92,22 @@ export function Panel({ store, snapshot }) {
     }
   }, [store]);
 
-  const currentMarketLabel = MARKET_LABELS[ui.lastMarket] ?? "";
-
   return h("div", {
     ref: panelRef,
     className: "skc-panel",
     style: { left: pos.x, top: pos.y },
   },
     h("div", { className: "skc-header", onPointerDown: onHeaderPointerDown, onPointerMove: onHeaderPointerMove, onPointerUp: onHeaderPointerUp },
-      h("span", { className: "skc-title" }, "盯盘"),
-      h("span", { className: "skc-header-meta" }, quoteMeta?.error ? "行情服务异常" : `${business.symbols.length} 个自选 · 实例共享`),
+      h("span", { className: "skc-title" }, t("app.title")),
+      h("span", { className: "skc-header-meta" }, quoteMeta?.error ? t("app.meta.error") : t("app.meta", { n: business.symbols.length })),
       h("span", { className: "skc-spacer" }),
       h("button", {
         className: `skc-icon-btn${privacy ? " skc-privacy-on" : ""}`,
-        title: privacy ? "隐私开：持仓金额已遮挡（点击关闭）" : "隐私关：点击隐藏持仓金额",
+        title: t("app.footer.privacy"),
         onClick: () => store.setPrivacy(!privacy),
       }, privacy ? "🙈" : "👁"),
-      h("button", { className: "skc-icon-btn", title: "添加标的", onClick: () => store.setShowAdd(true) }, "＋"),
-      h("button", { className: "skc-icon-btn", title: "收起（保持轻量刷新）", onClick: () => store.closePanel() }, "—"),
+      h("button", { className: "skc-icon-btn", title: t("add.title"), onClick: () => store.setShowAdd(true) }, "＋"),
+      h("button", { className: "skc-icon-btn", title: t("app.title"), onClick: () => store.closePanel() }, "—"),
     ),
     h("div", { className: "skc-body" },
       // 列表常驻挂载：详情是覆盖层 → 返回时市场/筛选/滚动全部保留（4.3）
@@ -125,7 +123,7 @@ export function Panel({ store, snapshot }) {
     h("div", { className: "skc-footer" },
       h(CapsulePicker, { store, snapshot }),
       h("span", { className: "skc-hint" },
-        `免费行情有延迟${privacy ? " · 隐私遮挡中（仅展示层，数据未加密）" : ""} · 界面偏好按浏览器保存，数据按 DSH 实例保存`),
+        t("app.footer", { privacy: privacy ? t("app.footer.privacy") : "" })),
     ),
     ui.showAdd ? h(AddDialog, { store, business, defaultMarket: ui.lastMarket, onClose: () => store.setShowAdd(false) }) : null,
     toast ? h("div", { className: "skc-toast" }, toast.text) : null,

@@ -10,6 +10,7 @@ const expression = process.argv[2] ?? "1+1";
 const width = process.argv[3] ? Number(process.argv[3]) : null;
 const height = process.argv[4] ? Number(process.argv[4]) : null;
 const mobile = process.argv[5] === "mobile";
+const locale = process.argv[6] || null;
 const result = await new Promise((resolve, reject) => {
   const timer = setTimeout(() => reject(new Error("cdp timeout 30s")), 30000);
   let id = 0;
@@ -34,6 +35,10 @@ const result = await new Promise((resolve, reject) => {
       if (width) {
         await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 3, mobile });
         await new Promise((r) => setTimeout(r, 800));
+      }
+      if (locale) {
+        await send("Emulation.setLocaleOverride", { locale });
+        await new Promise((r) => setTimeout(r, 300));
       }
       const msg = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
       clearTimeout(timer);

@@ -8,6 +8,7 @@ import { createStore, useStore } from "./store.mjs";
 import { Panel } from "./panel.mjs";
 import { Capsule } from "./capsule.mjs";
 import { injectStyles } from "./styles.mjs";
+import { t } from "./i18n.mjs";
 
 const store = createStore();
 
@@ -17,7 +18,7 @@ function App() {
 
   useEffect(() => {
     injectStyles();
-    store.refreshState().then(() => store.restartPolling()).catch((e) => store.setToast(`初始化失败：${e.message ?? e}`));
+    store.refreshState().then(() => store.restartPolling()).catch((e) => store.setToast(t("toast.init-failed", { e: String(e?.message ?? e) })));
     const onVis = () => store.handleVisibility();
     document.addEventListener("visibilitychange", onVis);
     // 组件与页面同生命周期；轮询定时器随页面关闭自然终止（无服务端常驻任务）
@@ -31,7 +32,7 @@ function App() {
   return h("div", { className: "skc-root" },
     h(Capsule, { store, ui, symbol: capsuleSymbol, quote: capsuleQuote }),
     ui.panelOpen ? h(Panel, { store, snapshot }) : null,
-    h("div", { className: "skc-error-global" }, quoteMeta?.error ? `行情拉取失败：${quoteMeta.error}` : null),
+    h("div", { className: "skc-error-global" }, quoteMeta?.error ? t("app.quote-failed", { e: quoteMeta.error }) : null),
   );
 }
 

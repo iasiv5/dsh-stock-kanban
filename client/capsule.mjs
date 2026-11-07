@@ -1,11 +1,12 @@
 /**
  * 悬浮胶囊：名称 + 现价 + 涨跌幅 + 触价标记；拖动（阈值防误触）→ 松手吸附最近边缘 → 位置按访问端记忆。
- * 触价时仅加标记（Ⓑ/Ⓢ），不抢占行情内容（4.1）。
+ * 触价时仅加标记（Ⓑ/Ⓢ），不抢占行情内容（4.1）。点击 = 开/关面板切换。
  */
 
 import { useCallback, useEffect, useRef } from "react";
 import { createElement as h } from "react";
 import { fmtPrice, fmtPct, trendClass, shouldDrag, snapToEdge } from "./fmt.mjs";
+import { t } from "./i18n.mjs";
 
 export function Capsule({ store, ui, symbol, quote }) {
   const ref = useRef(null);
@@ -23,7 +24,7 @@ export function Capsule({ store, ui, symbol, quote }) {
       baseX: rect.left, baseY: rect.top,
       moved: false, pointerId: e.pointerId,
     };
-    try { el.setPointerCapture?.(e.pointerId); } catch { /* 合成事件/无活动指针时捕获不可用，拖动逻辑不依赖捕获 */ }
+    try { el.setPointerCapture?.(e.pointerId); } catch { /* 合成事件/无活动指针时捕获不可用 */ }
   }, []);
 
   const onPointerMove = useCallback((e) => {
@@ -55,8 +56,7 @@ export function Capsule({ store, ui, symbol, quote }) {
       el.style.top = `${snapped.y}px`;
       store.setCapsulePos(snapped); // 位置按访问端保存（9.2）
     } else {
-      // 点击 = 开/关切换：面板已开时再点胶囊直接收起（窄屏下按钮可能不可达的兜底恢复路径）
-      store.togglePanel();
+      store.togglePanel(); // 点击 = 开/关切换（窄屏下按钮不可达的兜底恢复路径）
     }
   }, [store]);
 
@@ -86,9 +86,9 @@ export function Capsule({ store, ui, symbol, quote }) {
 
   const price = quote?.status === "ok" ? quote.price : null;
   const pct = quote?.changePercent ?? null;
-  const name = symbol ? (quote?.name || symbol.name || symbol.code) : "自选";
+  const name = symbol ? (quote?.name || symbol.name || symbol.code) : t("capsule.empty");
   const target = quote?.target;
-  const stale = target?.status === "stale" || target?.status === "no-data";
+  const paused = target?.status === "stale" || target?.status === "no-data";
   const buyHit = target?.buyTriggered === true;
   const sellHit = target?.sellTriggered === true;
 
@@ -100,12 +100,12 @@ export function Capsule({ store, ui, symbol, quote }) {
     onPointerMove,
     onPointerUp,
     onPointerCancel: onPointerUp,
-    title: stale && (symbol?.buyTarget != null || symbol?.sellTarget != null) ? "行情已过期或不可用：触价标记暂停显示" : undefined,
+    title: paused && (symbol?.buyTarget != null || symbol?.sellTarget != null) ? t("capsule.tip.stale") : undefined,
   },
     buyHit ? h("span", { className: "skc-capsule-mark skc-mark-buy" }, "Ⓑ") : null,
     sellHit ? h("span", { className: "skc-capsule-mark skc-mark-sell" }, "Ⓢ") : null,
     h("span", { className: "skc-capsule-name" }, name),
-    h("span", { className: `skc-capsule-price ${trendClass(pct)}` }, price != null ? fmtPrice(price) : stale && quote ? "行情旧" : "—"),
+    h("span", { className: `skc-capsule-price ${trendClass(pct)}` }, price != null ? fmtPrice(price) : (paused && quote ? t("capsule.stale") : "—")),
     h("span", { className: `skc-capsule-pct ${trendClass(pct)}` }, fmtPct(pct)),
   );
 }

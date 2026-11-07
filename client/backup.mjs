@@ -1,16 +1,17 @@
 /**
  * 备份导入／导出：
  *   - 导出：下载结构化 JSON（schemaVersion 1），包含自选/持仓/目标价/隐私设置；
- *   - 导入：文件选择 → 客户端预读展示计数 → 覆盖语义显式确认（可取消）→ 服务端再次全量校验；
- *   - 明确提示：备份含个人持仓信息；隐私开关不等于加密。
+ *   - 导入：文件选择 → 预读计数 → 覆盖语义显式确认（可取消）→ 服务端再次全量校验；
+ *   - 明确提示：备份含持仓明文；隐私开关不等于加密。
  */
 
 import { createElement as h, useRef, useState } from "react";
 import { api } from "./api.mjs";
+import { t, tErr } from "./i18n.mjs";
 
 export function BackupSection({ store, business }) {
   const fileRef = useRef(null);
-  const [pending, setPending] = useState(null); // {payload, text}
+  const [pending, setPending] = useState(null); // {payload, count}
   const [importing, setImporting] = useState(false);
   const [parseError, setParseError] = useState(null);
 
@@ -25,18 +26,18 @@ export function BackupSection({ store, business }) {
     try {
       text = await file.text();
     } catch (err) {
-      setParseError(`读取文件失败：${err.message ?? err}`);
+      setParseError(t("backup.err.read", { e: String(err?.message ?? err) }));
       return;
     }
     let payload;
     try {
       payload = JSON.parse(text);
     } catch {
-      setParseError("不是合法的 JSON 文件");
+      setParseError(t("backup.err.json"));
       return;
     }
     if (payload?.kind !== "stock-kanban-backup" || payload?.schemaVersion !== 1) {
-      setParseError("不是本插件的备份文件（kind/schemaVersion 不符），已拒绝");
+      setParseError(t("backup.err.kind"));
       return;
     }
     const count = Array.isArray(payload.symbols) ? payload.symbols.length : 0;
@@ -49,28 +50,28 @@ export function BackupSection({ store, business }) {
     const result = await store.importBackup(pending.payload);
     setImporting(false);
     if (result.ok) {
-      store.setToast(`导入完成：${result.result.imported} 个标的（覆盖模式）`);
+      store.setToast(t("backup.done", { n: result.result.imported }));
       setPending(null);
     } else if (result.error?.status === 422) {
-      store.setToast(`备份内容校验未通过（${result.error.body?.error ?? "invalid"}），现有数据未改动`);
+      store.setToast(t("backup.rejected", { e: tErr(result.error.body?.error) }));
       setPending(null);
     }
   };
 
   return h("div", { className: "skc-backup" },
-    h("div", { className: "skc-section-title" }, "备份与迁移"),
+    h("div", { className: "skc-section-title" }, t("backup.title")),
     h("div", { className: "skc-backup-row" },
-      h("a", { className: "skc-btn skc-btn-ghost", href: api.exportUrl, download: true }, "导出备份"),
-      h("button", { className: "skc-btn", onClick: pickFile }, "导入备份"),
+      h("a", { className: "skc-btn skc-btn-ghost", href: api.exportUrl, download: true }, t("backup.export")),
+      h("button", { className: "skc-btn", onClick: pickFile }, t("backup.import")),
       h("input", { ref: fileRef, type: "file", accept: ".json,application/json", style: { display: "none" }, onChange: onFile }),
     ),
     parseError ? h("div", { className: "skc-error" }, parseError) : null,
     pending ? h("div", { className: "skc-confirm" },
-      h("div", {}, `备份含 ${pending.count} 个标的。导入为【覆盖】模式：将替换当前全部自选/持仓/目标价（当前 ${business.symbols.length} 个）。`),
-      h("div", { className: "skc-hint" }, "备份文件包含个人持仓信息，请妥善保管；隐私开关不会加密备份文件。"),
+      h("div", {}, t("backup.confirm", { n: pending.count, m: business.symbols.length })),
+      h("div", { className: "skc-hint" }, t("backup.privacy-note")),
       h("div", { className: "skc-backup-row" },
-        h("button", { className: "skc-btn skc-btn-danger", disabled: importing, onClick: confirmImport }, "确认覆盖导入"),
-        h("button", { className: "skc-btn", disabled: importing, onClick: () => setPending(null) }, "取消"),
+        h("button", { className: "skc-btn skc-btn-danger", disabled: importing, onClick: confirmImport }, t("backup.overwrite")),
+        h("button", { className: "skc-btn", disabled: importing, onClick: () => setPending(null) }, t("backup.cancel")),
       )) : null,
   );
 }

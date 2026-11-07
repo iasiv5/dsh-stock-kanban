@@ -144,7 +144,7 @@ const LIMIT_OF_PERIOD = { day: 180, week: 150, month: 120 };
 /** K线（fqt=1 前复权）。行 CSV：date,open,close,high,low,volume,amount,… */
 export async function fetchKline(code, period = "day") {
   const secid = await resolveUSSecid(code);
-  if (!secid) return { candles: [], adjust: null, error: "未找到该美股代码" };
+  if (!secid) return { candles: [], adjust: null, error: "not-found" };
   const klt = KLT_OF_PERIOD[period] ?? "101";
   const lmt = LIMIT_OF_PERIOD[period] ?? 180;
   const url = `${EM_HIS}/api/qt/stock/kline/get?secid=${secid}&klt=${klt}&fqt=1&lmt=${lmt}&end=20500101`
@@ -153,10 +153,10 @@ export async function fetchKline(code, period = "day") {
   try {
     j = await emJson(url);
   } catch (e) {
-    return { candles: [], adjust: null, error: `行情获取失败(${e.message})` };
+    return { candles: [], adjust: null, error: "fetch-failed", errorDetail: String(e.message ?? e).slice(0, 80) };
   }
   const rows = j?.data?.klines ?? [];
-  if (!Array.isArray(rows) || rows.length === 0) return { candles: [], adjust: null, error: "无K线数据" };
+  if (!Array.isArray(rows) || rows.length === 0) return { candles: [], adjust: null, error: "no-data" };
   const candles = [];
   for (const line of rows) {
     const c = String(line).split(",");
@@ -167,25 +167,25 @@ export async function fetchKline(code, period = "day") {
     if (!/^\d{4}-\d{2}-\d{2}/.test(c[0] ?? "") || open == null || close == null || high == null || low == null) continue;
     candles.push({ time: String(c[0]).slice(0, 10), open, high, low, close, volume: num(c[5]) ?? 0 });
   }
-  if (candles.length === 0) return { candles: [], adjust: null, error: "无K线数据" };
+  if (candles.length === 0) return { candles: [], adjust: null, error: "no-data" };
   return { candles, adjust: "qfq", error: null };
 }
 
 /** 分时（当日）。trends 行 "YYYY-MM-DD HH:mm",price,…（北京时间为轴） */
 export async function fetchMinuteDetail(code) {
   const secid = await resolveUSSecid(code);
-  if (!secid) return { date: null, prevClose: null, points: [], error: "未找到该美股代码" };
+  if (!secid) return { date: null, prevClose: null, points: [], error: "not-found" };
   const url = `${EM_HIS}/api/qt/stock/trends2/get?secid=${secid}`
     + "&fields1=f1,f2,f3,f4,f5,f6,f7,f8&fields2=f51,f53&iscr=0&ndays=1";
   let j;
   try {
     j = await emJson(url);
   } catch (e) {
-    return { date: null, prevClose: null, points: [], error: `行情获取失败(${e.message})` };
+    return { date: null, prevClose: null, points: [], error: "fetch-failed", errorDetail: String(e.message ?? e).slice(0, 80) };
   }
   const d = j?.data;
   const trends = Array.isArray(d?.trends) ? d.trends : [];
-  if (trends.length === 0) return { date: null, prevClose: null, points: [], error: "无分时数据" };
+  if (trends.length === 0) return { date: null, prevClose: null, points: [], error: "no-data" };
   const points = [];
   for (const line of trends) {
     const c = String(line).split(",");
@@ -198,7 +198,7 @@ export async function fetchMinuteDetail(code) {
     if (!Number.isFinite(t) || t <= 0) continue;
     points.push({ t, p, v });
   }
-  if (points.length === 0) return { date: null, prevClose: null, points: [], error: "无分时数据" };
+  if (points.length === 0) return { date: null, prevClose: null, points: [], error: "no-data" };
   const preClose = num(d?.preClose);
   return {
     date: String(trends[0]).slice(0, 10),

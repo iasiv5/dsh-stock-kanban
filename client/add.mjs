@@ -4,7 +4,8 @@
 
 import { createElement as h, useState, useRef, useEffect } from "react";
 import { api } from "./api.mjs";
-import { MARKETS, MARKET_LABELS } from "../src/identity.mjs";
+import { t, tErr } from "./i18n.mjs";
+import { MARKETS } from "../src/identity.mjs";
 
 export function AddDialog({ store, business, defaultMarket, onClose }) {
   const [market, setMarket] = useState(defaultMarket);
@@ -32,7 +33,7 @@ export function AddDialog({ store, business, defaultMarket, onClose }) {
       setSearchError(data.error ?? null);
     } catch (e) {
       setResults([]);
-      setSearchError(`搜索接口不可用：${e.message ?? e}`);
+      setSearchError(String(e?.message ?? e));
     } finally {
       setSearching(false);
     }
@@ -48,11 +49,8 @@ export function AddDialog({ store, business, defaultMarket, onClose }) {
     setBusy(true);
     const result = await store.addSymbol(row.market, row.code, null);
     setBusy(false);
-    if (result.ok) {
-      store.setToast(`已添加 ${row.name}`);
-    } else if (result.error?.status === 409 && result.error?.body?.error === "duplicate") {
-      store.setToast("该标的已在自选中");
-    }
+    if (result.ok) store.setToast(t("toast.added", { name: row.name }));
+    else if (result.error?.status === 409 && result.error?.body?.error === "duplicate") store.setToast(t("toast.duplicate"));
   };
 
   const addDirect = async () => {
@@ -62,12 +60,12 @@ export function AddDialog({ store, business, defaultMarket, onClose }) {
     const result = await store.addSymbol(market, code, null);
     setBusy(false);
     if (result.ok) {
-      store.setToast(`已添加 ${code}`);
+      store.setToast(t("toast.added", { name: code }));
       setDirectCode("");
     } else if (result.error?.status === 409 && result.error?.body?.error === "duplicate") {
-      store.setToast("该标的已在自选中");
+      store.setToast(t("toast.duplicate"));
     } else if (result.error?.status === 422) {
-      store.setToast(`代码无效或行情不可用（${result.error.body?.error ?? "invalid"}）——直连添加必须通过行情校验`);
+      store.setToast(t("add.not-found", { e: tErr(result.error.body?.error) }));
     }
   };
 
@@ -75,7 +73,7 @@ export function AddDialog({ store, business, defaultMarket, onClose }) {
 
   return h("div", { className: "skc-dialog" },
     h("div", { className: "skc-dialog-head" },
-      h("span", { className: "skc-section-title" }, "添加标的"),
+      h("span", { className: "skc-section-title" }, t("add.title")),
       h("span", { className: "skc-spacer" }),
       h("button", { className: "skc-icon-btn", onClick: onClose }, "✕")),
     h("div", { className: "skc-tabs skc-add-tabs" },
@@ -83,18 +81,18 @@ export function AddDialog({ store, business, defaultMarket, onClose }) {
         key: m,
         className: `skc-tab${m === market ? " skc-tab-active" : ""}`,
         onClick: () => { setMarket(m); if (query.trim()) doSearch(query, m); },
-      }, MARKET_LABELS[m])),
+      }, t(`market.${m}`))),
     ),
     h("input", {
       ref: inputRef,
       className: "skc-input",
-      placeholder: market === "crypto" ? "搜索币种或交易对，如 BTC / 以太坊" : "搜索名称或代码…",
+      placeholder: t(`add.search.${market}`),
       value: query,
       onChange: (e) => onQueryChange(e.target.value),
       onKeyDown: (e) => { if (e.key === "Enter") doSearch(query); if (e.key === "Escape") onClose(); },
     }),
-    searching ? h("div", { className: "skc-hint" }, "搜索中…") : null,
-    searchError ? h("div", { className: "skc-error" }, `${searchError} —— 不展示虚构结果，请稍后重试或直接输入准确代码。`) : null,
+    searching ? h("div", { className: "skc-hint" }, t("add.searching")) : null,
+    searchError ? h("div", { className: "skc-error" }, t("add.search-error", { e: searchError })) : null,
     results && results.length > 0 ? h("div", { className: "skc-add-results" },
       results.map((row) => h("button", {
         key: row.id,
@@ -103,23 +101,23 @@ export function AddDialog({ store, business, defaultMarket, onClose }) {
         onClick: () => addResult(row),
       },
         h("span", { className: "skc-add-name" }, row.name),
-        h("span", { className: "skc-code" }, row.code + (row.kind === "etf" ? " · ETF" : "") + (row.market === "crypto" ? ` · ${row.quoteCurrency} 对` : "")),
-        known.has(row.id) ? h("span", { className: "skc-badge" }, "已添加") : null,
+        h("span", { className: "skc-code" }, row.code + (row.kind === "etf" ? " · ETF" : "") + (row.market === "crypto" ? ` · ${row.quoteCurrency}` : "")),
+        known.has(row.id) ? h("span", { className: "skc-badge" }, t("badge.added")) : null,
       ))) : null,
-    results && !searching && !searchError && results.length === 0 ? h("div", { className: "skc-hint" }, "无匹配结果") : null,
+    results && !searching && !searchError && results.length === 0 ? h("div", { className: "skc-hint" }, t("add.no-match")) : null,
     h("div", { className: "skc-direct" },
-      h("span", { className: "skc-section-title" }, "直接输入代码"),
+      h("span", { className: "skc-section-title" }, t("add.direct")),
       h("div", { className: "skc-direct-row" },
         h("input", {
           className: "skc-input",
-          placeholder: market === "cn" ? "如 600519 / 000001 / sh510300" : market === "hk" ? "如 00700" : market === "us" ? "如 AAPL" : "如 BTC-USDT",
+          placeholder: t(`add.direct.${market}`),
           value: directCode,
           onChange: (e) => setDirectCode(e.target.value),
           onKeyDown: (e) => { if (e.key === "Enter") addDirect(); },
         }),
-        h("button", { className: "skc-btn skc-btn-primary", disabled: busy || !directCode.trim(), onClick: addDirect }, "校验并添加"),
+        h("button", { className: "skc-btn skc-btn-primary", disabled: busy || !directCode.trim(), onClick: addDirect }, t("add.validate")),
       ),
-      h("div", { className: "skc-hint" }, "直连代码同样要过行情校验（取到有效价格才收），无效代码不会被加入。"),
+      h("div", { className: "skc-hint" }, t("add.hint")),
     ),
   );
 }

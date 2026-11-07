@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api.mjs";
 import { snapToEdge } from "./fmt.mjs";
+import { t, tErr } from "./i18n.mjs";
 
 const UI_KEY = "stock-kanban:ui:v1";
 
@@ -93,10 +94,10 @@ export function createStore() {
     } catch (e) {
       if (e.status === 409) {
         await refreshState();
-        setToast("数据已被其他页面更新，已为你刷新最新数据，请重试。");
+        setToast(t("toast.conflict"));
         return { ok: false, conflict: true, error: e };
       }
-      setToast(`操作失败：${e.message ?? e}`);
+      setToast(t("toast.op-failed", { e: tErr(e.body?.error, String(e?.message ?? e)) }));
       return { ok: false, error: e };
     }
   }

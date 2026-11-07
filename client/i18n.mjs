@@ -1,0 +1,299 @@
+/**
+ * 双语文案（跟随系统语言）：zh = 系统语言为中文；其余回落 en。
+ * 服务端错误统一返回稳定代码，本模块负责本地化；未知代码原样透出。
+ */
+
+export function resolveLang(navLang) {
+  return typeof navLang === "string" && navLang.toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+
+export const LANG = resolveLang(typeof navigator !== "undefined" ? navigator.language : undefined);
+let currentLang = LANG;
+
+/** 测试/调试用：显式切换语言（UI 正常路径不使用——跟随系统语言） */
+export function setLang(lang) {
+  if (lang === "zh" || lang === "en") currentLang = lang;
+}
+
+const zh = {  "market.cn": "A 股",
+  "market.hk": "港股",
+  "market.us": "美股",
+  "market.crypto": "加密货币",
+
+  "app.title": "盯盘",
+  "app.meta": "{n} 个自选 · 实例共享",
+  "app.meta.error": "行情服务异常",
+  "app.footer": "免费行情有延迟{privacy} · 界面偏好存本浏览器，数据存 DSH 实例",
+  "app.footer.privacy": " · 隐私遮挡中（展示层，非加密）",
+  "app.quote-failed": "行情拉取失败：{e}",
+
+  "capsule.empty": "自选",
+  "capsule.stale": "行情旧",
+  "capsule.tip.stale": "行情已过期：触价标记暂停显示",
+
+  "badge.stale": "旧",
+  "badge.closed": "休",
+  "badge.no-data": "无",
+  "badge.added": "已添加",
+  "badge.holder": "已填持仓",
+  "badge.stale.tip": "行情过期：触价状态暂停判断",
+  "badge.closed.tip": "休市中：以下一交易时段行情恢复判断",
+  "badge.no-data.tip": "行情缺失：触价状态未知",
+
+  "list.holdings-only": "只看持仓",
+  "list.refresh": "刷新",
+  "list.empty.watch": "暂无自选，点「＋」添加",
+  "list.empty.holdings": "该市场暂无持仓",
+  "list.quote-failed": "获取失败",
+
+  "detail.back": "← 返回",
+  "detail.delete": "删除",
+  "detail.missing": "标的不存在或已被删除",
+  "detail.quote-time": "行情 {t} · 拉取 {f}",
+  "detail.stale": "行情过期",
+  "detail.no-data": "行情缺失",
+  "detail.period.minute": "分时",
+  "detail.period.day": "日K",
+  "detail.period.week": "周K",
+  "detail.period.month": "月K",
+  "detail.adjust.fwd": "前复权",
+  "detail.adjust.none": "不复权",
+  "detail.chart.loading": "加载中…",
+  "detail.chart.empty.minute": "暂无分时数据",
+  "detail.chart.empty.candle": "暂无K线数据",
+  "detail.chart.error": "加载失败：{e}",
+  "detail.holdings": "持仓",
+  "detail.holdings.meta": "市值 {v} {ccy} · 盈亏 {p}（{pct}）",
+  "detail.cost-unset": "成本未填",
+  "detail.no-quote": "无行情",
+  "detail.quantity.shares": "数量（股）",
+  "detail.quantity.coins": "数量（币）",
+  "detail.avg-cost": "平均成本（{ccy}）",
+  "detail.blank-clears": "留空清除",
+  "detail.save-position": "存持仓",
+  "detail.clear-position": "清持仓",
+  "detail.targets": "目标价",
+  "detail.buy-target": "买入目标价（≤ 触发 Ⓑ，{ccy}）",
+  "detail.sell-target": "卖出目标价（≥ 触发 Ⓢ，{ccy}）",
+  "detail.unset": "不设置",
+  "detail.save-targets": "存目标价",
+  "detail.overlap": "阈值重叠",
+  "detail.targets.hint": "仅基于有效行情判断；过期/缺失时暂停，恢复即续。",
+  "detail.confirm.overlap": "买入目标价不低于卖出目标价，两个标记可能同时显示。仍要保存？",
+  "detail.confirm.remove": "删除「{name}」？持仓与目标价一并移除（可用备份恢复）。",
+  "detail.err.numbers": "数量与成本须为正数",
+  "detail.err.targets": "目标价须为正数",
+
+  "add.title": "添加标的",
+  "add.search.cn": "搜名称或代码…",
+  "add.search.hk": "搜名称或代码…",
+  "add.search.us": "搜名称或代码…",
+  "add.search.crypto": "搜币种或交易对（BTC / 以太坊）",
+  "add.direct": "直接输代码",
+  "add.direct.cn": "600519 / 000001 / sh510300",
+  "add.direct.hk": "00700",
+  "add.direct.us": "AAPL",
+  "add.direct.crypto": "BTC-USDT",
+  "add.validate": "校验并添加",
+  "add.hint": "代码须过行情校验（取到有效价才收）。",
+  "add.searching": "搜索中…",
+  "add.no-match": "无匹配结果",
+  "add.search-error": "搜索源不可用：{e}，不展示虚构结果",
+  "add.not-found": "代码无效或无行情（{e}）",
+
+  "backup.title": "备份与迁移",
+  "backup.export": "导出备份",
+  "backup.import": "导入备份",
+  "backup.confirm": "备份含 {n} 个标的；导入为覆盖模式，替换当前全部数据（现 {m} 个）。",
+  "backup.privacy-note": "备份含持仓明文，请妥善保管；隐私开关不加密备份。",
+  "backup.overwrite": "确认覆盖导入",
+  "backup.cancel": "取消",
+  "backup.done": "已导入 {n} 个标的（覆盖）",
+  "backup.rejected": "备份校验未通过（{e}），现有数据未动",
+  "backup.err.read": "读取失败：{e}",
+  "backup.err.json": "不是合法 JSON 文件",
+  "backup.err.kind": "不是本插件的备份文件",
+
+  "toast.added": "已添加 {name}",
+  "toast.duplicate": "该标的已在自选中",
+  "toast.position-saved": "持仓已保存",
+  "toast.position-cleared": "持仓已清除",
+  "toast.targets-saved": "目标价已保存",
+  "toast.conflict": "数据已被其他页面更新：已刷新，请重试",
+  "toast.init-failed": "初始化失败：{e}",
+  "toast.op-failed": "操作失败：{e}",
+
+  "picker.label": "胶囊标的",
+  "picker.empty": "先添加标的",
+
+  "err.duplicate": "该标的已在自选中",
+  "err.invalid-identity": "代码格式无效",
+  "err.quote-unavailable": "行情暂不可用，稍后再试",
+  "err.symbol-not-found": "未找到该标的",
+  "err.not-found": "标的不存在",
+  "err.no-data": "无行情数据",
+  "err.fetch-failed": "行情获取失败",
+  "err.api-error": "接口返回异常",
+  "err.invalid-code": "代码无效",
+  "err.save-failed": "保存失败",
+  "err.invalid-input": "输入无效",
+  "err.unsupported-schema-version": "备份版本不支持",
+  "err.wrong-kind": "备份类型不符",
+  "err.not-an-object": "备份格式错误",
+  "err.symbols-not-array": "备份 symbols 字段无效",
+  "err.rev-conflict": "版本冲突",
+  "err.origin-rejected": "跨源请求被拒绝",
+  "err.unknown-market": "未知市场",
+};
+
+const en = {
+  "market.cn": "A-shares",
+  "market.hk": "HK",
+  "market.us": "US",
+  "market.crypto": "Crypto",
+
+  "app.title": "Watchlist",
+  "app.meta": "{n} symbols · shared per instance",
+  "app.meta.error": "Quote service error",
+  "app.footer": "Free quotes are delayed{privacy} · UI prefs stay in this browser; data lives on the DSH instance",
+  "app.footer.privacy": " · privacy masking on (display only, not encryption)",
+  "app.quote-failed": "Quote fetch failed: {e}",
+
+  "capsule.empty": "Watchlist",
+  "capsule.stale": "Stale",
+  "capsule.tip.stale": "Quote stale: trigger marks paused",
+
+  "badge.stale": "Stale",
+  "badge.closed": "Closed",
+  "badge.no-data": "N/A",
+  "badge.added": "Added",
+  "badge.holder": "Has position",
+  "badge.stale.tip": "Quote stale: trigger check paused",
+  "badge.closed.tip": "Market closed: resumes next session",
+  "badge.no-data.tip": "No quote: trigger state unknown",
+
+  "list.holdings-only": "Holdings only",
+  "list.refresh": "Refresh",
+  "list.empty.watch": "No symbols yet — tap ＋",
+  "list.empty.holdings": "No holdings in this market",
+  "list.quote-failed": "Failed",
+
+  "detail.back": "← Back",
+  "detail.delete": "Delete",
+  "detail.missing": "Symbol missing or removed",
+  "detail.quote-time": "Quote {t} · Fetched {f}",
+  "detail.stale": "Stale",
+  "detail.no-data": "No quote",
+  "detail.period.minute": "Time",
+  "detail.period.day": "Day",
+  "detail.period.week": "Week",
+  "detail.period.month": "Month",
+  "detail.adjust.fwd": "Fwd-adjusted",
+  "detail.adjust.none": "Unadjusted",
+  "detail.chart.loading": "Loading…",
+  "detail.chart.empty.minute": "No intraday data",
+  "detail.chart.empty.candle": "No candle data",
+  "detail.chart.error": "Load failed: {e}",
+  "detail.holdings": "Position",
+  "detail.holdings.meta": "Value {v} {ccy} · PnL {p} ({pct})",
+  "detail.cost-unset": "cost unset",
+  "detail.no-quote": "no quote",
+  "detail.quantity.shares": "Quantity (shares)",
+  "detail.quantity.coins": "Quantity (coins)",
+  "detail.avg-cost": "Avg cost ({ccy})",
+  "detail.blank-clears": "blank clears",
+  "detail.save-position": "Save",
+  "detail.clear-position": "Clear",
+  "detail.targets": "Targets",
+  "detail.buy-target": "Buy target (≤ fires Ⓑ, {ccy})",
+  "detail.sell-target": "Sell target (≥ fires Ⓢ, {ccy})",
+  "detail.unset": "unset",
+  "detail.save-targets": "Save",
+  "detail.overlap": "overlap",
+  "detail.targets.hint": "Checked against live quotes only; paused while stale, resumes automatically.",
+  "detail.confirm.overlap": "Buy target ≥ sell target: both marks may show at once. Save anyway?",
+  "detail.confirm.remove": "Remove “{name}”? Position and targets go too (recoverable via backup).",
+  "detail.err.numbers": "Quantity and cost must be positive",
+  "detail.err.targets": "Targets must be positive",
+
+  "add.title": "Add symbol",
+  "add.search.cn": "Search name or code…",
+  "add.search.hk": "Search name or code…",
+  "add.search.us": "Search name or code…",
+  "add.search.crypto": "Search coin or pair (BTC / Ethereum)",
+  "add.direct": "Direct code",
+  "add.direct.cn": "600519 / 000001 / sh510300",
+  "add.direct.hk": "00700",
+  "add.direct.us": "AAPL",
+  "add.direct.crypto": "BTC-USDT",
+  "add.validate": "Validate & add",
+  "add.hint": "Codes must pass a live quote check before being added.",
+  "add.searching": "Searching…",
+  "add.no-match": "No matches",
+  "add.search-error": "Search unavailable: {e} — no fake results",
+  "add.not-found": "Invalid code or no quote ({e})",
+
+  "backup.title": "Backup & migrate",
+  "backup.export": "Export",
+  "backup.import": "Import",
+  "backup.confirm": "Backup holds {n} symbols; import OVERWRITES all current data ({m}).",
+  "backup.privacy-note": "Backups contain positions in plain text — keep them safe; privacy mode does not encrypt backups.",
+  "backup.overwrite": "Overwrite import",
+  "backup.cancel": "Cancel",
+  "backup.done": "Imported {n} symbols (overwrite)",
+  "backup.rejected": "Backup rejected ({e}); current data unchanged",
+  "backup.err.read": "Read failed: {e}",
+  "backup.err.json": "Invalid JSON file",
+  "backup.err.kind": "Not a stock-kanban backup",
+
+  "toast.added": "Added {name}",
+  "toast.duplicate": "Already in watchlist",
+  "toast.position-saved": "Position saved",
+  "toast.position-cleared": "Position cleared",
+  "toast.targets-saved": "Targets saved",
+  "toast.conflict": "Data changed in another tab: refreshed — please retry",
+  "toast.init-failed": "Init failed: {e}",
+  "toast.op-failed": "Action failed: {e}",
+
+  "picker.label": "Capsule",
+  "picker.empty": "add symbols first",
+
+  "err.duplicate": "Already in watchlist",
+  "err.invalid-identity": "Invalid code format",
+  "err.quote-unavailable": "Quote unavailable, retry later",
+  "err.symbol-not-found": "Symbol not found",
+  "err.not-found": "Symbol not found",
+  "err.no-data": "No quote data",
+  "err.fetch-failed": "Quote fetch failed",
+  "err.api-error": "API error",
+  "err.invalid-code": "Invalid code",
+  "err.save-failed": "Save failed",
+  "err.invalid-input": "Invalid input",
+  "err.unsupported-schema-version": "Backup version unsupported",
+  "err.wrong-kind": "Wrong backup kind",
+  "err.not-an-object": "Malformed backup",
+  "err.symbols-not-array": "Backup symbols field invalid",
+  "err.rev-conflict": "Version conflict",
+  "err.origin-rejected": "Cross-origin request rejected",
+  "err.unknown-market": "Unknown market",
+};
+
+const DICTS = { zh, en };
+
+export function t(key, params) {
+  let s = DICTS[currentLang][key] ?? DICTS.zh[key] ?? key;
+  if (params) {
+    for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, String(v));
+  }
+  return s;
+}
+
+/** 服务端错误代码 → 本地化文案（附原始 detail）；未知代码原样透出 */
+export function tErr(code, detail) {
+  if (code == null || code === "") return "";
+  const base = t(`err.${code}`);
+  const label = base.startsWith("err.") ? String(code) : base;
+  return detail ? `${label} (${detail})` : label;
+}
+
+export const DICT_KEYS = { zh: Object.keys(zh).sort(), en: Object.keys(en).sort() };

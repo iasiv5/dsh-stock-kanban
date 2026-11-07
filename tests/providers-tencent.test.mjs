@@ -82,7 +82,8 @@ test("fetchKline：上游失败 → 明确 error，不伪造数据", async () =>
   try {
     const result = await fetchKline("sh600519", "day");
     assert.equal(result.candles.length, 0);
-    assert.match(result.error, /行情获取失败/);
+    assert.equal(result.error, 'fetch-failed');
+    assert.match(result.errorDetail, /boom/);
   } finally {
     globalThis.fetch = originalFetch;
   }

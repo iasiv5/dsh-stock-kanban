@@ -278,6 +278,7 @@ async function klineRoute(req, res) {
     candles: result.candles,
     adjust: result.adjust,
     error: result.error,
+    errorDetail: result.errorDetail ?? null,
     updatedAt: Date.now(),
   });
 }
@@ -296,6 +297,7 @@ async function minuteRoute(req, res) {
     prevClose: result.prevClose,
     points: result.points,
     error: result.error,
+    errorDetail: result.errorDetail ?? null,
     updatedAt: Date.now(),
   });
 }

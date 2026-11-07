@@ -107,10 +107,10 @@ export async function fetchKline(code, period = "day") {
   try {
     json = await okxJson(`/market/candles?instId=${encodeURIComponent(instId)}&bar=${bar}&limit=${limit}`);
   } catch (e) {
-    return { candles: [], adjust: null, error: `行情获取失败(${e.message})` };
+    return { candles: [], adjust: null, error: "fetch-failed", errorDetail: String(e.message ?? e).slice(0, 80) };
   }
   const rows = json?.data ?? [];
-  if (!Array.isArray(rows) || rows.length === 0) return { candles: [], adjust: null, error: "无K线数据" };
+  if (!Array.isArray(rows) || rows.length === 0) return { candles: [], adjust: null, error: "no-data" };
   const candles = rows
     .map((r) => ({
       time: new Date(num(r[0]) + TZ_OFFSET_MS).toISOString().slice(0, 10),
@@ -122,7 +122,7 @@ export async function fetchKline(code, period = "day") {
     }))
     .filter((c) => /^\d{4}-\d{2}-\d{2}$/.test(c.time) && c.open != null && c.close != null)
     .sort((a, b) => a.time.localeCompare(b.time));
-  if (candles.length === 0) return { candles: [], adjust: null, error: "无K线数据" };
+  if (candles.length === 0) return { candles: [], adjust: null, error: "no-data" };
   return { candles, adjust: "none", error: null };
 }
 
@@ -134,15 +134,15 @@ export async function fetchMinuteDetail(code) {
   try {
     json = await okxJson(`/market/candles?instId=${encodeURIComponent(instId)}&bar=5m&limit=288`);
   } catch (e) {
-    return { date: null, prevClose: null, points: [], error: `行情获取失败(${e.message})` };
+    return { date: null, prevClose: null, points: [], error: "fetch-failed", errorDetail: String(e.message ?? e).slice(0, 80) };
   }
   const rows = json?.data ?? [];
-  if (!Array.isArray(rows) || rows.length === 0) return { date: null, prevClose: null, points: [], error: "无分时数据" };
+  if (!Array.isArray(rows) || rows.length === 0) return { date: null, prevClose: null, points: [], error: "no-data" };
   const asc = [...rows].sort((a, b) => num(a[0]) - num(b[0]));
   const points = asc
     .map((r) => ({ t: Math.round(num(r[0]) / 1000), p: num(r[4]), v: num(r[5]) ?? 0 }))
     .filter((p) => p.t > 0 && p.p != null && p.p > 0);
-  if (points.length === 0) return { date: null, prevClose: null, points: [], error: "无分时数据" };
+  if (points.length === 0) return { date: null, prevClose: null, points: [], error: "no-data" };
   const firstOpen = num(asc[0][1]);
   return {
     date: new Date(points[points.length - 1].t * 1000 + TZ_OFFSET_MS).toISOString().slice(0, 10),
