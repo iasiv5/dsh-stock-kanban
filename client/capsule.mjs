@@ -23,7 +23,7 @@ export function Capsule({ store, ui, symbol, quote }) {
       baseX: rect.left, baseY: rect.top,
       moved: false, pointerId: e.pointerId,
     };
-    el.setPointerCapture?.(e.pointerId);
+    try { el.setPointerCapture?.(e.pointerId); } catch { /* 合成事件/无活动指针时捕获不可用，拖动逻辑不依赖捕获 */ }
   }, []);
 
   const onPointerMove = useCallback((e) => {
@@ -55,9 +55,22 @@ export function Capsule({ store, ui, symbol, quote }) {
       el.style.top = `${snapped.y}px`;
       store.setCapsulePos(snapped); // 位置按访问端保存（9.2）
     } else {
-      store.openPanel(); // 未达拖动阈值 → 点击展开
+      // 点击 = 开/关切换：面板已开时再点胶囊直接收起（窄屏下按钮可能不可达的兜底恢复路径）
+      store.togglePanel();
     }
   }, [store]);
+
+  // 挂载即钳位：已存位置可能来自更宽的视口（如横屏保存后转竖屏）
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const snapped = snapToEdge(rect.left, rect.top, rect.width, rect.height, window.innerWidth, window.innerHeight);
+    el.style.left = `${snapped.x}px`;
+    el.style.top = `${snapped.y}px`;
+    store.setCapsulePos(snapped);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const onResize = () => {

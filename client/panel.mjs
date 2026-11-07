@@ -3,7 +3,7 @@
  * 添加对话框、备份区、toast。面板位置可拖动并按访问端记忆。
  */
 
-import { createElement as h, useCallback, useRef } from "react";
+import { createElement as h, useCallback, useEffect, useRef } from "react";
 import { MarketList } from "./list.mjs";
 import { Detail } from "./detail.mjs";
 import { AddDialog } from "./add.mjs";
@@ -33,7 +33,29 @@ export function Panel({ store, snapshot }) {
   const dragRef = useRef(null);
   const panelRef = useRef(null);
 
-  const pos = ui.panelPos ?? { x: Math.max(8, window.innerWidth - 420), y: 14 };
+  // 视口变化（手机旋转等）：已存面板位置重新钳回可视区，保证收起按钮始终可达
+  useEffect(() => {
+    const onResize = () => {
+      const el = panelRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const x = Math.min(Math.max(Math.round(rect.left), 8), Math.max(8, window.innerWidth - rect.width - 8));
+      const y = Math.min(Math.max(Math.round(rect.top), 8), Math.max(8, window.innerHeight - rect.height - 8));
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      store.setPanelPos({ x, y });
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [store]);
+
+    // 面板位置钳位：任何视口下完整留在屏幕内（修复手机端收起按钮被推出屏幕的问题）
+  const panelWidth = Math.min(400, window.innerWidth - 16);
+  const clampPanel = (p) => ({
+    x: Math.min(Math.max(p.x, 8), Math.max(8, window.innerWidth - panelWidth - 8)),
+    y: Math.min(Math.max(p.y, 8), Math.max(8, window.innerHeight - 120)),
+  });
+  const pos = clampPanel(ui.panelPos ?? { x: window.innerWidth - panelWidth - 16, y: 14 });
 
   const onHeaderPointerDown = useCallback((e) => {
     if (e.target.closest("button, input, label")) return;
@@ -41,7 +63,7 @@ export function Panel({ store, snapshot }) {
     if (!el) return;
     const rect = el.getBoundingClientRect();
     dragRef.current = { startX: e.clientX, startY: e.clientY, baseX: rect.left, baseY: rect.top, moved: false, id: e.pointerId };
-    el.setPointerCapture?.(e.pointerId);
+    try { el.setPointerCapture?.(e.pointerId); } catch { /* 合成事件/无活动指针时捕获不可用 */ }
   }, []);
 
   const onHeaderPointerMove = useCallback((e) => {
@@ -52,10 +74,11 @@ export function Panel({ store, snapshot }) {
     const dy = e.clientY - d.startY;
     if (!d.moved && shouldDrag(dx, dy)) d.moved = true;
     if (d.moved) {
-      const maxX = window.innerWidth - 80;
-      const maxY = window.innerHeight - 60;
-      el.style.left = `${Math.min(Math.max(d.baseX + dx, 0), maxX)}px`;
-      el.style.top = `${Math.min(Math.max(d.baseY + dy, 0), maxY)}px`;
+      // 实时钳位：面板整体不出视口（窄屏下面板近全宽，水平拖动自然受限）
+      const maxX = Math.max(8, window.innerWidth - el.offsetWidth - 8);
+      const maxY = Math.max(8, window.innerHeight - Math.min(el.offsetHeight, window.innerHeight - 16) - 8);
+      el.style.left = `${Math.min(Math.max(d.baseX + dx, 8), maxX)}px`;
+      el.style.top = `${Math.min(Math.max(d.baseY + dy, 8), maxY)}px`;
     }
   }, []);
 
@@ -65,7 +88,7 @@ export function Panel({ store, snapshot }) {
     dragRef.current = null;
     if (d?.moved && el) {
       const rect = el.getBoundingClientRect();
-      store.setPanelPos({ x: Math.round(rect.left), y: Math.round(rect.top) });
+      store.setPanelPos(clampPanel({ x: Math.round(rect.left), y: Math.round(rect.top) }));
     }
   }, [store]);
 

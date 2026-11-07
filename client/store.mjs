@@ -166,6 +166,10 @@ export function createStore() {
     setUi({ panelOpen: false, view: "list", detailId: null });
     restartPolling();
   }
+  function togglePanel() {
+    if (state.ui.panelOpen) closePanel();
+    else openPanel();
+  }
   function openDetail(id) {
     setUi({ view: "detail", detailId: id }); // 返回列表时保留 lastMarket/holdingsOnly/滚动（列表不卸载）
     restartPolling();
@@ -179,7 +183,7 @@ export function createStore() {
   function setMaVisible(v) { setUi({ maVisible: v }); }
   function setCapsuleSymbol(id) { setUi({ capsuleSymbolId: id }); }
   function setCapsulePos(pos) { setUi({ pos }); }
-  function setPanelPos(pos) { setUi({ panelPos }); }
+  function setPanelPos(pos) { setUi({ panelPos: pos }); }
 
   function setToast(text) {
     set({ toast: text ? { text, at: Date.now() } : null });
@@ -218,7 +222,7 @@ export function createStore() {
   return {
     subscribe, getState,
     refreshState, mutate, addSymbol, updateSymbol, removeSymbol, setPrivacy, importBackup,
-    pollQuotes, restartPolling, openPanel, closePanel, openDetail, backToList,
+    pollQuotes, restartPolling, openPanel, closePanel, togglePanel, openDetail, backToList,
     setLastMarket, setHoldingsOnly, setMaVisible, setCapsuleSymbol, setCapsulePos, setPanelPos,
     setToast, setShowAdd, handleResize, handleVisibility,
   };

@@ -38,7 +38,16 @@ const CSS_TEXT = `
 .skc-mark-sell{color:#2bb596}
 
 /* 面板 */
-.skc-panel{position:fixed;width:400px;max-height:80vh;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;background:var(--skc-bg);border:1px solid var(--skc-border);color:var(--skc-text);box-shadow:var(--skc-shadow);backdrop-filter:blur(10px);pointer-events:auto;z-index:9999}
+.skc-panel{position:fixed;width:min(400px,calc(100vw - 16px));max-height:min(80vh,calc(100dvh - 16px));display:flex;flex-direction:column;border-radius:12px;overflow:hidden;background:var(--skc-bg);border:1px solid var(--skc-border);color:var(--skc-text);box-shadow:var(--skc-shadow);backdrop-filter:blur(10px);pointer-events:auto;z-index:9999}
+@media (max-width:520px){
+  .skc-header-meta{display:none}
+  .skc-form-grid{grid-template-columns:1fr}
+  .skc-direct-row{flex-wrap:wrap}
+  .skc-direct-row .skc-input{flex:1 1 100%}
+  .skc-direct-row .skc-btn{flex:1 1 auto}
+  .skc-capsule{max-width:52vw}
+  .skc-capsule-name{max-width:16vw}
+}
 .skc-header{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--skc-border-soft);cursor:move;touch-action:none}
 .skc-title{font-weight:700;color:var(--skc-accent);white-space:nowrap}
 .skc-header-meta{color:var(--skc-muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
