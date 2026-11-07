@@ -49,13 +49,22 @@ export function Panel({ store, snapshot }) {
     return () => window.removeEventListener("resize", onResize);
   }, [store]);
 
-    // 面板位置钳位：任何视口下完整留在屏幕内（修复手机端收起按钮被推出屏幕的问题）
+    // 弹出位置锚定胶囊附近（下方优先，放不下放上方；水平随胶囊），任何视口钳回屏幕内。
+  // 不再跨会话记忆面板位置：胶囊即锚点，位置可预期（用户反馈：卡片离胶囊太远）。
   const panelWidth = Math.min(400, window.innerWidth - 16);
   const clampPanel = (p) => ({
     x: Math.min(Math.max(p.x, 8), Math.max(8, window.innerWidth - panelWidth - 8)),
     y: Math.min(Math.max(p.y, 8), Math.max(8, window.innerHeight - 120)),
   });
-  const pos = clampPanel(ui.panelPos ?? { x: window.innerWidth - panelWidth - 16, y: 14 });
+  const anchor = store.getCapsuleRect?.() ?? null;
+  const pos = clampPanel(anchor
+    ? {
+        x: anchor.left,
+        y: anchor.top + anchor.height + 8 + 220 > window.innerHeight
+          ? Math.max(8, anchor.top - 240)
+          : anchor.top + anchor.height + 8,
+      }
+    : { x: window.innerWidth - panelWidth - 16, y: 14 });
 
   const onHeaderPointerDown = useCallback((e) => {
     if (e.target.closest("button, input, label")) return;
@@ -72,7 +81,7 @@ export function Panel({ store, snapshot }) {
     if (!d || !el) return;
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
-    if (!d.moved && shouldDrag(dx, dy)) d.moved = true;
+    if (!d.moved && shouldDrag(dx, dy)) { d.moved = true; el.classList.add("skc-panel--dragging"); }
     if (d.moved) {
       // 实时钳位：面板整体不出视口（窄屏下面板近全宽，水平拖动自然受限）
       const maxX = Math.max(8, window.innerWidth - el.offsetWidth - 8);
@@ -86,6 +95,7 @@ export function Panel({ store, snapshot }) {
     const d = dragRef.current;
     const el = panelRef.current;
     dragRef.current = null;
+    el?.classList.remove("skc-panel--dragging");
     if (d?.moved && el) {
       const rect = el.getBoundingClientRect();
       store.setPanelPos(clampPanel({ x: Math.round(rect.left), y: Math.round(rect.top) }));
@@ -103,11 +113,11 @@ export function Panel({ store, snapshot }) {
       h("span", { className: "skc-spacer" }),
       h("button", {
         className: `skc-icon-btn${privacy ? " skc-privacy-on" : ""}`,
-        title: t("app.footer.privacy"),
+        title: privacy ? t("privacy.on") : t("privacy.off"),
         onClick: () => store.setPrivacy(!privacy),
       }, privacy ? "🙈" : "👁"),
       h("button", { className: "skc-icon-btn", title: t("add.title"), onClick: () => store.setShowAdd(true) }, "＋"),
-      h("button", { className: "skc-icon-btn", title: t("app.title"), onClick: () => store.closePanel() }, "—"),
+      h("button", { className: "skc-icon-btn", title: t("app.collapse"), onClick: () => store.closePanel() }, "—"),
     ),
     h("div", { className: "skc-body" },
       // 列表常驻挂载：详情是覆盖层 → 返回时市场/筛选/滚动全部保留（4.3）

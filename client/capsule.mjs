@@ -35,7 +35,7 @@ export function Capsule({ store, ui, symbol, quote }) {
     const dy = e.clientY - d.startY;
     if (!d.moved && shouldDrag(dx, dy)) {
       d.moved = true;
-      el.classList.add("skc-capsule-dragging");
+      el.classList.add("skc-capsule--dragging");
     }
     if (d.moved) {
       el.style.left = `${d.baseX + dx}px`;
@@ -48,13 +48,14 @@ export function Capsule({ store, ui, symbol, quote }) {
     const el = ref.current;
     drag.current = null;
     if (!d || !el) return;
-    el.classList.remove("skc-capsule-dragging");
+    el.classList.remove("skc-capsule--dragging");
     if (d.moved) {
       const rect = el.getBoundingClientRect();
       const snapped = snapToEdge(rect.left, rect.top, rect.width, rect.height, window.innerWidth, window.innerHeight);
       el.style.left = `${snapped.x}px`;
       el.style.top = `${snapped.y}px`;
       store.setCapsulePos(snapped); // 位置按访问端保存（9.2）
+      store.setCapsuleRect({ left: snapped.x, top: snapped.y, width: rect.width, height: rect.height });
     } else {
       store.togglePanel(); // 点击 = 开/关切换（窄屏下按钮不可达的兜底恢复路径）
     }
@@ -69,6 +70,7 @@ export function Capsule({ store, ui, symbol, quote }) {
     el.style.left = `${snapped.x}px`;
     el.style.top = `${snapped.y}px`;
     store.setCapsulePos(snapped);
+    store.setCapsuleRect({ left: snapped.x, top: snapped.y, width: rect.width, height: rect.height });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

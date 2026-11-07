@@ -10,6 +10,8 @@ import { Capsule } from "./capsule.mjs";
 import { injectStyles } from "./styles.mjs";
 import { t, resolveLang, setLang } from "./i18n.mjs";
 
+injectStyles(); // 模块求值期注入：子组件的挂载钳位/测量必须在样式就绪后进行
+
 const store = createStore();
 
 function App() {
@@ -18,20 +20,23 @@ function App() {
   const [, bumpLang] = useState(0); // 系统语言变化时递增，触发全树以新语言重渲染
 
   useEffect(() => {
-    injectStyles();
     store.refreshState().then(() => store.restartPolling()).catch((e) => store.setToast(t("toast.init-failed", { e: String(e?.message ?? e) })));
     const onVis = () => store.handleVisibility();
     document.addEventListener("visibilitychange", onVis);
-    // 跟随系统语言：浏览器派发 languagechange（改首选语言/系统语言后）→ 切字典并重渲染
+    // 跟随 DSH 界面语言：locale 特性把「设置 → 语言」镜像到 <html lang>，监听其实时变化
     const onLangChange = () => {
-      setLang(resolveLang(navigator.language));
+      setLang(resolveLang(navigator.language, document));
       bumpLang((v) => v + 1);
     };
+    const langObserver = new MutationObserver(onLangChange);
+    langObserver.observe(document.documentElement, { attributeFilter: ["lang"] });
     window.addEventListener("languagechange", onLangChange);
     // 组件与页面同生命周期；轮询定时器随页面关闭自然终止（无服务端常驻任务）
+    langObserver.disconnect();
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("languagechange", onLangChange);
+      langObserver.disconnect();
     };
   }, []);
 

@@ -1,16 +1,19 @@
 /**
- * 双语文案（跟随系统语言）：zh = 系统语言为中文；其余回落 en。
- * 服务端错误统一返回稳定代码，本模块负责本地化；未知代码原样透出。
+ * 双语文案（跟随 DSH 界面语言）：优先读 <html lang>（DSH 设置→语言会镜像到那里并实时更新），
+ * 回落浏览器语言；zh = 中文，其余 en。服务端错误统一返回稳定代码，本模块负责本地化。
  */
 
-export function resolveLang(navLang) {
+export function resolveLang(navLang, doc) {
+  const host = typeof doc !== "undefined" && doc ? String(doc.documentElement?.lang ?? "").trim() : "";
+  if (host !== "") return host.toLowerCase().startsWith("zh") ? "zh" : "en";
   return typeof navLang === "string" && navLang.toLowerCase().startsWith("zh") ? "zh" : "en";
 }
 
-export const LANG = resolveLang(typeof navigator !== "undefined" ? navigator.language : undefined);
+const hostDoc = typeof document !== "undefined" ? document : undefined;
+export const LANG = resolveLang(typeof navigator !== "undefined" ? navigator.language : undefined, hostDoc);
 let currentLang = LANG;
 
-/** 测试/调试用：显式切换语言（UI 正常路径不使用——跟随系统语言） */
+/** 测试/调试用：显式切换语言（UI 正常路径不使用——跟随界面语言） */
 export function setLang(lang) {
   if (lang === "zh" || lang === "en") currentLang = lang;
 }
@@ -26,6 +29,10 @@ const zh = {  "market.cn": "A 股",
   "app.footer": "免费行情有延迟{privacy} · 界面偏好存本浏览器，数据存 DSH 实例",
   "app.footer.privacy": " · 隐私遮挡中（展示层，非加密）",
   "app.quote-failed": "行情拉取失败：{e}",
+  "privacy.on": "隐私开：金额已遮挡",
+  "privacy.off": "隐私关：点击遮挡金额",
+  "app.collapse": "收起",
+  "app.drag": "按住拖动",
 
   "capsule.empty": "自选",
   "capsule.stale": "行情旧",
@@ -158,6 +165,10 @@ const en = {
   "app.footer": "Free quotes are delayed{privacy} · UI prefs stay in this browser; data lives on the DSH instance",
   "app.footer.privacy": " · privacy masking on (display only, not encryption)",
   "app.quote-failed": "Quote fetch failed: {e}",
+  "privacy.on": "Privacy on: amounts masked",
+  "privacy.off": "Privacy off: tap to mask",
+  "app.collapse": "Collapse",
+  "app.drag": "Drag to move",
 
   "capsule.empty": "Watchlist",
   "capsule.stale": "Stale",

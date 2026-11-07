@@ -86,7 +86,7 @@ export function parsePositiveInput(text) {
  * - 位移超过阈值判为拖动（防误触点击）
  * - 释放时吸附到最近屏幕边缘（8px 边距），并钳位在视口内
  */
-export const DRAG_THRESHOLD_PX = 6;
+export const DRAG_THRESHOLD_PX = 4;
 export const EDGE_MARGIN_PX = 8;
 
 export function shouldDrag(dx, dy) {

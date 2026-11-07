@@ -48,12 +48,13 @@ export function createStore() {
     providers: null,
   };
   const listeners = new Set();
+  let capsuleRect = null; // 胶囊最近矩形（内存）：面板弹出锚点
 
   const emit = () => { for (const l of [...listeners]) { try { l(); } catch { /* 订阅者异常不扩散 */ } } };
 
   const persistUi = () => {
     try {
-      const { panelOpen, view, detailId, showAdd, toast, ...persisted } = state.ui; // 会话态不落盘
+      const { panelOpen, view, detailId, showAdd, panelPos, toast, ...persisted } = state.ui; // 会话态不落盘
       window.localStorage.setItem(UI_KEY, JSON.stringify(persisted));
     } catch {
       /* localStorage 不可用（隐私模式等）：仅内存 */
@@ -184,6 +185,9 @@ export function createStore() {
   function setMaVisible(v) { setUi({ maVisible: v }); }
   function setCapsuleSymbol(id) { setUi({ capsuleSymbolId: id }); }
   function setCapsulePos(pos) { setUi({ pos }); }
+  /** 胶囊矩形上报（内存，不触发渲染）：面板弹出位置锚点 */
+  function setCapsuleRect(rect) { capsuleRect = rect; }
+  function getCapsuleRect() { return capsuleRect; }
   function setPanelPos(pos) { setUi({ panelPos: pos }); }
 
   function setToast(text) {
@@ -223,7 +227,7 @@ export function createStore() {
   return {
     subscribe, getState,
     refreshState, mutate, addSymbol, updateSymbol, removeSymbol, setPrivacy, importBackup,
-    pollQuotes, restartPolling, openPanel, closePanel, togglePanel, openDetail, backToList,
+    pollQuotes, restartPolling, openPanel, closePanel, togglePanel, openDetail, backToList, setCapsuleRect, getCapsuleRect,
     setLastMarket, setHoldingsOnly, setMaVisible, setCapsuleSymbol, setCapsulePos, setPanelPos,
     setToast, setShowAdd, handleResize, handleVisibility,
   };

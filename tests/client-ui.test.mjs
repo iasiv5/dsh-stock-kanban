@@ -39,8 +39,8 @@ test("数值输入解析：空=null 清除 / 非法=undefined / 合法=数", () 
 });
 
 test("拖动阈值：位移小于阈值不算拖动（防误触点击）（12.2）", () => {
-  assert.equal(shouldDrag(3, 4), false); // 距离 5 < 6
-  assert.equal(shouldDrag(5, 5), true); // 距离 7.07 ≥ 6
+  assert.equal(shouldDrag(2, 3), false); // 距离 3.6 < 4
+  assert.equal(shouldDrag(3, 4), true); // 距离 5 ≥ 4
   assert.equal(shouldDrag(0, DRAG_THRESHOLD_PX), true);
 });
 
