@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { bootMain, walkTree, SNAPSHOT_KEYS } from "./helpers/contract-harness.mjs";
+import { CSS_TEXT } from "../client/styles.mjs";
 
 test("插槽契约 · list 态：App 全树渲染零抛错", async () => {
   const render = await bootMain({}, "list");
@@ -51,4 +52,12 @@ test("插槽契约 · lifecycle：langObserver 只在 cleanup 断开", async () 
   assert.equal(observer.disconnected, false, "setup 路径不得 disconnect：langObserver.disconnected 应为 false");
   cleanup();
   assert.equal(observer.disconnected, true, "disconnect 应仅出现在 cleanup：langObserver.disconnected 应为 true");
+});
+
+test("插槽契约 · 命中面：胶囊显式 pointer-events:auto（父层 .skc-root 为 none，继承即对真实指针免疫）", () => {
+  const capsuleRule = CSS_TEXT.match(/\.skc-capsule\{[^}]*\}/);
+  assert.ok(capsuleRule, ".skc-capsule 规则应存在");
+  assert.match(capsuleRule[0], /pointer-events:\s*auto/, "胶囊必须显式声明 pointer-events:auto，否则拖动/点击全部失效（0d950f3 回归实录）");
+  const panelRule = CSS_TEXT.match(/\.skc-panel\{[^}]*\}/);
+  assert.ok(panelRule && /pointer-events:\s*auto/.test(panelRule[0]), ".skc-panel 须显式 pointer-events:auto");
 });

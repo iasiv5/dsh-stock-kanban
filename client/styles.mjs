@@ -16,7 +16,7 @@ export function injectStyles() {
   document.head.appendChild(style);
 }
 
-const CSS_TEXT = `
+export const CSS_TEXT = `
 .skc-root{position:fixed;inset:0;pointer-events:none;z-index:9998;font:inherit;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-primary,inherit)}
 .skc-root *{box-sizing:border-box}
 .skc-mono{font-variant-numeric:tabular-nums}
@@ -25,7 +25,7 @@ const CSS_TEXT = `
 .skc-flat{color:var(--dsw-alias-label-secondary,rgba(128,128,128,.9))}
 
 /* 胶囊（对齐 quota-watch：26px pill、blur、命中区外扩、grab 光标） */
-.skc-capsule{position:fixed;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.35));background:color-mix(in srgb,var(--dsw-alias-bg-elevated,var(--dsw-alias-bg-base,#1f1f1f)) 86%,transparent);-webkit-backdrop-filter:blur(10px) saturate(1.2);backdrop-filter:blur(10px) saturate(1.2);box-shadow:0 4px 14px rgba(0,0,0,.22);color:var(--dsw-alias-label-primary,inherit);font-size:11px;line-height:24px;cursor:grab;user-select:none;white-space:nowrap;position:fixed;touch-action:none;-webkit-tap-highlight-color:transparent;z-index:9999}
+.skc-capsule{position:fixed;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.35));background:color-mix(in srgb,var(--dsw-alias-bg-elevated,var(--dsw-alias-bg-base,#1f1f1f)) 86%,transparent);-webkit-backdrop-filter:blur(10px) saturate(1.2);backdrop-filter:blur(10px) saturate(1.2);box-shadow:0 4px 14px rgba(0,0,0,.22);color:var(--dsw-alias-label-primary,inherit);font-size:11px;line-height:24px;cursor:grab;pointer-events:auto;user-select:none;white-space:nowrap;position:fixed;touch-action:none;-webkit-tap-highlight-color:transparent;z-index:9999}
 .skc-capsule::before{content:'';position:absolute;inset:-9px}
 .skc-capsule:hover{border-color:var(--dsw-alias-border-primary,var(--dsw-alias-border-secondary,rgba(128,128,128,.35)));box-shadow:0 6px 18px rgba(0,0,0,.28)}
 .skc-capsule:active{transform:scale(.98)}
