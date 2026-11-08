@@ -32,7 +32,6 @@ function App() {
     langObserver.observe(document.documentElement, { attributeFilter: ["lang"] });
     window.addEventListener("languagechange", onLangChange);
     // 组件与页面同生命周期；轮询定时器随页面关闭自然终止（无服务端常驻任务）
-    langObserver.disconnect();
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("languagechange", onLangChange);
