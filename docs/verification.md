@@ -60,12 +60,13 @@
 
 ## 12.5 客户端契约测试（2026-11-08）
 
-插槽契约（GLOSSARY「插槽契约」：bundle 挂载并完整渲染零未解析引用、转发 props 与快照形状一致）由 `tests/client-contract.test.mjs` 执有，5 用例全绿（全量 88/88）。机制：fake-slots 走真实 `apply()` 接缝取渲染函数，react 经 node:module resolve 钩子映射假实现（零新依赖、零 DOM harness），三态 UI 经 localStorage 种子走生产 `loadUi` 真实路径。
+插槽契约（GLOSSARY「插槽契约」：bundle 挂载并完整渲染零未解析引用、转发 props 与快照形状一致）由 `tests/client-contract.test.mjs` 执有，6 用例全绿（全量 89/89）。机制：fake-slots 走真实 `apply()` 接缝取渲染函数，react 经 node:module resolve 钩子映射假实现（零新依赖、零 DOM harness），三态 UI 经 localStorage 种子走生产 `loadUi` 真实路径。
 
 | 用例 | 拦截的事故类 |
 |---|---|
 | list / detail / add 三态全树渲染零抛错 | 渲染期自由标识符 ReferenceError → 插槽整体卸载（MARKET_LABELS、quoteMeta 两次历史事故的整类） |
 | 形状断言（undefined 且快照同名 prop = 违规） | 「快照改名字段、转发点静默失联」类 |
+| 命中面（.skc-capsule / .skc-panel 显式 `pointer-events:auto`） | 父层 `.skc-root` 为 none、继承即对真实指针全免疫——0d950f3 样式重写曾丢失该声明，胶囊拖动/点击全失效（线上实录，04c1993 修复） |
 | langObserver 生命周期（observe 被调、setup 不 disconnect、cleanup 才断） | effect 接线错位类（本次红案例：main.mjs 杂散 `langObserver.disconnect()` 使「跟随 DSH 界面语言」静默失效，红→绿修复留档） |
 
 守卫有效性自证：向 `client/capsule.mjs` 渲染路径回灌自由标识符 → 契约测试 4 用例即红（`__contractProbeFreeIdentifier is not defined`）→ 还原转绿。构建期 `FORBIDDEN` 符号黑名单已退役，契约测试为泄漏类唯一守卫；`npm test` 为发布门。
