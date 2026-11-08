@@ -27,6 +27,17 @@ function CapsulePicker({ store, snapshot }) {
     ));
 }
 
+/** 设置对话框：收纳备份与迁移（后续设置项在此扩展）；会话态，不落盘 */
+function SettingsDialog({ store, business, onClose }) {
+  return h("div", { className: "skc-dialog" },
+    h("div", { className: "skc-dialog-head" },
+      h("span", { className: "skc-section-title" }, t("app.settings")),
+      h("span", { className: "skc-spacer" }),
+      h("button", { className: "skc-icon-btn", onClick: onClose }, "✕")),
+    h(BackupSection, { store, business }),
+  );
+}
+
 export function Panel({ store, snapshot }) {
   const { ui, business, quotes, quoteMeta, toast } = snapshot;
   const privacy = business.settings.privacyMode === true;
@@ -117,13 +128,13 @@ export function Panel({ store, snapshot }) {
         onClick: () => store.setPrivacy(!privacy),
       }, privacy ? "🙈" : "👁"),
       h("button", { className: "skc-icon-btn", title: t("add.title"), onClick: () => store.setShowAdd(true) }, "＋"),
+      h("button", { className: "skc-icon-btn", title: t("app.settings"), onClick: () => store.setShowSettings(true) }, "⚙"),
       h("button", { className: "skc-icon-btn", title: t("app.collapse"), onClick: () => store.closePanel() }, "—"),
     ),
     h("div", { className: "skc-body" },
       // 列表常驻挂载：详情是覆盖层 → 返回时市场/筛选/滚动全部保留（4.3）
       h("div", { className: `skc-layer${ui.view === "detail" ? " skc-layer-hidden" : ""}` },
         h(MarketList, { store, ui, business, quotes, privacy }),
-        h(BackupSection, { store, business }),
       ),
       ui.view === "detail"
         ? h("div", { className: "skc-layer skc-layer-detail" },
@@ -136,6 +147,7 @@ export function Panel({ store, snapshot }) {
         t("app.footer", { privacy: privacy ? t("app.footer.privacy") : "" })),
     ),
     ui.showAdd ? h(AddDialog, { store, business, defaultMarket: ui.lastMarket, onClose: () => store.setShowAdd(false) }) : null,
+    ui.showSettings ? h(SettingsDialog, { store, business, onClose: () => store.setShowSettings(false) }) : null,
     toast ? h("div", { className: "skc-toast" }, toast.text) : null,
   );
 }

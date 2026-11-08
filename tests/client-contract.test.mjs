@@ -22,6 +22,11 @@ test("插槽契约 · add 态：添加对话框渲染零抛错", async () => {
   assert.doesNotThrow(() => walkTree(render(), () => {}));
 });
 
+test("插槽契约 · settings 态：设置对话框（备份与迁移）渲染零抛错", async () => {
+  const render = await bootMain({ panelOpen: true, view: "list", showSettings: true }, "settings");
+  assert.doesNotThrow(() => walkTree(render(), () => {}));
+});
+
 test("插槽契约 · 形状：无组件收到 undefined 且快照同名的 prop", async () => {
   const { elementRecords } = await import("./helpers/react-stub.mjs");
   const violations = [];
@@ -81,6 +86,7 @@ test("插槽契约 · 类名缝渲染态：三态种子渲染树产出的类名�
     ["cls-list", {}],
     ["cls-detail", { panelOpen: true, view: "detail", detailId: "cn:600519" }],
     ["cls-add", { panelOpen: true, view: "list", showAdd: true }],
+    ["cls-settings", { panelOpen: true, view: "list", showSettings: true }],
   ];
   for (const [tag, seedUi] of states) {
     const render = await bootMain(seedUi, tag);

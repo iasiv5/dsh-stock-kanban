@@ -19,6 +19,7 @@ const DEFAULT_UI = {
   view: "list", // 'list' | 'detail'（会话内状态；重开面板始终先列表）
   detailId: null,
   showAdd: false, // 会话态：添加对话框
+  showSettings: false, // 会话态：设置对话框（备份与迁移）
   pos: null, // 胶囊 {x,y,dock}；null → 默认右上
   panelPos: null, // 面板 {x,y}
   lastMarket: "cn",
@@ -54,7 +55,7 @@ export function createStore() {
 
   const persistUi = () => {
     try {
-      const { panelOpen, view, detailId, showAdd, panelPos, toast, ...persisted } = state.ui; // 会话态不落盘
+      const { panelOpen, view, detailId, showAdd, showSettings, panelPos, toast, ...persisted } = state.ui; // 会话态不落盘
       window.localStorage.setItem(UI_KEY, JSON.stringify(persisted));
     } catch {
       /* localStorage 不可用（隐私模式等）：仅内存 */
@@ -161,11 +162,11 @@ export function createStore() {
   /* ------------------------------------------------ UI 动作 */
 
   function openPanel() {
-    setUi({ panelOpen: true, view: "list", detailId: null, showAdd: false }); // 每次从胶囊展开：先列表（4.2）
+    setUi({ panelOpen: true, view: "list", detailId: null, showAdd: false, showSettings: false }); // 每次从胶囊展开：先列表（4.2）
     restartPolling();
   }
   function closePanel() {
-    setUi({ panelOpen: false, view: "list", detailId: null });
+    setUi({ panelOpen: false, view: "list", detailId: null, showSettings: false });
     restartPolling();
   }
   function togglePanel() {
@@ -200,6 +201,7 @@ export function createStore() {
   }
 
   function setShowAdd(v) { setUi({ showAdd: v }); }
+  function setShowSettings(v) { setUi({ showSettings: v }); }
 
   /** 视口变化后保证胶囊仍可见（4.1） */
   function handleResize(capsuleSize) {
@@ -229,7 +231,7 @@ export function createStore() {
     refreshState, mutate, addSymbol, updateSymbol, removeSymbol, setPrivacy, importBackup,
     pollQuotes, restartPolling, openPanel, closePanel, togglePanel, openDetail, backToList, setCapsuleRect, getCapsuleRect,
     setLastMarket, setHoldingsOnly, setMaVisible, setCapsuleSymbol, setCapsulePos, setPanelPos,
-    setToast, setShowAdd, handleResize, handleVisibility,
+    setToast, setShowAdd, setShowSettings, handleResize, handleVisibility,
   };
 }
 

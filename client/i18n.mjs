@@ -32,6 +32,7 @@ const zh = {  "market.cn": "A 股",
   "privacy.on": "隐私开：金额已遮挡",
   "privacy.off": "隐私关：点击遮挡金额",
   "app.collapse": "收起",
+  "app.settings": "设置（备份与迁移）",
   "app.drag": "按住拖动",
 
   "capsule.empty": "自选",
@@ -168,6 +169,7 @@ const en = {
   "privacy.on": "Privacy on: amounts masked",
   "privacy.off": "Privacy off: tap to mask",
   "app.collapse": "Collapse",
+  "app.settings": "Settings (backup & migrate)",
   "app.drag": "Drag to move",
 
   "capsule.empty": "Watchlist",

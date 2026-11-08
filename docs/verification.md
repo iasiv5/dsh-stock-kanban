@@ -2,7 +2,7 @@
 
 ## 12.1 核心逻辑（自动化，全部通过）
 
-`npm test` → node --test 92 用例 / 92 通过 / 0 失败（Node v24.20.0，2026-11-09；含类名缝守卫新增 3 用例，见 12.6）。
+`npm test` → node --test 93 用例 / 93 通过 / 0 失败（Node v24.20.0，2026-11-09；含类名缝守卫与设置态渲染新增 4 用例，见 12.6/12.7）。
 
 | 覆盖点 | 用例位置 |
 |---|---|
@@ -60,11 +60,11 @@
 
 ## 12.5 客户端契约测试（2026-11-08）
 
-插槽契约（GLOSSARY「插槽契约」：bundle 挂载并完整渲染零未解析引用、转发 props 与快照形状一致）由 `tests/client-contract.test.mjs` 执有，8 用例全绿（全量 92/92）。机制：fake-slots 走真实 `apply()` 接缝取渲染函数，react 经 node:module resolve 钩子映射假实现（零新依赖、零 DOM harness），三态 UI 经 localStorage 种子走生产 `loadUi` 真实路径。
+插槽契约（GLOSSARY「插槽契约」：bundle 挂载并完整渲染零未解析引用、转发 props 与快照形状一致）由 `tests/client-contract.test.mjs` 执有，9 用例全绿（全量 93/93）。机制：fake-slots 走真实 `apply()` 接缝取渲染函数，react 经 node:module resolve 钩子映射假实现（零新依赖、零 DOM harness），四态 UI 经 localStorage 种子走生产 `loadUi` 真实路径。
 
 | 用例 | 拦截的事故类 |
 |---|---|
-| list / detail / add 三态全树渲染零抛错 | 渲染期自由标识符 ReferenceError → 插槽整体卸载（MARKET_LABELS、quoteMeta 两次历史事故的整类） |
+| list / detail / add / settings 四态全树渲染零抛错 | 渲染期自由标识符 ReferenceError → 插槽整体卸载（MARKET_LABELS、quoteMeta 两次历史事故的整类）；settings 态另守「区块挪进对话框时组合点漏改」类（12.7） |
 | 形状断言（undefined 且快照同名 prop = 违规） | 「快照改名字段、转发点静默失联」类 |
 | 命中面（.skc-capsule / .skc-panel 显式 `pointer-events:auto`） | 父层 `.skc-root` 为 none、继承即对真实指针全免疫——0d950f3 样式重写曾丢失该声明，胶囊拖动/点击全失效（线上实录，04c1993 修复） |
 | langObserver 生命周期（observe 被调、setup 不 disconnect、cleanup 才断） | effect 接线错位类（本次红案例：main.mjs 杂散 `langObserver.disconnect()` 使「跟随 DSH 界面语言」静默失效，红→绿修复留档） |
@@ -90,6 +90,12 @@ lifecycle 用例进程收尾多等约 4 秒属预期：effect 内 `refreshState(
 - 单向断言（JS→CSS）：反向会被伪类/复合选择器打爆，不做。
 
 验证：npm test 92/92（含 trendClass 语义单测 1 用例 + 类名缝守卫 2 用例）；CDP 真机目检（Chrome headless，同 12.2 环境）——红涨 `+0.07%/+0.14%` → `rgb(229,72,77)`、绿跌 `-1.98%/-2.46%/-0.12%` → `rgb(43,181,150)`、平盘 `—` → `skc-flat` 命中主题次级标签色 `rgb(159,180,189)`，截图人眼复核通过。修复经 profile 软链直达本机 DSH 实例，页面刷新即生效（无需重装插件）。
+
+## 12.7 设置二级菜单（2026-11-09，用户需求 → 已实现并验证）
+
+需求：备份与迁移区块从列表层收进二级菜单，由设置按钮唤出。
+实现：面板头部新增 ⚙ 按钮（👁 ＋ ⚙ — 序）→ `ui.showSettings` 会话态（不落盘，`openPanel`/`closePanel` 双路复位）→ 复用 `skc-dialog` 全覆盖对话框（添加标的同款）承载 `BackupSection`；列表层不再常驻备份区，视觉减负。i18n 补 `app.settings` 双语（i18n.test 字典对齐守卫覆盖）。
+验证：npm test 93/93（settings 态渲染零抛错新用例 + 类名缝渲染态守卫扩为四态种子）；CDP 真机——头部按钮序正确、列表层确认无备份区、点 ⚙ 弹出「设置（备份与迁移）」对话框（内含导出/导入）、✕ 关闭与重开回路通过，截图人眼复核通过。
 
 ## 未验证与降级汇总（13 章交付口径）
 
