@@ -58,7 +58,7 @@ export function Detail({ store, ui, business, quotes, privacy }) {
   }, [symbol?.id, period]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!symbol) {
-    return h("div", { className: "skc-detail skc-empty" }, t("detail.missing"));
+    return h("div", { className: "skc-empty" }, t("detail.missing"));
   }
 
   const q = quotes[symbol.id];
@@ -114,7 +114,7 @@ export function Detail({ store, ui, business, quotes, privacy }) {
   const fetchTimeText = fTime != null ? fmtClockSec(fTime) : "—";
   const chartErrorText = chart.error ? tErr(chart.error, chart.errorDetail) || chart.error : null;
 
-  return h("div", { className: "skc-detail" },
+  return h("div", {},
     h("div", { className: "skc-detail-head" },
       h("button", { className: "skc-btn skc-btn-ghost", onClick: () => store.backToList() }, t("detail.back")),
       h("span", { className: "skc-detail-title" }, symbol.name),

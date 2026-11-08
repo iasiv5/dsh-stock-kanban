@@ -96,7 +96,7 @@ export function Capsule({ store, ui, symbol, quote }) {
 
   return h("div", {
     ref,
-    className: `skc-capsule skc-dock-${pos.dock}`,
+    className: "skc-capsule",
     style: { left: pos.x, top: pos.y },
     onPointerDown,
     onPointerMove,

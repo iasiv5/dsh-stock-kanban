@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { maskIf, fmtPrice, fmtPct, fmtAmount, fmtQty, parsePositiveInput, shouldDrag, clampToViewport, snapToEdge, DRAG_THRESHOLD_PX, EDGE_MARGIN_PX } from "../client/fmt.mjs";
+import { maskIf, fmtPrice, fmtPct, fmtAmount, fmtQty, parsePositiveInput, shouldDrag, clampToViewport, snapToEdge, trendClass, DRAG_THRESHOLD_PX, EDGE_MARGIN_PX } from "../client/fmt.mjs";
 import { computeMa, niceBounds } from "../client/chartmath.mjs";
 
 test("隐私遮挡：maskIf 只影响展示值（4.6）", () => {
@@ -79,6 +79,14 @@ test("均线计算：MA5 语义（12.2 常用均线）", () => {
   assert.equal(ma[1].value, 4);
   assert.equal(ma[0].index, 4);
   assert.equal(computeMa(candles, 10).length, 0);
+});
+
+test("涨跌颜色类名：trendClass 语义（A股红涨绿跌平灰；与样式表的对齐由契约测试类名缝守卫执有）", () => {
+  assert.equal(trendClass(3.5), "skc-up");
+  assert.equal(trendClass(-2), "skc-down");
+  assert.equal(trendClass(0), "skc-flat");
+  assert.equal(trendClass(null), "skc-flat");
+  assert.equal(trendClass(NaN), "skc-flat");
 });
 
 test("niceBounds 退化保护", () => {

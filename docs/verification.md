@@ -2,7 +2,7 @@
 
 ## 12.1 核心逻辑（自动化，全部通过）
 
-`npm test` → node --test 89 用例 / 89 通过 / 0 失败（Node v24.20.0，2026-11-09）。
+`npm test` → node --test 92 用例 / 92 通过 / 0 失败（Node v24.20.0，2026-11-09；含类名缝守卫新增 3 用例，见 12.6）。
 
 | 覆盖点 | 用例位置 |
 |---|---|
@@ -17,7 +17,7 @@
 | 行情服务（TTL 合并、失败退避不打上游、退避回退陈旧缓存、每标的独立判错） | tests/quotes-service.test.mjs |
 | 路由（同源 403、CAS 409 带最新态、重复 409、无效代码 422、搜索失败明确报错、导出导入往返、health 无业务数据） | tests/routes.test.mjs |
 | 腾讯解析（批量快照字段/时间戳→epoch、K线列序与 qfq/none 口径、分时点过滤、prevClose 推导、smartbox 类型过滤） | tests/providers-tencent.test.mjs |
-| 客户端纯函数（隐私遮挡、价格自适应精度、拖动阈值、视口钳位、边缘吸附、均线计算） | tests/client-ui.test.mjs |
+| 客户端纯函数（隐私遮挡、价格自适应精度、拖动阈值、视口钳位、边缘吸附、涨跌色类名语义、均线计算） | tests/client-ui.test.mjs |
 
 测试夹具（上游响应采样文本）仅存在于 tests/ 内，不进入生产行情路径；单测不依赖外网（fetch 全 mock）。
 
@@ -60,7 +60,7 @@
 
 ## 12.5 客户端契约测试（2026-11-08）
 
-插槽契约（GLOSSARY「插槽契约」：bundle 挂载并完整渲染零未解析引用、转发 props 与快照形状一致）由 `tests/client-contract.test.mjs` 执有，6 用例全绿（全量 89/89）。机制：fake-slots 走真实 `apply()` 接缝取渲染函数，react 经 node:module resolve 钩子映射假实现（零新依赖、零 DOM harness），三态 UI 经 localStorage 种子走生产 `loadUi` 真实路径。
+插槽契约（GLOSSARY「插槽契约」：bundle 挂载并完整渲染零未解析引用、转发 props 与快照形状一致）由 `tests/client-contract.test.mjs` 执有，8 用例全绿（全量 92/92）。机制：fake-slots 走真实 `apply()` 接缝取渲染函数，react 经 node:module resolve 钩子映射假实现（零新依赖、零 DOM harness），三态 UI 经 localStorage 种子走生产 `loadUi` 真实路径。
 
 | 用例 | 拦截的事故类 |
 |---|---|
@@ -68,10 +68,28 @@
 | 形状断言（undefined 且快照同名 prop = 违规） | 「快照改名字段、转发点静默失联」类 |
 | 命中面（.skc-capsule / .skc-panel 显式 `pointer-events:auto`） | 父层 `.skc-root` 为 none、继承即对真实指针全免疫——0d950f3 样式重写曾丢失该声明，胶囊拖动/点击全失效（线上实录，04c1993 修复） |
 | langObserver 生命周期（observe 被调、setup 不 disconnect、cleanup 才断） | effect 接线错位类（本次红案例：main.mjs 杂散 `langObserver.disconnect()` 使「跟随 DSH 界面语言」静默失效，红→绿修复留档） |
+| 类名缝渲染态（三态种子渲染树 className token ⊆ CSS 定义） | trendClass 前缀错配整类：JS 产出 `sk-up/sk-down/sk-flat` vs 样式表 `.skc-up/.skc-down/.skc-flat`，涨跌配色自首版起从未生效（2026-11-09 架构走查暴露，见 12.6） |
+| 类名缝源码全集（className/classList 静态扫描 + 动态生产者注册表，无豁免清单） | 死类/漂移整类：类名拼错、样式改名后 JSX 残留（修复时仓内并存 4 个死类，已删） |
 
-守卫有效性自证：向 `client/capsule.mjs` 渲染路径回灌自由标识符 → 契约测试 4 用例即红（`__contractProbeFreeIdentifier is not defined`）→ 还原转绿。构建期 `FORBIDDEN` 符号黑名单已退役，契约测试为泄漏类唯一守卫；`npm test` 为发布门。
+守卫有效性自证：向 `client/capsule.mjs` 渲染路径回灌自由标识符 → 契约测试 4 用例即红（`__contractProbeFreeIdentifier is not defined`）→ 还原转绿。构建期 `FORBIDDEN` 符号黑名单已退役，契约测试为泄漏类唯一守卫；`npm test` 为发布门。类名缝守卫同法自证（2026-11-09）：回灌 `sk-up/sk-down` 前缀 → 源码全集用例即红（`类名缝漂移：sk-up（生产者产出）、sk-down（生产者产出）`）+ trendClass 语义单测红 → 还原转绿。
 
 lifecycle 用例进程收尾多等约 4 秒属预期：effect 内 `refreshState()` 对相对 URL fetch 返回 rejected Promise → `.catch` → setToast → toast 自动消失定时器（≈4000ms）恰调度 1 次。
+
+## 12.6 类名缝修复与守卫（2026-11-09，架构走查发现 → 已修复并验证）
+
+事故：`trendClass` 产出 `sk-up/sk-down/sk-flat`，样式表定义的却是 `.skc-up/.skc-down/.skc-flat`——前缀差一字符，红涨绿跌自 20736d7（v0.1.0 首版）起从未生效；capsule/list/detail 全部消费点无色（A股语境红涨绿跌即核心信息编码）。
+为何 89 用例没抓住：`trendClass` 不在任何测试面（client-ui.test.mjs 连 import 都没有），契约测试只对 CSS 文本做「规则存在」正则，从不校验「JS 产出的类名落在 CSS 里」——类名缝（CSS↔JSX）零对齐面。同缝此前已有一起事故（0d950f3 样式重写丢 pointer-events，04c1993 修复时也只补了 CSS 正则这一半守卫）：两次事故同缝，缝的形状错了，不是手滑。
+
+修复：
+1. `fmt.mjs` trendClass 前缀统一为 `skc-*`；
+2. 删除 4 个无规则死类（守卫零豁免通过的前提）：`skc-dock-*`（capsule.mjs）、`skc-add-tabs`/`skc-add-known`（add.mjs）、裸 `skc-detail`（detail.mjs 容器；`.skc-detail-head`/`.skc-detail-title` 为真类不受影响）。四者均无 JS 钩子（client 内唯一 class 查询是 panel.mjs 的 `closest("button, input, label")`）。
+
+守卫（tests/client-contract.test.mjs 新增 2 用例，双层、无豁免清单）：
+- **渲染态**：三态种子经真实 `apply()` 接缝渲染，walkTree 收集全部 className token ⊆ `CSS_TEXT` 类名集（精确匹配，非前缀——前缀会漏放裸 `skc-detail` 这类）；
+- **源码全集**：提取 client/*.mjs 全部 className 字面量/模板片段/classList 调用；模板 `${}` 内只收三元备选（`cond ? " a" : " b"` 惯用法），比较操作数不收——守卫首个红案例即 `ui.view === "detail"` 被误当类名，修正提取语义后转绿；className 位置的非字面量表达式必须在**动态生产者注册表**登记（现仅 trendClass），未注册即红；
+- 单向断言（JS→CSS）：反向会被伪类/复合选择器打爆，不做。
+
+验证：npm test 92/92（含 trendClass 语义单测 1 用例 + 类名缝守卫 2 用例）；CDP 真机目检（Chrome headless，同 12.2 环境）——红涨 `+0.07%/+0.14%` → `rgb(229,72,77)`、绿跌 `-1.98%/-2.46%/-0.12%` → `rgb(43,181,150)`、平盘 `—` → `skc-flat` 命中主题次级标签色 `rgb(159,180,189)`，截图人眼复核通过。修复经 profile 软链直达本机 DSH 实例，页面刷新即生效（无需重装插件）。
 
 ## 未验证与降级汇总（13 章交付口径）
 

@@ -45,8 +45,8 @@ export function fmtQty(v) {
 
 /** 涨跌颜色类名（A股红涨绿跌惯例） */
 export function trendClass(v) {
-  if (v == null || !Number.isFinite(v) || v === 0) return "sk-flat";
-  return v > 0 ? "sk-up" : "sk-down";
+  if (v == null || !Number.isFinite(v) || v === 0) return "skc-flat";
+  return v > 0 ? "skc-up" : "skc-down";
 }
 
 /** epoch ms → 当地 HH:mm（行情时间展示） */

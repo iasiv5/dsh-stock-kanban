@@ -98,3 +98,5 @@
 3. **测试走真实接缝**。经 fake-slots（伪造 `ctx.slots.inject/register`）调用 `apply()` 取渲染函数，穿过插件与宿主的真实 slots 协议；三态 UI 经 localStorage 种子驱动 `loadUi()`，走生产持久化真实路径。
 
 守卫收拢：`build-client.mjs` 的 `FORBIDDEN` 符号黑名单（只记得单个历史符号的浅守卫）已退役，`tests/client-contract.test.mjs`（经 `npm test`）为泄漏类唯一守卫。`SNAPSHOT_KEYS` 装配期一次求值、随 store 默认状态键自动扩展，形状断言免维护。若未来客户端出现第二处 observer 类接线，可考虑抽 `createLangObserver` 式工厂；当前单点不抽。
+
+2026-11-09 类名缝（CSS↔JSX 类名对齐）纳入契约测试面：渲染态 walkTree + 源码全集双层断言（token ⊆ CSS 定义，动态生产者须注册，无豁免清单；详见 verification 12.6）。该缝至此共两起事故：0d950f3 样式重写丢命中面（04c1993 修）、trendClass 前缀错配致涨跌配色自首版起从未生效（本次修）。

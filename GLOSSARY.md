@@ -9,7 +9,7 @@ DSH 多市场盯盘插件的领域语言：客户端以「插槽」形态注入�
 _Avoid_: 容器、挂载区、overlay
 
 **插槽契约（Slot Contract）**:
-客户端 bundle 挂载并完整渲染零未解析引用、且组件间传递的数据形状与快照一致的约定；由 `tests/client-contract.test.mjs` 执有，违反即 `npm test` 失败（构建期符号黑名单已退役，测试面为唯一守卫）。
+客户端 bundle 挂载并完整渲染零未解析引用（含样式类名对齐：产出的类名均须在样式表中有定义）、且组件间传递的数据形状与快照一致的约定；由 `tests/client-contract.test.mjs` 执有，违反即 `npm test` 失败（构建期符号黑名单已退役，测试面为唯一守卫）。
 _Avoid_: 渲染守卫、UI 测试
 
 **快照（Snapshot）**:

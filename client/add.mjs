@@ -76,7 +76,7 @@ export function AddDialog({ store, business, defaultMarket, onClose }) {
       h("span", { className: "skc-section-title" }, t("add.title")),
       h("span", { className: "skc-spacer" }),
       h("button", { className: "skc-icon-btn", onClick: onClose }, "✕")),
-    h("div", { className: "skc-tabs skc-add-tabs" },
+    h("div", { className: "skc-tabs" },
       MARKETS.map((m) => h("button", {
         key: m,
         className: `skc-tab${m === market ? " skc-tab-active" : ""}`,
@@ -96,7 +96,7 @@ export function AddDialog({ store, business, defaultMarket, onClose }) {
     results && results.length > 0 ? h("div", { className: "skc-add-results" },
       results.map((row) => h("button", {
         key: row.id,
-        className: `skc-add-row${known.has(row.id) ? " skc-add-known" : ""}`,
+        className: "skc-add-row",
         disabled: busy || known.has(row.id),
         onClick: () => addResult(row),
       },
