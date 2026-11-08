@@ -149,7 +149,12 @@ export function Detail({ store, ui, business, quotes, privacy }) {
     h("div", { className: "skc-holdings" },
       h("div", { className: "skc-section-title" }, t("detail.holdings"), hasPos && m ? h("span", { className: "skc-section-meta" },
         privacy ? `${maskIf(true, "")}${symbol.quoteCurrency}` :
-          `市值 ${m.marketValue != null ? fmtAmount(m.marketValue) : "—"} ${symbol.quoteCurrency} · 盈亏 ${m.pnl != null ? fmtAmount(m.pnl) : (m.flags.zeroCost ? t("detail.cost-unset") : t("detail.no-quote"))}（${m.pnlPct != null ? fmtPct(m.pnlPct) : "—"}）`) : null),
+          t("detail.holdings.meta", {
+            v: m.marketValue != null ? fmtAmount(m.marketValue) : "—",
+            ccy: symbol.quoteCurrency,
+            p: m.pnl != null ? fmtAmount(m.pnl) : (m.flags.zeroCost ? t("detail.cost-unset") : t("detail.no-quote")),
+            pct: m.pnlPct != null ? fmtPct(m.pnlPct) : "—",
+          })) : null),
       h("div", { className: "skc-form-grid" },
         h("label", {}, t(symbol.market === "crypto" ? "detail.quantity.coins" : "detail.quantity.shares"),
           h("input", { className: "skc-input", inputMode: "decimal", value: draft.quantity, placeholder: t("detail.blank-clears"), onChange: (e) => setDraft("quantity", e.target.value) })),

@@ -6,6 +6,7 @@
 
 import { createElement as h } from "react";
 import { computeMa, niceBounds } from "./chartmath.mjs";
+import { t } from "./i18n.mjs";
 
 const UP = "#e5484d"; // A股惯例红涨
 const DOWN = "#2bb596"; // 绿跌
@@ -15,7 +16,7 @@ const MA_COLORS = { 5: "#e8e8e8", 10: "#d9a514", 20: "#a78bfa", 60: "#4ade80" };
 /** 分时图：价格线 + 均价线 + 昨收虚线 + 成交量柱 */
 export function MinuteChart({ points, prevClose, width = 372, height = 190, volHeight = 34, dark }) {
   if (!Array.isArray(points) || points.length < 2) {
-    return h("div", { className: "skc-chart-empty" }, "暂无分时数据");
+    return h("div", { className: "skc-chart-empty" }, t("detail.chart.empty.minute"));
   }
   const pad = 6;
   const priceH = height - volHeight - pad * 2;
@@ -68,7 +69,7 @@ export function MinuteChart({ points, prevClose, width = 372, height = 190, volH
 /** K 线图：蜡烛 + MA + 成交量柱 */
 export function CandleChart({ candles, maVisible = {}, width = 372, height = 230, volHeight = 34, dark }) {
   if (!Array.isArray(candles) || candles.length === 0) {
-    return h("div", { className: "skc-chart-empty" }, "暂无K线数据");
+    return h("div", { className: "skc-chart-empty" }, t("detail.chart.empty.candle"));
   }
   const pad = 6;
   const priceH = height - volHeight - pad * 2;

@@ -145,6 +145,8 @@ const zh = {  "market.cn": "A 股",
   "err.invalid-code": "代码无效",
   "err.save-failed": "保存失败",
   "err.invalid-input": "输入无效",
+  "err.invalid-buy-target": "买入目标价必须是正数",
+  "err.invalid-sell-target": "卖出目标价必须是正数",
   "err.unsupported-schema-version": "备份版本不支持",
   "err.wrong-kind": "备份类型不符",
   "err.not-an-object": "备份格式错误",
@@ -282,6 +284,8 @@ const en = {
   "err.invalid-code": "Invalid code",
   "err.save-failed": "Save failed",
   "err.invalid-input": "Invalid input",
+  "err.invalid-buy-target": "Buy target must be a positive number",
+  "err.invalid-sell-target": "Sell target must be a positive number",
   "err.unsupported-schema-version": "Backup version unsupported",
   "err.wrong-kind": "Wrong backup kind",
   "err.not-an-object": "Malformed backup",
@@ -301,11 +305,16 @@ export function t(key, params) {
   return s;
 }
 
-/** 服务端错误代码 → 本地化文案（附原始 detail）；未知代码原样透出 */
+/** 服务端错误代码 → 本地化文案（附原始 detail）；未知代码原样透出；逗号分隔多码逐段本地化 */
 export function tErr(code, detail) {
   if (code == null || code === "") return "";
-  const base = t(`err.${code}`);
-  const label = base.startsWith("err.") ? String(code) : base;
+  const label = String(code)
+    .split(",")
+    .map((c) => {
+      const base = t(`err.${c}`);
+      return base.startsWith("err.") ? c : base;
+    })
+    .join(", ");
   return detail ? `${label} (${detail})` : label;
 }
 

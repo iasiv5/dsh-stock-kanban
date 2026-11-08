@@ -13,9 +13,6 @@
 
 export const MARKETS = ["cn", "hk", "us", "crypto"];
 
-/** 市场显示名（UI 顺序即数组顺序） */
-export const MARKET_LABELS = { cn: "A 股", hk: "港股", us: "美股", crypto: "加密货币" };
-
 /** 各市场默认报价币种（crypto 以交易对实际报价币为准，见 parseCryptoCode） */
 export const QUOTE_CURRENCY = { cn: "CNY", hk: "HKD", us: "USD" };
 
@@ -130,12 +127,13 @@ export function normalizeKind(market, kind) {
 
 /**
  * 目标价阈值关系检查（保存前校验用）。
- * 返回 { ok, overlap, message }：
- *   - 两价都设置且 buy >= sell → overlap（可能导致同时触发，UI 明示，不静默覆盖）
+ * 返回 { ok, overlap }：
+ *   - 两价都设置且 buy >= sell → overlap（可能导致同时触发，UI 明示，不静默覆盖；
+ *     文案由客户端 t("detail.confirm.overlap") 本地化，服务端不产出展示文案）
  */
 export function checkTargetRelation(buyTarget, sellTarget) {
   if (buyTarget != null && sellTarget != null && buyTarget >= sellTarget) {
-    return { ok: true, overlap: true, message: "买入目标价不低于卖出目标价：价格可能同时满足两个条件，插件会同时标出两个触价标记。" };
+    return { ok: true, overlap: true };
   }
-  return { ok: true, overlap: false, message: null };
+  return { ok: true, overlap: false };
 }

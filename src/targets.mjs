@@ -56,20 +56,21 @@ export function targetState({ price, quoteTime = null, fetchedAt = null, now, bu
 /**
  * 保存前的目标价数值校验。
  * @returns {{ok: boolean, buyTarget: number|null, sellTarget: number|null, errors: string[], overlap: boolean}}
+ *   errors 为稳定代码（invalid-buy-target / invalid-sell-target），文案由客户端 i18n 本地化。
  */
 export function validateTargets(rawBuy, rawSell) {
   const errors = [];
-  const clean = (raw, label) => {
+  const clean = (raw, code) => {
     if (raw === null || raw === undefined || raw === "") return null;
     const n = typeof raw === "number" ? raw : Number(String(raw).trim());
     if (!Number.isFinite(n) || n <= 0) {
-      errors.push(`${label}必须是正数`);
+      errors.push(code);
       return null;
     }
     return n;
   };
-  const buyTarget = clean(rawBuy, "买入目标价");
-  const sellTarget = clean(rawSell, "卖出目标价");
+  const buyTarget = clean(rawBuy, "invalid-buy-target");
+  const sellTarget = clean(rawSell, "invalid-sell-target");
   const overlap = buyTarget != null && sellTarget != null && buyTarget >= sellTarget;
   return { ok: errors.length === 0, buyTarget, sellTarget, errors, overlap };
 }

@@ -52,9 +52,8 @@ test("identityConsistent：id 与 market/code 自洽", () => {
 });
 
 test("目标价阈值关系：重叠要显式暴露", () => {
-  assert.deepEqual(checkTargetRelation(10, 20), { ok: true, overlap: false, message: null });
+  assert.deepEqual(checkTargetRelation(10, 20), { ok: true, overlap: false });
   const overlap = checkTargetRelation(20, 10);
   assert.equal(overlap.overlap, true);
-  assert.match(overlap.message, /同时/);
   assert.equal(checkTargetRelation(null, null).overlap, false);
 });

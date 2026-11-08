@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
 import { t, tErr, resolveLang, setLang, DICT_KEYS } from "../client/i18n.mjs";
 
 test("字典键位：zh 与 en 完全对齐（无缺失/多余）", () => {
@@ -30,11 +31,40 @@ test("t：en 文案", () => {
   assert.ok(t("toast.added", { name: "AAPL" }).startsWith("Added"));
 });
 
-test("tErr：已知代码本地化、未知代码原样透出、detail 附加", () => {
+test("tErr：已知代码本地化、未知代码原样透出、detail 附加、逗号多码逐段本地化", () => {
   setLang("zh");
   assert.equal(tErr("duplicate"), "该标的已在自选中");
   assert.equal(tErr("totally-unknown-code"), "totally-unknown-code");
   assert.ok(tErr("fetch-failed", "HTTP 503").includes("HTTP 503"));
+  assert.equal(tErr("invalid-buy-target"), "买入目标价必须是正数");
+  assert.ok(tErr("invalid-buy-target,invalid-sell-target").includes("买入目标价必须是正数"));
+  assert.ok(tErr("invalid-buy-target,invalid-sell-target").includes("卖出目标价必须是正数"));
   setLang("en");
   assert.equal(tErr("duplicate"), "Already in watchlist");
+});
+
+test("语言缝守卫：client 源码（除 i18n.mjs）字符串字面量零 CJK——面向用户的文案必须全部经 i18n 字典", () => {
+  const CJK = /[\u3400-\u4dbf\u4e00-\u9fff]/;
+  const violations = [];
+  for (const f of readdirSync(new URL("../client/", import.meta.url)).filter((n) => n.endsWith(".mjs"))) {
+    if (f === "i18n.mjs") continue;
+    const lines = readFileSync(new URL(`../client/${f}`, import.meta.url), "utf8").split("\n");
+    let inBlock = false;
+    lines.forEach((line, i) => {
+      let l = line;
+      if (inBlock) {
+        if (l.includes("*/")) { inBlock = false; l = l.split("*/").pop(); } else return;
+      }
+      if (l.includes("/*")) {
+        const parts = l.split("/*");
+        inBlock = !parts[parts.length - 1].includes("*/");
+        l = parts[0] + (parts[parts.length - 1].split("*/").pop() ?? "");
+      }
+      for (const m of l.split("//")[0].matchAll(/"([^"]*)"|'([^']*)'|`([^`]*)`/g)) {
+        const raw = m[1] ?? m[2] ?? m[3];
+        if (raw && CJK.test(raw)) violations.push(`${f}:${i + 1} "${raw.slice(0, 24)}"`);
+      }
+    });
+  }
+  assert.deepEqual(violations, [], `硬编码文案（应走 i18n 字典）：${violations.join("、")}`);
 });

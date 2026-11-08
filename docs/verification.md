@@ -104,6 +104,18 @@ lifecycle 用例进程收尾多等约 4 秒属预期：effect 内 `refreshState(
 **视觉密度修订**（金融终端式克制密度，全部在 `--dsw-alias-*` 令牌体系内）：分段式市场 Tab（active 填充 + 独立计数徽标 `.skc-tab-count`）、行距/内边距全面收紧、等宽数字对齐、主/危险按钮改填充式、输入框 focus ring、hover/active 120ms 过渡、`:focus-visible` 可达性轮廓、细滚动条、面板/对话框/toast 入场动画（只动 chrome，数据行不动画）、面板 `overflow:hidden` 裁齐圆角。
 **验证**：npm test 93/93（pointer-events 契约与类名缝守卫均完好，`.skc-tab-count` 纳入源码全集扫描）；CDP 真机三态截图（列表/设置对话框/添加对话框）——对话框与面板均为实底深色表面、零透底、文字清晰，人眼复核通过。
 
+## 12.9 语言缝清理与守卫（2026-11-09，用户反馈「中英文混乱」→ 已修复并验证）
+
+泄漏全量（node 字面量级 CJK 扫描取证）：
+1. `charts.mjs:18/71` 硬编码「暂无分时数据/暂无K线数据」——`detail.chart.empty.*` key 早已定义却从未被调用（词典死键）；改走 `t()`。
+2. `detail.mjs:152` 硬编码「市值…盈亏…」——`detail.holdings.meta` key 同样是死键；改走 `t()`（en: `Value {v} {ccy} · PnL {p} ({pct})`）。
+3. `targets.mjs:66-72` 中文错误串直通 422 `body.error` → 客户端 `tErr` 查无此码原样透出；改稳定代码 `invalid-buy-target`/`invalid-sell-target` + i18n `err.*` 双语 + `tErr` 升级为逗号多码逐段本地化。
+4. `identity.mjs` `MARKET_LABELS`（688454a 事故纪念品，零调用方）删除；`checkTargetRelation.message`（无 UI 消费的中文字段）移除，重叠文案归客户端 `t("detail.confirm.overlap")`（测试同步更新）。
+
+守卫：`tests/i18n.test.mjs` 新增**语言缝静态守卫**——扫描 client/*.mjs（除 i18n.mjs）全部字符串字面量，命中 CJK 即红（面向用户的文案必须全部经 i18n 字典，硬编码文案整类封死）。自证：回灌硬编码中文 → 即红 `charts.mjs:19 "暂无分时数据"` → 还原转绿（94/94）。
+
+验证：npm test 94/94；CDP 真机 en 模式（`document.documentElement.lang=en` 触发实时切换）——面板全树 58 个文本节点 + title/placeholder 属性零 UI 中文（残余 CJK 仅为标的名＝行情数据本名，任何语言保持原样）；en 版市值行实测 `Value 63,422.00 CNY · PnL -342.00 (-0.54%)`；UI chrome 全英（Watchlist / Position / Targets / A-shares）。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 89 单测 + 23 数据源探针。
