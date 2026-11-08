@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { maskIf, fmtPrice, fmtPct, fmtAmount, fmtQty, parsePositiveInput, shouldDrag, clampToViewport, snapToEdge, trendClass, DRAG_THRESHOLD_PX, EDGE_MARGIN_PX } from "../client/fmt.mjs";
+import { maskIf, fmtPrice, fmtPct, fmtAmount, fmtQty, parsePositiveInput, trendClass } from "../client/fmt.mjs";
 import { computeMa, niceBounds } from "../client/chartmath.mjs";
+import { createStore } from "../client/store.mjs";
 
 test("隐私遮挡：maskIf 只影响展示值（4.6）", () => {
   assert.equal(maskIf(true, 1234.56), "••••");
@@ -38,38 +39,8 @@ test("数值输入解析：空=null 清除 / 非法=undefined / 合法=数", () 
   assert.equal(parsePositiveInput("12.5"), 12.5);
 });
 
-test("拖动阈值：位移小于阈值不算拖动（防误触点击）（12.2）", () => {
-  assert.equal(shouldDrag(2, 3), false); // 距离 3.6 < 4
-  assert.equal(shouldDrag(3, 4), true); // 距离 5 ≥ 4
-  assert.equal(shouldDrag(0, DRAG_THRESHOLD_PX), true);
-});
-
-test("视口钳位：窗口缩小后胶囊仍在可视区（12.2）", () => {
-  const c = clampToViewport(5000, 5000, 160, 36, 800, 600);
-  assert.ok(c.x <= 800 - 160 - EDGE_MARGIN_PX);
-  assert.ok(c.y <= 600 - 36 - EDGE_MARGIN_PX);
-  const c2 = clampToViewport(-50, -50, 160, 36, 800, 600);
-  assert.equal(c2.x, EDGE_MARGIN_PX);
-  assert.equal(c2.y, EDGE_MARGIN_PX);
-});
-
-test("边缘吸附：最近边缘（12.2）", () => {
-  // 靠近右缘
-  const r = snapToEdge(760, 300, 160, 36, 800, 600);
-  assert.equal(r.dock, "right");
-  assert.equal(r.x, 800 - 160 - EDGE_MARGIN_PX);
-  // 靠近左缘
-  const l = snapToEdge(20, 300, 160, 36, 800, 600);
-  assert.equal(l.dock, "left");
-  assert.equal(l.x, EDGE_MARGIN_PX);
-  // 居中偏上 → top
-  const t = snapToEdge(400, 30, 160, 36, 800, 600);
-  assert.equal(t.dock, "top");
-  // 超界坐标先钳位再吸附
-  const far = snapToEdge(2000, 2000, 160, 36, 800, 600);
-  assert.ok(["right", "bottom"].includes(far.dock));
-  assert.ok(far.x <= 800 - 160 && far.y <= 600 - 36);
-});
+// 旧拖拽/贴边辅助纯函数（Task 14 退役）用例已删：
+// 视口钳位语义由 Task 3 的 clampPoint parity 测试接棒（tests/client-float-prefs.test.mjs）。
 
 test("均线计算：MA5 语义（12.2 常用均线）", () => {
   const candles = [1, 2, 3, 4, 5, 6].map((close, i) => ({ time: `2026-01-0${i + 1}`, close }));
@@ -93,4 +64,60 @@ test("niceBounds 退化保护", () => {
   assert.deepEqual(niceBounds(2, 2), [1, 3]);
   assert.deepEqual(niceBounds(NaN, 5), [0, 1]);
   assert.deepEqual(niceBounds(0, 10), [0, 10]);
+});
+
+/* ---------------- client/store.mjs 去 React 化（vanilla 重写 Task 7） ---------------- */
+
+function createStorageStub(seed = {}) {
+  const map = new Map(Object.entries(seed));
+  return {
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    setItem: (k, v) => {
+      map.set(k, String(v));
+    },
+    removeItem: (k) => {
+      map.delete(k);
+    },
+  };
+}
+
+test("store · ui 快照无 pos/panelPos（职责移出）", () => {
+  const store = createStore(createStorageStub());
+  const ui = store.getState().ui;
+  assert.equal("pos" in ui, false, "ui 不含 pos");
+  assert.equal("panelPos" in ui, false, "ui 不含 panelPos");
+});
+
+test("store · persist 字段集不含 pos", () => {
+  const storage = createStorageStub();
+  const store = createStore(storage);
+  store.setHoldingsOnly(true);
+  const persisted = JSON.parse(storage.getItem("stock-kanban:ui:v1"));
+  assert.equal("pos" in persisted, false, "落盘不含 pos");
+  assert.equal("panelPos" in persisted, false, "落盘不含 panelPos");
+  assert.equal(persisted.holdingsOnly, true);
+  assert.equal(persisted.lastMarket, "cn");
+});
+
+test("store · 读旧 ui:v1 忽略 pos 键不抛错", () => {
+  const storage = createStorageStub({
+    "stock-kanban:ui:v1": JSON.stringify({ pos: { x: 1, y: 2, dock: "right" }, lastMarket: "hk" }),
+  });
+  const store = createStore(storage);
+  const ui = store.getState().ui;
+  assert.equal("pos" in ui, false, "旧 pos 键被忽略");
+  assert.equal(ui.lastMarket, "hk", "其余字段照常读取");
+});
+
+test("store · subscribe 即刻回放 + 动作通知 + unsubscribe 止噪", () => {
+  const store = createStore(createStorageStub());
+  const seen = [];
+  const unsub = store.subscribe((snapshot) => seen.push(snapshot));
+  assert.equal(seen.length, 1, "subscribe 即刻回放当前快照一次");
+  store.setHoldingsOnly(true);
+  assert.equal(seen.length, 2, "动作经通知漏斗触发订阅者");
+  assert.equal(seen[1].ui.holdingsOnly, true, "订阅者收到新快照");
+  unsub();
+  store.setHoldingsOnly(false);
+  assert.equal(seen.length, 2, "unsubscribe 后不再触发");
 });

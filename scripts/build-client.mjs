@@ -1,6 +1,5 @@
 // 客户端构建：esbuild 打包 client/main.mjs → lib/client.js（window.__ModuleLoader__ 包装）。
-// 构建模式对齐 dsh-quota-watch（构建期 react external，运行时由宿主 require 提供）。
-// 泄漏类守卫已退役：由 tests/client-contract.test.mjs（插槽契约烟测）执有，npm test 为发布门。
+// vanilla 重写后客户端零 react 引用：不再需要构建期 react external。
 import { mkdir, writeFile } from "node:fs/promises";
 import esbuild from "esbuild";
 
@@ -13,7 +12,6 @@ const result = await esbuild.build({
   write: false,
   minify: false,
   legalComments: "none",
-  external: ["react"],
   loader: { ".mjs": "js" },
   resolveExtensions: [".mjs", ".js"],
 });

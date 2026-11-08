@@ -36,7 +36,8 @@
     "@deepseek-ai/cordis": ">=4.1.0"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2"
+    "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1"
   },
   "dsh": {
     "engines": {
@@ -47,9 +48,7 @@
     },
     "client": {
       "platform": "web",
-      "inject": [
-        "slots"
-      ]
+      "inject": []
     }
   }
 }

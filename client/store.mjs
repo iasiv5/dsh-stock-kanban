@@ -1,18 +1,22 @@
 /**
- * 客户端状态存储（React 无关的极简 pub/sub + hook）。
+ * 客户端状态存储（vanilla 订阅漏斗，无框架依赖）。
  *
  * 两类状态严格分离（需求 9.2）：
  *   - business：服务端实例数据（rev/settings/symbols）+ quotes —— 全访问端共享；
- *   - ui：纯界面偏好（胶囊/面板几何、上次市场、筛选、MA 显隐、胶囊标的）—— 按访问端 localStorage 独立。
+ *   - ui：纯界面偏好（上次市场、筛选、MA 显隐、胶囊标的）—— 按访问端 localStorage 独立。
  * 永不把业务数据写入 localStorage。
+ *
+ * 位置记忆已移出（vanilla 重写 Task 7）：胶囊坐标由 client/float-prefs.mjs +
+ * 胶囊 DOM 持有（键 dsh-stock-kanban:float-position）；面板锚定胶囊即位置，
+ * 无独立位置记忆。
  */
 
-import { useEffect, useState } from "react";
 import { api } from "./api.mjs";
-import { snapToEdge } from "./fmt.mjs";
 import { t, tErr } from "./i18n.mjs";
 
 const UI_KEY = "stock-kanban:ui:v1";
+/** 落盘字段集（会话态 panelOpen/view/detailId/showAdd/showSettings 不落盘） */
+const UI_PERSIST_KEYS = ["lastMarket", "holdingsOnly", "maVisible", "capsuleSymbolId"];
 
 const DEFAULT_UI = {
   panelOpen: false,
@@ -20,43 +24,47 @@ const DEFAULT_UI = {
   detailId: null,
   showAdd: false, // 会话态：添加对话框
   showSettings: false, // 会话态：设置对话框（备份与迁移）
-  pos: null, // 胶囊 {x,y,dock}；null → 默认右上
-  panelPos: null, // 面板 {x,y}
   lastMarket: "cn",
   holdingsOnly: false,
   maVisible: { 5: true, 10: true, 20: true, 60: true },
   capsuleSymbolId: null, // null → 第一个标的
 };
 
-function loadUi() {
+/** 读旧 ui:v1 时只取白名单键：退役的 pos/panelPos 与未知键一律忽略，不抛错 */
+function loadUi(storage) {
+  const ui = { ...DEFAULT_UI };
   try {
-    const raw = window.localStorage.getItem(UI_KEY);
-    if (!raw) return { ...DEFAULT_UI };
+    const raw = storage.getItem(UI_KEY);
+    if (!raw) return ui;
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_UI, ...(parsed && typeof parsed === "object" ? parsed : {}) };
+    if (!parsed || typeof parsed !== "object") return ui;
+    for (const key of UI_PERSIST_KEYS) {
+      if (key in parsed) ui[key] = parsed[key];
+    }
+    return ui;
   } catch {
-    return { ...DEFAULT_UI };
+    return ui;
   }
 }
 
-export function createStore() {
+export function createStore(storage = window.localStorage) {
   let state = {
     business: { rev: 0, settings: { privacyMode: false }, symbols: [], driverKind: null, loaded: false },
     quotes: {}, // id → row
     quoteMeta: { fetchedAt: null, error: null },
-    ui: loadUi(),
+    ui: loadUi(storage),
     toast: null,
     providers: null,
   };
   const listeners = new Set();
-  let capsuleRect = null; // 胶囊最近矩形（内存）：面板弹出锚点
 
-  const emit = () => { for (const l of [...listeners]) { try { l(); } catch { /* 订阅者异常不扩散 */ } } };
+  const emit = () => { for (const l of [...listeners]) { try { l(state); } catch { /* 订阅者异常不扩散 */ } } };
 
   const persistUi = () => {
     try {
-      const { panelOpen, view, detailId, showAdd, showSettings, panelPos, toast, ...persisted } = state.ui; // 会话态不落盘
-      window.localStorage.setItem(UI_KEY, JSON.stringify(persisted));
+      const persisted = {};
+      for (const key of UI_PERSIST_KEYS) persisted[key] = state.ui[key];
+      storage.setItem(UI_KEY, JSON.stringify(persisted));
     } catch {
       /* localStorage 不可用（隐私模式等）：仅内存 */
     }
@@ -185,11 +193,6 @@ export function createStore() {
   function setHoldingsOnly(v) { setUi({ holdingsOnly: v }); }
   function setMaVisible(v) { setUi({ maVisible: v }); }
   function setCapsuleSymbol(id) { setUi({ capsuleSymbolId: id }); }
-  function setCapsulePos(pos) { setUi({ pos }); }
-  /** 胶囊矩形上报（内存，不触发渲染）：面板弹出位置锚点 */
-  function setCapsuleRect(rect) { capsuleRect = rect; }
-  function getCapsuleRect() { return capsuleRect; }
-  function setPanelPos(pos) { setUi({ panelPos: pos }); }
 
   function setToast(text) {
     set({ toast: text ? { text, at: Date.now() } : null });
@@ -203,41 +206,32 @@ export function createStore() {
   function setShowAdd(v) { setUi({ showAdd: v }); }
   function setShowSettings(v) { setUi({ showSettings: v }); }
 
-  /** 视口变化后保证胶囊仍可见（4.1） */
-  function handleResize(capsuleSize) {
-    const pos = state.ui.pos;
-    if (!pos || !capsuleSize) return;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const snapped = snapToEdge(pos.x, pos.y, capsuleSize.w, capsuleSize.h, vw, vh);
-    setCapsulePos(snapped);
-  }
-
   /** 页面可见性恢复：立即拉一次并重启轮询（后台节流后的追赶） */
   function handleVisibility() {
     if (!document.hidden) restartPolling();
   }
 
+  /** 订阅漏斗：即刻回放当前快照一次；之后每次 set 收到新快照。返回止订函数。 */
   function subscribe(listener) {
     listeners.add(listener);
+    try { listener(state); } catch { /* 回放异常不扩散 */ }
     return () => listeners.delete(listener);
   }
   function getState() {
     return state;
   }
 
-  return {
-    subscribe, getState,
-    refreshState, mutate, addSymbol, updateSymbol, removeSymbol, setPrivacy, importBackup,
-    pollQuotes, restartPolling, openPanel, closePanel, togglePanel, openDetail, backToList, setCapsuleRect, getCapsuleRect,
-    setLastMarket, setHoldingsOnly, setMaVisible, setCapsuleSymbol, setCapsulePos, setPanelPos,
-    setToast, setShowAdd, setShowSettings, handleResize, handleVisibility,
-  };
-}
+  /** 释放：清轮询定时器与订阅者（Task 13 dispose 契约） */
+  function dispose() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    listeners.clear();
+  }
 
-/** hook：订阅 store（React 16.8+ 兼容写法，不依赖 useSyncExternalStore） */
-export function useStore(store) {
-  const [snapshot, setSnapshot] = useState(store.getState());
-  useEffect(() => store.subscribe(() => setSnapshot(store.getState())), [store]);
-  return snapshot;
+  return {
+    subscribe, getState, dispose,
+    refreshState, mutate, addSymbol, updateSymbol, removeSymbol, setPrivacy, importBackup,
+    pollQuotes, restartPolling, openPanel, closePanel, togglePanel, openDetail, backToList,
+    setLastMarket, setHoldingsOnly, setMaVisible, setCapsuleSymbol,
+    setToast, setShowAdd, setShowSettings, handleVisibility,
+  };
 }
