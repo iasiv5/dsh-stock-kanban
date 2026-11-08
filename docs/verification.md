@@ -58,6 +58,20 @@
 | 2. Windows 浏览器访问远端 DSH | **未验证**（代码路径同场景 3：同一份服务端 + 同一份客户端 bundle，浏览器端无平台分支代码） | 复现步骤：任意 Windows 浏览器（Edge/Chrome）访问 `https://<远端DSH地址>/`，确认右上角胶囊出现 → 点击展开 → 添加/持仓/图表。需注意远端入口若经认证网关，插件路由同源原则不受影响。 |
 | 1. Windows 本机 desktop profile | **未验证** | 本机无 Windows 环境。插件已声明 `dsh.engines.dsh >=0.2.2-rc.1`，不依赖 webRuntime（0.2.1-rc.2 起移除项）；存储优先走 DSH storage hub，desktop 若无该服务自动回退文件驱动（health.driver 可查）。复现步骤：desktop 安装包后 `dsh plugin --profile desktop add <tarball>`，重启 desktop，确认胶囊与健康路由。 |
 
+## 12.5 客户端契约测试（2026-11-08）
+
+插槽契约（GLOSSARY「插槽契约」：bundle 挂载并完整渲染零未解析引用、转发 props 与快照形状一致）由 `tests/client-contract.test.mjs` 执有，5 用例全绿（全量 88/88）。机制：fake-slots 走真实 `apply()` 接缝取渲染函数，react 经 node:module resolve 钩子映射假实现（零新依赖、零 DOM harness），三态 UI 经 localStorage 种子走生产 `loadUi` 真实路径。
+
+| 用例 | 拦截的事故类 |
+|---|---|
+| list / detail / add 三态全树渲染零抛错 | 渲染期自由标识符 ReferenceError → 插槽整体卸载（MARKET_LABELS、quoteMeta 两次历史事故的整类） |
+| 形状断言（undefined 且快照同名 prop = 违规） | 「快照改名字段、转发点静默失联」类 |
+| langObserver 生命周期（observe 被调、setup 不 disconnect、cleanup 才断） | effect 接线错位类（本次红案例：main.mjs 杂散 `langObserver.disconnect()` 使「跟随 DSH 界面语言」静默失效，红→绿修复留档） |
+
+守卫有效性自证：向 `client/capsule.mjs` 渲染路径回灌自由标识符 → 契约测试 4 用例即红（`__contractProbeFreeIdentifier is not defined`）→ 还原转绿。构建期 `FORBIDDEN` 符号黑名单已退役，契约测试为泄漏类唯一守卫；`npm test` 为发布门。
+
+lifecycle 用例进程收尾多等约 4 秒属预期：effect 内 `refreshState()` 对相对 URL fetch 返回 rejected Promise → `.catch` → setToast → toast 自动消失定时器（≈4000ms）恰调度 1 次。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 67 单测 + 23 数据源探针。

@@ -88,3 +88,13 @@
 | desktop profile 无 storage 服务 | 文件驱动回退（同接口） |
 | 浏览器后台节流 | document.hidden 时降频；不承诺固定秒级触价捕获（需求已接受） |
 | 复权口径 | 腾讯 fqkline 用 `qfq`（前复权）、EM 用 `fqt=1`（前复权）——均以接口参数为准并在图表标注"前复权"；接口真实行为以探针实测为准 |
+
+## 10. 客户端契约测试（2026-11-08）：为何用 stub-react 浅渲染而非 DOM harness
+
+决策三理由：
+
+1. **历史事故全在渲染路径**。插槽级事故（MARKET_LABELS 残留引用、quoteMeta 漏解构）都是「渲染期自由标识符 ReferenceError → React 卸载整个 shell.overlay 插槽」；handler 内抛错在 React 17+ 只记 console、不卸载插槽——静态作用域分析（acorn）的增量覆盖买不来等值风险削减，YAGNI。
+2. **零新依赖、零脆测面**。stub-react 的 `createElement` 只返回元素树并录制，hooks 捕获不执行 effect：无 DOM 提交、无定时器、无网络（唯一例外：lifecycle 用例手动执行 App effect，依赖均为录制桩），测试确定性 100%，不引入选择器/时序耦合。
+3. **测试走真实接缝**。经 fake-slots（伪造 `ctx.slots.inject/register`）调用 `apply()` 取渲染函数，穿过插件与宿主的真实 slots 协议；三态 UI 经 localStorage 种子驱动 `loadUi()`，走生产持久化真实路径。
+
+守卫收拢：`build-client.mjs` 的 `FORBIDDEN` 符号黑名单（只记得单个历史符号的浅守卫）已退役，`tests/client-contract.test.mjs`（经 `npm test`）为泄漏类唯一守卫。`SNAPSHOT_KEYS` 装配期一次求值、随 store 默认状态键自动扩展，形状断言免维护。若未来客户端出现第二处 observer 类接线，可考虑抽 `createLangObserver` 式工厂；当前单点不抽。
