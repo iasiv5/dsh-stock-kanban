@@ -45,7 +45,9 @@ export function MarketList({ store, ui, business, quotes, privacy }) {
         key: m,
         className: `skc-tab${m === market ? " skc-tab-active" : ""}`,
         onClick: () => { store.setLastMarket(m); store.pollQuotes(); },
-      }, `${t(`market.${m}`)}${marketCount(m) > 0 ? ` (${marketCount(m)})` : ""}`)),
+      }, marketCount(m) > 0
+        ? [t(`market.${m}`), h("span", { key: "c", className: "skc-tab-count" }, String(marketCount(m)))]
+        : t(`market.${m}`))),
     ),
     h("div", { className: "skc-filterbar" },
       h("label", { className: "skc-filter" },

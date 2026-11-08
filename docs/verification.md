@@ -97,6 +97,13 @@ lifecycle 用例进程收尾多等约 4 秒属预期：effect 内 `refreshState(
 实现：面板头部新增 ⚙ 按钮（👁 ＋ ⚙ — 序）→ `ui.showSettings` 会话态（不落盘，`openPanel`/`closePanel` 双路复位）→ 复用 `skc-dialog` 全覆盖对话框（添加标的同款）承载 `BackupSection`；列表层不再常驻备份区，视觉减负。i18n 补 `app.settings` 双语（i18n.test 字典对齐守卫覆盖）。
 验证：npm test 93/93（settings 态渲染零抛错新用例 + 类名缝渲染态守卫扩为四态种子）；CDP 真机——头部按钮序正确、列表层确认无备份区、点 ⚙ 弹出「设置（备份与迁移）」对话框（内含导出/导入）、✕ 关闭与重开回路通过，截图人眼复核通过。
 
+## 12.8 对话框可读性地板 + 视觉密度修订（2026-11-09，用户实测反馈 → 已修复并验证）
+
+**根因（CDP 取证实锤）**：用户激活的玻璃皮肤将 `--dsw-alias-bg-base` 定义为 `rgba(12,26,38,0.55)` 且 `--dsw-alias-bg-elevated` 未定义——覆盖层的 `color-mix(…97%,transparent)` 会按比例**保留原 alpha**，对话框实际不透明度仅 ≈53%，又无 backdrop-filter，下层行文字清晰透出（「根本看不清楚字」）。面板同 alpha 但有 blur(14px) 故可用。
+**修法（三层表面统一）**：面板/对话框/toast/全局错误条改用「**相对颜色语法地板**」——`rgb(from var(--dsw-alias-bg-base,#1f1f1f) r g b / 1)` 取令牌色相、强制 alpha=1（主题自适应，浅色皮肤同样成立），前一行保留旧声明作老浏览器回落；保留 blur 做深度而非可读性依赖。
+**视觉密度修订**（金融终端式克制密度，全部在 `--dsw-alias-*` 令牌体系内）：分段式市场 Tab（active 填充 + 独立计数徽标 `.skc-tab-count`）、行距/内边距全面收紧、等宽数字对齐、主/危险按钮改填充式、输入框 focus ring、hover/active 120ms 过渡、`:focus-visible` 可达性轮廓、细滚动条、面板/对话框/toast 入场动画（只动 chrome，数据行不动画）、面板 `overflow:hidden` 裁齐圆角。
+**验证**：npm test 93/93（pointer-events 契约与类名缝守卫均完好，`.skc-tab-count` 纳入源码全集扫描）；CDP 真机三态截图（列表/设置对话框/添加对话框）——对话框与面板均为实底深色表面、零透底、文字清晰，人眼复核通过。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 89 单测 + 23 数据源探针。
