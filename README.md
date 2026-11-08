@@ -27,7 +27,7 @@ sudo systemctl restart deepseek-harness.service
 ```
 
 - 从源码构建客户端（如改动 client/ 后）：`npm install && npm run build`
-- 运行测试：`npm test`（67 用例，全部离线 mock，不依赖外网）
+- 运行测试：`npm test`（89 用例，全部离线 mock，不依赖外网）
 
 **验证插件已激活**：浏览器打开 DSH → 应看到右上角"盯盘"胶囊；或 `curl http://<dsh>/stock-kanban/health` 返回 `{"driver":...}`。
 
