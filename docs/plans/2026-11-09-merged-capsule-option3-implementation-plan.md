@@ -285,7 +285,7 @@
 - 验证范围：六条精确命名用例；净增 +4（新增 6、删除 2）。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 六条，名字精确为：「水平推出：优先右侧」、「水平推出：放不下则左侧」、「垂直回退：两侧都放不下时下方优先」、「垂直回退：下方放不下时翻到锚上方」（视口 [500, 300]；capsuleRect {top:200, height:26}；面板高度桩为 160px；下方放不下（234+160 > 292），翻到上方，期望 top = 32px，对应删除的 `:526`）、「水平推出：顶边与胶囊对齐并贴底钳位」、「sheet：视口不超过 480px 为底部 sheet」。夹具与各条视口和矩形（钉死，否则按文字执行会得到 pass 5 而非 pass 6）：六条共用面板高度桩 160px；分区与胶囊顶边不同（segRect.top = capsuleRect.top + 4），否则 HEAD 的 openFrom（只读第一个参数）可能虚绿。①「水平推出：优先右侧」视口 [1024, 768]，segRect {left:200, top:204, width:70, height:26}，capsuleRect {left:200, top:200, width:150, height:26}，期望 left = 278px、top = 200px；②「水平推出：放不下则左侧」同视口，segRect.left = 900，期望 left = 492px；③「垂直回退：两侧都放不下时下方优先」视口 [500, 768]，segRect {left:50, top:204, width:70, height:26}，期望 top = 234px（capsuleRect.bottom + 8）；④「垂直回退：下方放不下时翻到锚上方」视口 [500, 300]，期望 top = 32px；⑤「水平推出：顶边与胶囊对齐并贴底钳位」视口 [1024, 768]，capsuleRect.top = 700，期望 top = 600px（768 − 160 − 8）；⑥「sheet：视口不超过 480px 为底部 sheet」视口 [400, 768]。
+  - Change: 六条，名字精确为：「水平推出：优先右侧」、「水平推出：放不下则左侧」、「垂直回退：两侧都放不下时下方优先」、「垂直回退：下方放不下时翻到锚上方」（视口 [500, 300]；capsuleRect {top:200, height:26}；面板高度桩为 160px；下方放不下（234+160 > 292），翻到上方，期望 top = 32px，对应删除的 `:526`）、「水平推出：顶边与胶囊对齐并贴底钳位」、「sheet：视口不超过 480px 为底部 sheet」。夹具与各条视口和矩形（钉死，否则按文字执行会得到 pass 5 而非 pass 6）：六条共用面板高度桩 160px；面板宽度不桩，取默认 400（WIDTH_FALLBACK=400；桩宽则期望值 492、234、32 不再成立，不得桩宽）；分区与胶囊顶边不同（segRect.top = capsuleRect.top + 4），否则 HEAD 的 openFrom（只读第一个参数）可能虚绿。①「水平推出：优先右侧」视口 [1024, 768]，segRect {left:200, top:204, width:70, height:26}，capsuleRect {left:200, top:200, width:150, height:26}，期望 left = 278px、top = 200px；②「水平推出：放不下则左侧」同视口与 capsuleRect，segRect {left:900, top:204, width:70, height:26}，期望 left = 492px；③「垂直回退：两侧都放不下时下方优先」视口 [500, 768]，segRect {left:50, top:204, width:70, height:26}，期望 top = 234px（capsuleRect.bottom + 8）；④「垂直回退：下方放不下时翻到锚上方」视口 [500, 300]，segRect {left:50, top:204, width:70, height:26}，capsuleRect {left:50, top:200, width:150, height:26}，期望 top = 32px；⑤「水平推出：顶边与胶囊对齐并贴底钳位」视口 [1024, 768]，segRect {left:200, top:704, width:70, height:26}，capsuleRect {left:200, top:700, width:150, height:26}，期望 top = 600px（768 − 160 − 8）；⑥「sheet：视口不超过 480px 为底部 sheet」视口 [400, 768]。
   - Run: `set -o pipefail && node --test --test-name-pattern="水平推出|垂直回退|sheet：" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 6`、`ℹ pass 1`、`ℹ fail 5`（第「sheet」条为既有行为，现即绿；其余五条在 HEAD 上红）。
 - [ ] Step 2：实现并转绿
@@ -309,11 +309,11 @@
 #### Task S10：窄屏降级（先红）
 
 - 目标：视口不超过 480px 时隐藏股票名称；额度段热区扩到 44px；面板仍为底部 sheet。
-- 涉及文件：Modify `client/capsule.mjs`（resize 监听切换胶囊类 `.skc-compact`；股票名称节点带 `skc-stock-name`）；Modify `client/styles.mjs`（仅追加 `.skc-compact .skc-stock-name{display:none}` 与额度段热区扩展）；Modify `tests/client-dom.test.mjs`。
+- 涉及文件：Modify `client/capsule.mjs`（resize 监听切换胶囊类 `.skc-compact`；股票名称节点带 `skc-stock-name`）；Modify `client/styles.mjs`（仅追加 `.skc-compact .skc-stock-name{display:none}`，以及额度段热区规则：`[data-seg="quota"]{position:relative;align-self:stretch}` 与 `[data-seg="quota"]::before{content:"";position:absolute;inset:-10px}`；胶囊 `align-items:center` 下段须显式 stretch，否则段高为内容高约 9px，热区不达 44px）；Modify `tests/client-dom.test.mjs`。
 - 验证范围：三条精确命名用例。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 三条，名字精确为：「窄屏：视口 400 时胶囊带 skc-compact」、「窄屏：视口 800 时胶囊不带 skc-compact」、「窄屏：额度段热区扩到 44px」（断言 FLOAT_STYLE_TEXT 中 `[data-seg="quota"]::before` 规则的 `inset` 为 `-9px`，即胶囊高 26 加上下各 9 等于 44px 热区；HEAD 上规则缺席，必红）。
+  - Change: 三条，名字精确为：「窄屏：视口 400 时胶囊带 skc-compact」、「窄屏：视口 800 时胶囊不带 skc-compact」、「窄屏：额度段热区扩到 44px」（断言 FLOAT_STYLE_TEXT 中 `[data-seg="quota"]::before` 规则的 `inset` 为 `-10px`；段高由 `align-self: stretch` 取胶囊内高 24，24 + 2×10 = 44px 热区；HEAD 上规则缺席，必红）。
   - Run: `set -o pipefail && node --test --test-name-pattern="窄屏：" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 3`、`ℹ pass 1`、`ℹ fail 2`（第 2 条现即满足，为不变量）。
 - [ ] Step 2：实现并转绿
