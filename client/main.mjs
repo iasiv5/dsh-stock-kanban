@@ -13,6 +13,7 @@ import { createDetail } from "./detail.mjs";
 import { createAdd } from "./add.mjs";
 import { createBackup } from "./backup.mjs";
 import { createQuotaEmbed } from "./quota-embed.mjs";
+import { mirrorGuestFloatPosition } from "./float-prefs.mjs";
 import { FLOAT_STYLE_TEXT } from "./styles.mjs";
 import { t, resolveLang, setLang } from "./i18n.mjs";
 
@@ -78,6 +79,7 @@ export function mountKanban({ doc, win, storage }) {
       store.togglePanel();
     },
     onQuotaTap: () => quotaEmbed.onQuotaTap(), // 延迟绑定：quotaEmbed 在 capsule 之后创建
+    onPositionPersisted: (point) => mirrorGuestFloatPosition(storage, point), // 位置继承：拖动落盘镜像写回 qw 键
   });
   stack.append(capsule.el);
 

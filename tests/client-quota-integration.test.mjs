@@ -338,3 +338,24 @@ test("合并：stack 上无独立额度节点", async () => {
     s.cleanup();
   }
 });
+
+test("位置继承：拖动合并胶囊 → qw 位置键镜像同坐标", async () => {
+  const s = await setupKanban({ guestBeforeMount: { capabilities: CAPS } });
+  try {
+    await tick();
+    assert.ok(s.pillOf(), "合并胶囊在位");
+    const hostEl = s.h.document.querySelector("[data-dsh-stock-kanban-float]");
+    const cap = hostEl && hostEl.shadowRoot.querySelector(".skc-capsule");
+    assert.ok(cap, "胶囊元素在位");
+    s.h.firePointer(cap, "pointerdown", { x: 100, y: 100 });
+    s.h.firePointer(cap, "pointermove", { x: 130, y: 110 }); // 超 slop 进入拖拽
+    s.h.firePointer(cap, "pointerup", { x: 130, y: 110 });
+    const skRaw = s.h.localStorage.getItem("dsh-stock-kanban:float-position");
+    const qwRaw = s.h.localStorage.getItem("dsh-quota-watch:float-position");
+    assert.ok(skRaw, "sk 键已落盘");
+    assert.ok(qwRaw, "qw 键已镜像");
+    assert.equal(qwRaw, skRaw, "双键同坐标（位置通用与继承）");
+  } finally {
+    s.cleanup();
+  }
+});

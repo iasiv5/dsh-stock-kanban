@@ -32,7 +32,7 @@ const ZERO_INSETS = { left: 0, right: 0, top: 0, bottom: 0 };
  * 落同一位置记忆键（dsh-stock-kanban:float-position），tap = 各自点击语义。
  * readInsets 可注入（胶囊传自有探针，避免重复探针）；缺省自建惰性探针。
  */
-export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets: readInsetsArg }) {
+export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets: readInsetsArg, onPersisted }) {
   let dragging = false;
   let moved = false;
   let originX = 0;
@@ -153,6 +153,8 @@ export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets
     host.style.willChange = "";
     host.style.transform = "";
     saveFloatPosition(storage, point);
+    // 位置继承（ADR 0003 第 11 条）：拖动落盘后镜像写回 qw 位置键（createCapsule 经 onPersisted 注入）
+    if (typeof onPersisted === "function") onPersisted(point);
     host.style.left = `${Math.round(point.x)}px`;
     host.style.top = `${Math.round(point.y)}px`;
   };
@@ -202,7 +204,7 @@ function titlebarInset(win, doc) {
   }
 }
 
-export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel, onQuotaTap }) {
+export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel, onQuotaTap, onPositionPersisted }) {
   const host = shadow.host;
   /** 股票面板切换：传股票段矩形与胶囊矩形（S6；S8 据此定位，本步 capsuleRect 原样透传） */
   const toggle = (segRect) =>
@@ -326,7 +328,7 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel,
     }
     toggle(stockRect());
   };
-  const dragCtl = attachFloatDrag({ el, host, doc, win, storage, onTap: routeTap, readInsets });
+  const dragCtl = attachFloatDrag({ el, host, doc, win, storage, onTap: routeTap, readInsets, onPersisted: (point) => { if (typeof onPositionPersisted === "function") onPositionPersisted(point); } });
 
   const onKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {

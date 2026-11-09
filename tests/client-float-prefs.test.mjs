@@ -5,11 +5,14 @@ import assert from "node:assert/strict";
 // （docs/plans/2026-11-09-client-vanilla-rewrite-implementation-plan.md Task 3）。
 import {
   FLOAT_POSITION_KEY,
+  GUEST_POSITION_KEY,
   MARGIN,
   clampPoint,
   titlebarTopInset,
   loadFloatPosition,
   saveFloatPosition,
+  loadGuestFloatPosition,
+  mirrorGuestFloatPosition,
 } from "../client/float-prefs.mjs";
 
 function createStorage() {
@@ -83,4 +86,29 @@ test("float-prefs · saveFloatPosition 契约", () => {
     },
   };
   assert.doesNotThrow(() => saveFloatPosition(hostile, { x: 1, y: 2 }), "写失败静默不冒泡");
+});
+
+test("guest 位置键：load 读 dsh-quota-watch 键，坏数据返回 null", () => {
+  const storage = createStorage();
+  assert.equal(loadGuestFloatPosition(storage), null, "空存储 → null");
+  storage.setItem(GUEST_POSITION_KEY, "{broken");
+  assert.equal(loadGuestFloatPosition(storage), null, "坏 JSON → null");
+  storage.setItem(GUEST_POSITION_KEY, JSON.stringify({ x: 3, y: "x" }));
+  assert.equal(loadGuestFloatPosition(storage), null, "非有限数值 → null");
+  storage.setItem(GUEST_POSITION_KEY, JSON.stringify({ x: 3, y: 6 }));
+  assert.deepEqual(loadGuestFloatPosition(storage), { x: 3, y: 6 });
+});
+
+test("guest 位置键：mirror 写 {x,y}，非法抛 TypeError，写失败静默", () => {
+  const storage = createStorage();
+  mirrorGuestFloatPosition(storage, { x: 1, y: 2 });
+  assert.equal(storage.getItem(GUEST_POSITION_KEY), JSON.stringify({ x: 1, y: 2 }));
+  assert.throws(() => mirrorGuestFloatPosition(storage, { x: NaN, y: 2 }), TypeError);
+  const hostile = {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("quota exceeded");
+    },
+  };
+  assert.doesNotThrow(() => mirrorGuestFloatPosition(hostile, { x: 1, y: 2 }), "写失败静默不冒泡");
 });

@@ -8,6 +8,7 @@ import { createQuotaEmbed } from "../client/quota-embed.mjs";
 import * as qe from "../client/quota-embed.mjs";
 import { t } from "../client/i18n.mjs";
 import { quotaSegmentModel } from "../client/quota-segment.mjs";
+import { GUEST_POSITION_KEY } from "../client/float-prefs.mjs";
 import { createCapsule } from "../client/capsule.mjs";
 
 const NS = "dsh-quota-watch";
@@ -601,6 +602,45 @@ test("待处理：manualOutcomeError 同样视为待处理", async () => {
     assert.equal(seg.querySelector(".skc-qdot").hidden, false, "琥珀点可见");
   } finally {
     s.embed.dispose();
+    s.h.cleanup();
+  }
+});
+
+test("位置继承：engage 接管 qw 位置，按胶囊宽重钳并落盘 sk 键", async () => {
+  const s = setup({ withCapsule: true, fetchImpl: async () => okResponse(overviewPayload({ glm: 82, copilotRemaining: 3 })) });
+  try {
+    s.h.localStorage.setItem(GUEST_POSITION_KEY, JSON.stringify({ x: 1124, y: 500 }));
+    s.capsule.el.getBoundingClientRect = () => ({ width: 283, height: 26, left: 0, top: 0, right: 283, bottom: 26, x: 0, y: 0 });
+    addGuest(s.h);
+    await sleep(30);
+    replyCaps(s.h, ["hide-pill", "anchored-panel", "poll-pause"]);
+    await sleep(80);
+    assert.equal(s.host.style.left, "733px", "1124 超右缘 → 按胶囊宽重钳：1024−8−283=733");
+    assert.equal(s.host.style.top, "500px", "y 未越界原样采纳");
+    assert.equal(
+      s.h.localStorage.getItem("dsh-stock-kanban:float-position"),
+      JSON.stringify({ x: 733, y: 500 }),
+      "采纳结果同笔落 sk 键（双键收敛）",
+    );
+  } finally {
+    s.embed.dispose();
+    s.capsule?.dispose();
+    s.h.cleanup();
+  }
+});
+
+test("位置继承：无 qw 位置记录 → 采纳跳过", async () => {
+  const s = setup({ withCapsule: true });
+  try {
+    const leftBefore = s.host.style.left; // 真胶囊 applyPosition 的默认位（host 已有定位写入）
+    addGuest(s.h);
+    await sleep(30);
+    replyCaps(s.h, ["hide-pill", "anchored-panel", "poll-pause"]);
+    await sleep(80);
+    assert.equal(s.host.style.left, leftBefore, "未采纳：host 定位保持初值不变");
+  } finally {
+    s.embed.dispose();
+    s.capsule?.dispose();
     s.h.cleanup();
   }
 });

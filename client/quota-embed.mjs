@@ -18,6 +18,7 @@ const REQUIRED_CAPABILITIES = ["hide-pill", "anchored-panel"];
 
 import { t } from "./i18n.mjs";
 import { quotaSegmentModel } from "./quota-segment.mjs";
+import { MARGIN, loadGuestFloatPosition, saveFloatPosition } from "./float-prefs.mjs";
 
 function glmPercent(provider) {
   if (provider?.status === "missing" || provider?.status === "error") return undefined;
@@ -202,9 +203,36 @@ export function createQuotaEmbed({
     heartTimer = win.setInterval(() => dispatch("embed-heartbeat", { v: 1 }), heartbeatMs);
   };
 
+  /** 位置继承（ADR 0003 第 11 条）：engage 时接管 qw 当前位置——sk 胶囊比 qw 宽，
+   *  坐标按本胶囊实测宽重钳（空间不足时右缘贴视口、整体左移）；采纳结果同笔落 sk 键，双键即刻收敛 */
+  const adoptGuestPosition = () => {
+    const guestPos = loadGuestFloatPosition(win.localStorage);
+    if (!guestPos) return;
+    const rect =
+      typeof target?.getBoundingClientRect === "function"
+        ? target.getBoundingClientRect()
+        : { width: 0, height: 0 };
+    const vw = win.innerWidth;
+    const vh = win.innerHeight;
+    const maxX = Math.max(MARGIN, vw - MARGIN - rect.width);
+    const maxY = Math.max(MARGIN, vh - MARGIN - rect.height);
+    const point = {
+      x: Math.min(Math.max(guestPos.x, MARGIN), maxX),
+      y: Math.min(Math.max(guestPos.y, MARGIN), maxY),
+    };
+    host.style.left = `${Math.round(point.x)}px`;
+    host.style.top = `${Math.round(point.y)}px`;
+    try {
+      saveFloatPosition(storage, point);
+    } catch {
+      /* 采纳坐标非法时不落盘，位置保留会话态 */
+    }
+  };
+
   const startEngage = () => {
     if (engaged || !capable || !enabled || disposed || !guestEl) return;
     engaged = true;
+    adoptGuestPosition();
     target.append(el);
     el.setAttribute("aria-expanded", "false");
     dispatch("embed-engage", { v: 1 });

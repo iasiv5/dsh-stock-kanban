@@ -78,3 +78,43 @@ export function saveFloatPosition(storage, point) {
     /* storage unavailable; position stays session-only */
   }
 }
+
+// 位置继承（ADR 0003 第 11 条，2026-11-10）：与 quota-watch 双键互认——engage 时
+// 接管访客（qw）当前位置，拖动落盘时镜像写回访客键。qw 零改动：永远只读自己的键，
+// 独立性不破（qw 未装/停用时本插件的读写只是无人消费的键）。
+export const GUEST_POSITION_KEY = 'dsh-quota-watch:float-position'
+
+export function loadGuestFloatPosition(storage) {
+  try {
+    const raw = storage.getItem(GUEST_POSITION_KEY)
+    if (typeof raw !== 'string' || raw === '') return null
+    const parsed = JSON.parse(raw)
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !Number.isFinite(parsed.x) ||
+      !Number.isFinite(parsed.y)
+    ) {
+      return null
+    }
+    return { x: parsed.x, y: parsed.y }
+  } catch {
+    return null
+  }
+}
+
+export function mirrorGuestFloatPosition(storage, point) {
+  if (
+    typeof point !== 'object' ||
+    point === null ||
+    !Number.isFinite(point.x) ||
+    !Number.isFinite(point.y)
+  ) {
+    throw new TypeError(`invalid guest float position: ${JSON.stringify(point)}`)
+  }
+  try {
+    storage.setItem(GUEST_POSITION_KEY, JSON.stringify({ x: point.x, y: point.y }))
+  } catch {
+    /* storage unavailable；镜像失败不影响本胶囊落盘 */
+  }
+}
