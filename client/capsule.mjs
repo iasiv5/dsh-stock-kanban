@@ -93,8 +93,10 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
   /* ------------------------------------------------ 位置（挂 host） */
 
   const viewportOf = () => ({ width: win.innerWidth ?? 1024, height: win.innerHeight ?? 768 });
+  /** 尺寸实测读 host（位置载体；host 先 append 再创建胶囊，真实浏览器 rect 可用）。
+   * jsdom rect 恒零 → 回退 38×26（回归测试对 host rect 打桩验证实测路径）。 */
   const measureSize = () => {
-    const rect = el.getBoundingClientRect();
+    const rect = host.getBoundingClientRect();
     return rect.width > 0 ? { width: rect.width, height: rect.height } : FALLBACK_SIZE;
   };
   const applyPosition = () => {
@@ -108,6 +110,21 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
     const point = clampPoint(pos, viewport, size, insets);
     host.style.left = `${Math.round(point.x)}px`;
     host.style.top = `${Math.round(point.y)}px`;
+    lastAppliedSize = size;
+  };
+  // 首挂定位发生在空胶囊（文本未填充，宽度 34px 级）；首个快照渲染后尺寸跳变
+  // （实测 ~156px 级）会越过右缘——update 时按尺寸变化重定位一次（拖拽中跳过）。
+  let lastAppliedSize = null;
+  const repositionIfResized = () => {
+    if (dragging) return;
+    const size = measureSize();
+    if (
+      !lastAppliedSize ||
+      Math.abs(size.width - lastAppliedSize.width) >= 0.5 ||
+      Math.abs(size.height - lastAppliedSize.height) >= 0.5
+    ) {
+      applyPosition();
+    }
   };
 
   /* ------------------------------------------------ 拖拽管线 */
@@ -247,6 +264,10 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
   el.addEventListener("click", onClick);
   el.addEventListener("keydown", onKeyDown);
   win.addEventListener("resize", onResize);
+  // 先入树再定位（quota-watch 同构）：宿主已 append（main.mjs），胶囊入
+  // .skc-stack 后 host 才有可测内容——空 host 的真实 rect 是 0，首挂定位
+  // 会错误地走 38×26 回退。stack 缺席时（单元测试）落 shadow root。
+  (shadow.querySelector(".skc-stack") ?? shadow).append(el);
   applyPosition();
 
   /* ------------------------------------------------ 快照渲染 */
@@ -277,6 +298,7 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
     } else {
       el.removeAttribute("title");
     }
+    repositionIfResized();
   };
 
   const dispose = () => {

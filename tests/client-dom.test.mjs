@@ -100,6 +100,40 @@ test("capsule · DOM 契约与默认位（host 定位，pill 流内）", () => {
   }
 });
 
+test("capsule · 首挂定位走实测尺寸（host rect 桩；jsdom rect 恒零漏网回归）", () => {
+  const h = createDomHarness();
+  h.setViewport(h.window, 1024, 768);
+  try {
+    const host = h.document.createElement("div");
+    h.document.body.append(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const stack = h.document.createElement("div");
+    stack.className = "skc-stack";
+    shadow.append(stack);
+    // 桩：模拟 host 入文档且有内容后的实测矩形（真实浏览器语义；jsdom 原生恒零测不出）
+    host.getBoundingClientRect = () => ({
+      x: 0, y: 0, left: 0, top: 0, right: 150, bottom: 26, width: 150, height: 26,
+    });
+    const capsule = createCapsule({
+      doc: h.document,
+      win: h.window,
+      storage: h.localStorage,
+      shadow,
+      store: {},
+      onTogglePanel() {},
+    });
+    // 先入树再定位：createCapsule 返回时 el 已在 stack（空 host 的真实 rect 是 0，
+    // 不入树则首挂定位恒走回退——真实浏览器漏网路径）
+    assert.equal(capsule.el.parentElement, stack, "胶囊在定位前已入 .skc-stack");
+    // 实测数学：1024−8−0−150 = 866；回退数学会是 978（=1024−8−38）
+    assert.equal(host.style.left, "866px", "默认位 x 用实测宽度 150 而非回退 38");
+    assert.equal(host.style.top, "734px", "默认位 y 用实测高度 26");
+    capsule.dispose();
+  } finally {
+    h.cleanup();
+  }
+});
+
 test("capsule · 拖拽超 slop：host 位移 + 落盘终点钳位坐标", () => {
   // 起始位预置在视口中段（默认右下位已贴 maxX 钳位缘，+20 无法观测）
   const { h, host, capsule, calls } = setupCapsule({ seed: { "dsh-stock-kanban:float-position": JSON.stringify({ x: 300, y: 300 }) } });

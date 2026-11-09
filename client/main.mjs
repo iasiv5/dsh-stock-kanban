@@ -47,6 +47,11 @@ export function mountKanban({ doc, win, storage }) {
   errorGlobal.hidden = true;
   shadow.append(errorGlobal);
 
+  // 先 attach 再创建胶囊：首挂定位的尺寸测量（host.getBoundingClientRect）
+  // 必须在 host 入文档后进行，否则真实浏览器恒走 38×26 回退（jsdom rect 恒零
+  // 测不出此差异——quota-watch 同构：先 append 再 applyPosition）
+  doc.body.append(host);
+
   /* ---------------- store 与视图簇 ---------------- */
 
   const store = createStore(storage);
@@ -107,8 +112,6 @@ export function mountKanban({ doc, win, storage }) {
   langObserver.observe(doc.documentElement, { attributeFilter: ["lang"] });
   win.addEventListener("languagechange", onLangChange);
 
-  doc.body.append(host);
-
   return () => {
     unsubscribe();
     store.dispose();
@@ -125,11 +128,13 @@ export function mountKanban({ doc, win, storage }) {
 const inject = [];
 
 function apply(ctx) {
-  const doc = ctx?.document ?? globalThis.document;
-  const win = ctx?.window ?? globalThis.window;
-  const storage = ctx?.storage ?? globalThis.localStorage;
+  // 客户端运行时不提供 document/window/storage 服务（inject 只认 npm 包名服务），
+  // 一律走 globalThis，避免 cordis proxy guard 抛 cannot get property ... without inject。
+  const doc = globalThis.document;
+  const win = globalThis.window;
+  const storage = globalThis.localStorage;
   const mount = () => mountKanban({ doc, win, storage });
-  if (typeof ctx?.effect === "function") {
+  if (ctx && typeof ctx.effect === "function") {
     return ctx.effect(mount, "dsh-stock-kanban: float shell");
   }
   return mount(); // 无 effect 环境（测试）：直接挂载并透传 dispose
