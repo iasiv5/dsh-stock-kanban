@@ -9,7 +9,6 @@ import * as qe from "../client/quota-embed.mjs";
 import { t } from "../client/i18n.mjs";
 import { quotaSegmentModel } from "../client/quota-segment.mjs";
 import { createCapsule } from "../client/capsule.mjs";
-import { FLOAT_STYLE_TEXT } from "../client/styles.mjs";
 
 const NS = "dsh-quota-watch";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -175,13 +174,15 @@ test("quota-embed · 降级矩阵行 4：能力+默认开 → engage + 心跳 + 
     assert.ok(pill, "quota pill 在 stack");
     assert.equal(pill.hidden, false, "pill 可见");
     const seg = s.stack.querySelector('[data-seg="quota"]');
-    const bars = [...seg.querySelectorAll(".skc-qbar-fill")];
-    assert.equal(bars.length, 2, "GLM + Copilot 两条");
-    assert.equal(bars[0].dataset.key, "glm", "GLM 在前");
-    assert.equal(bars[0].dataset.tone, "warn", "GLM 82% → warn（>80≤95）");
-    assert.equal(bars[1].dataset.key, "copilot", "Copilot 在后");
-    assert.equal(bars[1].dataset.tone, "danger", "Copilot 97%（100−3）→ danger（>95）");
-    assert.equal(seg.querySelector(".skc-qseg-tip").textContent, "GLM 82% · Copilot 97%", "悬停文本");
+    const vals = [...seg.querySelectorAll(".skc-qval")];
+    assert.equal(vals.length, 2, "GLM + Copilot 两个文案位");
+    assert.equal(vals[0].dataset.label, "GLM", "GLM 在前");
+    assert.equal(vals[0].textContent, "GLM 82%", "qw 同款文案 GLM 82%");
+    assert.ok(vals[0].classList.contains("skc-qwarn"), "GLM 82% → warn（>80≤95）");
+    assert.equal(vals[1].dataset.label, "Copilot", "Copilot 在后");
+    assert.equal(vals[1].textContent, "Copilot 97%", "qw 同款文案 Copilot 97%");
+    assert.ok(vals[1].classList.contains("skc-qdanger"), "Copilot 97%（100−3）→ danger（>95）");
+    assert.equal(seg.querySelector(".skc-qsep").hidden, false, "两条都有数 → 分隔符显示");
     assert.ok(seg.classList.contains("skc-qpulse"), "任一条 >95 → 段 pulse");
     await sleep(100);
     assert.ok(
@@ -391,8 +392,10 @@ test("拆除：engage 后 dispose 恰好派发一次 embed-disengage", async () 
   }
 });
 
-test("段渲染：两条时双条并有分隔线", async () => {
-  const s = setup();
+test("段渲染：两条时 qw 同款全名文案并有分隔符", async () => {
+  const s = setup({
+    fetchImpl: async () => okResponse(overviewPayload({ glm: 82, copilotRemaining: 3 })),
+  });
   try {
     addGuest(s.h);
     await sleep(30);
@@ -401,15 +404,19 @@ test("段渲染：两条时双条并有分隔线", async () => {
     const seg = s.stack.querySelector('[data-seg="quota"]');
     assert.ok(seg, "段在位");
     assert.equal(seg.hidden, false, "段可见");
-    assert.equal(seg.querySelectorAll(".skc-qbar-fill").length, 2, "两条");
+    const vals = [...seg.querySelectorAll(".skc-qval:not([hidden])")];
+    assert.equal(vals.length, 2, "两条文案都显示");
+    assert.equal(vals[0].textContent, "GLM 82%", "qw 同款 GLM 文案");
+    assert.equal(vals[1].textContent, "Copilot 97%", "qw 同款 Copilot 文案");
     assert.equal(seg.querySelector(".skc-qseg-divider").hidden, false, "分隔线可见");
+    assert.equal(seg.querySelector(".skc-qsep").hidden, false, "「·」分隔符可见");
   } finally {
     s.embed.dispose();
     s.h.cleanup();
   }
 });
 
-test("段渲染：单条时带 skc-qseg-single 居中", async () => {
+test("段渲染：单条只显示那一条文案且无分隔符", async () => {
   const s = setup({
     fetchImpl: async () =>
       okResponse({
@@ -426,9 +433,10 @@ test("段渲染：单条时带 skc-qseg-single 居中", async () => {
     await sleep(80);
     const seg = s.stack.querySelector('[data-seg="quota"]');
     assert.ok(seg, "段在位");
-    assert.equal(seg.querySelectorAll(".skc-qbar-fill").length, 1, "只一条");
-    assert.ok(seg.querySelector(".skc-qseg-bars").classList.contains("skc-qseg-single"), "单条居中类");
-    assert.equal(seg.querySelector(".skc-qseg-tip").textContent, "GLM 40%", "悬停只列一条、无分隔符");
+    const vals = [...seg.querySelectorAll(".skc-qval:not([hidden])")];
+    assert.equal(vals.length, 1, "只一条文案显示");
+    assert.equal(vals[0].textContent, "GLM 40%", "只列有数的一条");
+    assert.equal(seg.querySelector(".skc-qsep").hidden, true, "单条无「·」分隔符");
   } finally {
     s.embed.dispose();
     s.h.cleanup();
@@ -455,7 +463,7 @@ test("段渲染：只有待处理时仅显示琥珀点", async () => {
     qe.renderSegment(seg, quotaSegmentModel({ glm: null, copilot: null, outcomePending: true }));
     assert.equal(seg.hidden, false, "待处理保留段");
     assert.equal(seg.querySelector(".skc-qdot").hidden, false, "琥珀点可见");
-    assert.equal(seg.querySelectorAll(".skc-qbar-fill").length, 0, "无条");
+    assert.equal(seg.querySelectorAll(".skc-qval:not([hidden])").length, 0, "无数可显");
   } finally {
     s.embed.dispose();
     s.h.cleanup();
@@ -485,7 +493,7 @@ test("段渲染：两条无且无待处理时段隐藏", async () => {
   }
 });
 
-test("段渲染：过期条变暗并带 title", async () => {
+test("段渲染：过期文案变暗并带 title", async () => {
   const s = setup({
     fetchImpl: async () =>
       okResponse({
@@ -500,13 +508,14 @@ test("段渲染：过期条变暗并带 title", async () => {
     await sleep(30);
     replyCaps(s.h, ["hide-pill", "anchored-panel", "poll-pause"]);
     await sleep(80);
-    const pill = s.stack.querySelector('[data-seg="quota"]');
-    assert.ok(pill, "段在位（S5：title 落在段）");
-    assert.equal(pill.getAttribute("title"), t("quota.stale"), "过期 title 落在段");
-    const glmRow = s.stack.querySelector('[data-seg="quota"] .skc-qbar-fill[data-key="glm"]').parentElement;
-    assert.equal(glmRow.style.opacity, "0.5", "过期条变暗");
-    const copilotRow = s.stack.querySelector('[data-seg="quota"] .skc-qbar-fill[data-key="copilot"]').parentElement;
-    assert.equal(copilotRow.style.opacity, "", "未过期条不变暗");
+    const seg = s.stack.querySelector('[data-seg="quota"]');
+    assert.ok(seg, "段在位（S5：title 落在段）");
+    assert.equal(seg.getAttribute("title"), t("quota.stale"), "过期 title 落在段");
+    const vals = [...seg.querySelectorAll(".skc-qval")];
+    const glmSpan = vals.find((v) => v.textContent.startsWith("GLM"));
+    const copilotSpan = vals.find((v) => v.textContent.startsWith("Copilot"));
+    assert.equal(glmSpan.style.opacity, "0.5", "过期文案变暗");
+    assert.equal(copilotSpan.style.opacity, "", "未过期文案不变暗");
   } finally {
     s.embed.dispose();
     s.h.cleanup();
@@ -539,60 +548,6 @@ test("锚点：onQuotaTap 的 open-panel 锚点含 right/bottom（与 buildAncho
   }
 });
 
-test("提示：单条只列一条、无分隔符，悬停段时显示", async () => {
-  const s = setup({
-    fetchImpl: async () =>
-      okResponse({
-        providers: [
-          { key: "glm", status: "ready", plan: { windows: [{ key: "5h", percent: 100 }] } },
-          { key: "copilot", status: "missing" },
-        ],
-      }),
-  });
-  try {
-    addGuest(s.h);
-    await sleep(30);
-    replyCaps(s.h, ["hide-pill", "anchored-panel", "poll-pause"]);
-    await sleep(80);
-    const tip = s.stack.querySelector(".skc-qseg-tip");
-    assert.ok(tip, "提示节点 .skc-qseg-tip 存在");
-    assert.equal(tip.textContent, "GLM 100%", "单条文本只列 GLM");
-    assert.ok(!tip.textContent.includes("·"), "单条无分隔符");
-    assert.ok(FLOAT_STYLE_TEXT.includes(".skc-qseg-tip{display:none}"), "提示默认隐藏（悬停前不可见）");
-    assert.ok(FLOAT_STYLE_TEXT.includes(".skc-qseg:hover .skc-qseg-tip{display:block}"), "悬停段时显示提示");
-  } finally {
-    s.embed.dispose();
-    s.h.cleanup();
-  }
-});
-
-test("提示：两条含分隔符，悬停段时显示", async () => {
-  const s = setup({
-    fetchImpl: async () =>
-      okResponse({
-        providers: [
-          { key: "glm", status: "ready", plan: { windows: [{ key: "5h", percent: 100 }] } },
-          { key: "copilot", status: "ready", quota: { balanceAvailable: true, percentRemaining: 53 } },
-        ],
-      }),
-  });
-  try {
-    addGuest(s.h);
-    await sleep(30);
-    replyCaps(s.h, ["hide-pill", "anchored-panel", "poll-pause"]);
-    await sleep(80);
-    const tip = s.stack.querySelector(".skc-qseg-tip");
-    assert.ok(tip, "提示节点 .skc-qseg-tip 存在");
-    assert.equal(tip.textContent, "GLM 100% · Copilot 47%", "两条文本按 GLM、Copilot 顺序列出");
-    assert.ok(tip.textContent.includes("·"), "两条含分隔符");
-    assert.ok(FLOAT_STYLE_TEXT.includes(".skc-qseg-tip{display:none}"), "提示默认隐藏（悬停前不可见）");
-    assert.ok(FLOAT_STYLE_TEXT.includes(".skc-qseg:hover .skc-qseg-tip{display:block}"), "悬停段时显示提示");
-  } finally {
-    s.embed.dispose();
-    s.h.cleanup();
-  }
-});
-
 test("待处理：manualOutcome 存在且无数，段仅含琥珀点，点击派发 open-panel", async () => {
   const s = setup({
     fetchImpl: async () =>
@@ -613,7 +568,7 @@ test("待处理：manualOutcome 存在且无数，段仅含琥珀点，点击派
     assert.ok(seg, "段在位");
     assert.equal(seg.hidden, false, "manualOutcome 存在即待处理，段保留");
     assert.equal(seg.querySelector(".skc-qdot").hidden, false, "琥珀点可见");
-    assert.equal(seg.querySelectorAll(".skc-qbar-fill").length, 0, "无条");
+    assert.equal(seg.querySelectorAll(".skc-qval:not([hidden])").length, 0, "无数可显");
     const anchors = [];
     s.h.window.addEventListener(`${NS}:open-panel`, (ev) => anchors.push(ev.detail));
     s.embed.onQuotaTap();

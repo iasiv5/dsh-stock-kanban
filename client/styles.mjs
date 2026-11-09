@@ -188,15 +188,9 @@ export const FLOAT_STYLE_TEXT = `
 .skc-qseg{display:inline-flex;align-items:center;gap:6px}
 .skc-qseg[hidden]{display:none}
 .skc-qseg-divider{display:inline-block;width:1px;height:14px;background:rgba(128,128,128,.4)}
-.skc-qseg-bars{display:flex;flex-direction:column;justify-content:center;gap:2px;width:44px}
-.skc-qbar{display:block;height:3px;border-radius:2px;background:rgba(128,128,128,.25);overflow:hidden}
-.skc-qbar-fill{display:block;height:100%;background:var(--dsw-alias-label-secondary,#8a8f98)}
-.skc-qbar-fill[data-tone="warn"],.skc-qbar-fill[data-tone="danger"]{background:var(--dsw-alias-label-warning,#d29922)}
 .skc-qdot{display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--dsw-alias-label-warning,#d29922)}
 .skc-capsule [data-seg="stock"]{display:inline-flex;align-items:center;gap:6px}
 [data-seg="quota"]{cursor:pointer}
-.skc-qseg-tip{display:none}
-.skc-qseg:hover .skc-qseg-tip{display:block}
 @media (prefers-reduced-motion: no-preference) {
 @keyframes skc-panel-slide{from{transform:translateX(12px);opacity:0}to{transform:translateX(0);opacity:1}}
 .skc-panel--slide{animation:skc-panel-slide 150ms ease-out}

@@ -51,33 +51,29 @@ export function buildAnchorRect({ left, top, width, height }) {
 
 /**
  * 段落地（S4，ADR 0003 第 3 条）：只把 quotaSegmentModel 的结果写入 DOM，不做判断。
- * segEl 须含 .skc-qseg-divider / .skc-qseg-bars / .skc-qdot / .skc-qseg-tip（由 createQuotaEmbed 构造）。
+ * segEl 须含 .skc-qseg-divider / 两个 .skc-qval / .skc-qsep / .skc-qdot（由 createQuotaEmbed 构造）。
+ * model 由 quotaSegmentModel 产出；tooltip 字段保留但文案版不使用（数字常驻，Q16）。
  */
 export function renderSegment(segEl, model) {
-  const doc = segEl.ownerDocument;
   const divider = segEl.querySelector(".skc-qseg-divider");
-  const bars = segEl.querySelector(".skc-qseg-bars");
+  const sep = segEl.querySelector(".skc-qsep");
   const dot = segEl.querySelector(".skc-qdot");
-  const tip = segEl.querySelector(".skc-qseg-tip");
   segEl.hidden = !model.segment;
   divider.hidden = !model.divider;
   dot.hidden = !model.dot;
-  bars.classList.toggle("skc-qseg-single", model.bars.length === 1);
-  bars.replaceChildren(
-    ...model.bars.map((b) => {
-      const row = doc.createElement("div");
-      row.className = "skc-qbar";
-      if (b.stale) row.style.opacity = "0.5";
-      const fill = doc.createElement("i");
-      fill.className = "skc-qbar-fill";
-      fill.dataset.tone = b.tone;
-      fill.dataset.key = b.key;
-      fill.style.width = `${Math.max(0, Math.min(100, b.percent))}%`;
-      row.append(fill);
-      return row;
-    }),
-  );
-  tip.textContent = model.tooltip.map((x) => `${x.label} ${formatPercent(x.percent)}`).join(" · ");
+  const labels = { glm: "GLM", copilot: "Copilot" }; // qw 同款全名文案
+  const spans = segEl.querySelectorAll(".skc-qval");
+  model.bars.forEach((b, i) => {
+    const span = spans[i];
+    span.hidden = false;
+    span.dataset.label = labels[b.key] ?? b.key;
+    span.classList.toggle("skc-qwarn", b.tone === "warn");
+    span.classList.toggle("skc-qdanger", b.tone === "danger");
+    span.style.opacity = b.stale ? "0.5" : "";
+    span.textContent = `${labels[b.key] ?? b.key} ${formatPercent(b.percent)}`;
+  });
+  for (let i = model.bars.length; i < spans.length; i += 1) spans[i].hidden = true;
+  sep.hidden = model.bars.length !== 2; // 仅两条都有数时显示「·」（与 qw 一致）
   segEl.classList.toggle("skc-qpulse", model.bars.some((b) => b.tone === "danger"));
   return model;
 }
@@ -118,13 +114,19 @@ export function createQuotaEmbed({
   el.hidden = true;
   const divider = doc.createElement("span");
   divider.className = "skc-qseg-divider";
-  const bars = doc.createElement("div");
-  bars.className = "skc-qseg-bars";
+  const glmVal = doc.createElement("span"); // Q16–Q18（2026-11-10）：qw 胶囊同款文案，数字常驻
+  glmVal.className = "skc-qval";
+  glmVal.hidden = true;
+  const sep = doc.createElement("span");
+  sep.className = "skc-qsep";
+  sep.textContent = "·";
+  sep.hidden = true;
+  const copilotVal = doc.createElement("span");
+  copilotVal.className = "skc-qval";
+  copilotVal.hidden = true;
   const dot = doc.createElement("span");
   dot.className = "skc-qdot";
-  const tip = doc.createElement("div");
-  tip.className = "skc-qseg-tip";
-  el.append(divider, bars, dot, tip);
+  el.append(divider, glmVal, sep, copilotVal, dot);
 
   const dispatch = (type, detail) => {
     try {
