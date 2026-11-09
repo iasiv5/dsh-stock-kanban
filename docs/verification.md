@@ -236,6 +236,20 @@ qw 侧（竞态修复，2026-11-09）：
 
 验证：420 视口实测 seg 右缘 401 < 胶囊右缘 412（不再溢出）；1280 视口同验；截图 `textform-narrow-capsule-3x.png` / `textform-capsule-3x.png`。
 
+## 12.15 位置继承与四场景活体验证（2026-11-10，Q19–Q20）
+
+设计：双键互认（sk `dsh-stock-kanban:float-position` / qw `dsh-quota-watch:float-position`，记录同为 `{x,y}`、同一页面 localStorage）。engage 接管 qw 坐标（按 sk 实测宽重钳，主人提醒的「sk 比 qw 长」已覆盖：宽 146→283px，右缘贴视口时整体左移 5px 实测）；拖动落盘镜像写回 qw 键。qw 零改动（只读自己的键）。
+
+实现（sk `f7a8ade` + `d3fb7b3` 后续）：float-prefs 增 `loadGuestFloatPosition`/`mirrorGuestFloatPosition`；quota-embed `startEngage` 前调 `adoptGuestPosition`（采纳结果同笔落 sk 键）；attachFloatDrag 增 `onPersisted` 回调，main 装配镜像。测试 +5 → 全量 198/198/0。
+
+四场景 live 验证（dshm_toggle 序列 + 临时持久 profile CDP 真实指针，证据 `.dsh-research/merged-capsule-impl/scenario-*.json/png`）：
+1. **qw 单独存在**（停 sk）：qw 胶囊正常显示；拖到屏中部 → qw 键 `{476.50, 306.28}` ✓
+2. **sk 单独存在**（停 qw）：纯股票胶囊（额度段无 guest 不渲染），停于继承位置 ✓
+3. **先 qw 后 sk**（启用 sk）：合并胶囊**接管 qw 位置**——左 477/上 306 与 qw 键一致，双键瞬时收敛，无溢出 ✓
+4. **先 sk 后 qw**（启用 qw）：qw 到场即隐藏、合并胶囊原位不动（宽 146→283 重钳左移 5px，右缘距视口 8px）✓
+拖动镜像：拖合并胶囊后双键逐字节相等 ✓；全程 console error 0 ✓。
+探针实录教训：SIGKILL 会输掉 localStorage 异步落盘——探针改 `Browser.close` 优雅退出（首跑场景 1 坐标因此丢失重跑）。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 125 单测（vanilla 化后，12.10）+ 23 数据源探针。
