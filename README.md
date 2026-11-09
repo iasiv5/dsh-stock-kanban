@@ -6,14 +6,24 @@ DSH 0.2.2-rc1 轻量多市场盯盘与持仓查看插件：悬浮胶囊 + A股/�
 
 ## 功能一览
 
-- **悬浮胶囊**：显示自选标的名称/现价/涨跌幅；拖动后吸附屏幕边缘并按访问端记忆位置；达到目标价显示 Ⓑ/Ⓢ 标记（行情过期时明确暂停而非伪装）；点击展开面板。
+- **悬浮胶囊**：显示自选标的名称/现价/涨跌幅；拖动后按访问端记忆位置（自由坐标，视口内钳位）；达到目标价显示 Ⓑ/Ⓢ 标记（行情过期时明确暂停而非伪装）；点击展开面板。
 - **四市场分组**：A 股 / 港股 / 美股 / 加密货币 固定分组（ETF 归入上市市场，是类型不是分组）；同一标的只在一处。
 - **列表**：名称/代码、现价、涨跌幅、持仓标记 ★、目标价状态；「只看持仓」额外显示盈亏金额与比例。
 - **详情**：分时 / 日K / 周K / 月K（自绘 SVG，含成交量与 MA5/10/20/60，无 CDN 依赖）；持仓数量/平均成本编辑，自动计算市值/浮动盈亏/比例；买卖目标价设置（阈值重叠显式确认）；行情时间与拉取时间分开标注。
 - **持仓汇总**：按报价币种独立汇总（USD 与 USDT 不合并）；部分缺行情时明确标注"不完整"。
 - **隐私开关**：实例级开关，遮挡持仓数量/成本/市值/盈亏金额与比例（仅展示层遮挡，非加密）。
 - **备份**：结构化导出（schemaVersion 1）与覆盖式导入（双重校验、显式确认）。
-- **数据边界**：业务数据（自选/持仓/目标价/隐私开关）存 **DSH 实例**（跨浏览器共享）；界面偏好（胶囊位置/面板位置/上次市场/筛选/均线显隐/胶囊标的）按**访问端浏览器**保存。
+- **数据边界**：业务数据（自选/持仓/目标价/隐私开关）存 **DSH 实例**（跨浏览器共享）；界面偏好（胶囊位置/上次市场/只看持仓/均线显隐/胶囊展示标的/合并显示 quota）按**访问端浏览器**保存。
+
+## 与 quota-watch 联动（可选，CEP v1）
+
+本插件与 `@iasiv5/dsh-quota-watch`（GLM Coding Plan / GitHub Copilot 额度悬浮胶囊）通过窗口内 CustomEvent 协议联动（规格：`docs/interop/capsule-embed-protocol.md`；宿主侧决策：`docs/adr/0002-quota-embed-host-side-capsule-group.md`）。
+
+- **合并行为**：检测到 quota-watch 在线且回复能力（`embed-capabilities`，含 `hide-pill` 与 `anchored-panel`）时，额度胶囊并入本插件浮动壳，与 stock 胶囊垂直堆叠成「胶囊组」：整组一次拖动，共享同一套位置记忆。额度段显示 GLM 5 小时窗口与 Copilot 已用比例；超过 80% 为警示色，超过 95% 为危险色（此时整枚额度胶囊脉冲，动效遵循 `prefers-reduced-motion`）。点击额度段由 quota-watch 打开其原生面板，锚定在胶囊组旁。
+- **设置**：面板页脚的「合并显示 quota」开关（默认开）仅在协议可用时出现。关闭后额度胶囊恢复为 quota-watch 独立显示，组内额度段移除；该偏好按访问端浏览器保存。
+- **降级**：未安装 quota-watch、旧版（不回复协议），或握手 500ms 内无回复 → 两插件共存、互不隐藏（接受重叠，不做避让）；quota-watch 被停用或热更新（访客元素消失）→ 本插件立即拆分并移除额度段；额度接口返回 404 → 藏额度段并慢速重试；额度接口传输错误 → 保留上次数据，额度胶囊以提示（title）标注「额度数据已过期」。
+- **兼容性**：需要 `@iasiv5/dsh-quota-watch` ≥ 0.1.38（CEP v1 访客侧）。更低版本一律按共存降级，stock 胶囊与其它功能不受影响。quota-watch 的侧栏卡片不在合并范围内。
+- 端到端活体验证（真实额度数据、双向点击与开关往返、停用消失）尚未完成，见 `docs/verification.md` §12.11。
 
 ## 安装（web profile，Linux/Windows 浏览器访问远端 DSH 同此）
 
@@ -27,9 +37,9 @@ sudo systemctl restart deepseek-harness.service
 ```
 
 - 从源码构建客户端（如改动 client/ 后）：`npm install && npm run build`
-- 运行测试：`npm test`（89 用例，全部离线 mock，不依赖外网）
+- 运行测试：`npm test`（148 用例，全部离线 mock，不依赖外网）
 
-**验证插件已激活**：浏览器打开 DSH → 应看到右上角"盯盘"胶囊；或 `curl http://<dsh>/stock-kanban/health` 返回 `{"driver":...}`。
+**验证插件已激活**：浏览器打开 DSH → 应看到右下角"盯盘"胶囊；或 `curl http://<dsh>/stock-kanban/health` 返回 `{"driver":...}`。
 
 ### 升级 / 卸载
 
@@ -46,7 +56,7 @@ dsh plugin --profile web remove dsh-stock-kanban                # 卸载（数�
 |---|---|---|
 | 自选/持仓/目标价/隐私开关 | DSH 服务端 `~/.dsh/storages/stock_kanban.json`（DSH storage hub json 后端；缺失该服务时回退 `~/.dsh/stock-kanban/data.json`，health 路由的 `driver` 字段可查当前驱动） | 同一 DSH 实例的全部浏览器（Windows/Linux 访问同一远端 DSH 看到同一份） |
 | 胶囊位置（自由坐标 {x,y}） | 各访问端浏览器 `localStorage["dsh-stock-kanban:float-position"]` | 按浏览器独立 |
-| 上次市场、只看持仓、均线显隐、胶囊展示标的 | 各访问端浏览器 `localStorage["stock-kanban:ui:v1"]` | 按浏览器独立 |
+| 上次市场、只看持仓、均线显隐、胶囊展示标的、合并显示 quota | 各访问端浏览器 `localStorage["stock-kanban:ui:v1"]` | 按浏览器独立 |
 
 胶囊位置为自由坐标并按实测几何钳位（不迁移历史 `ui:v1` 的 `pos` 格式）；面板锚定胶囊弹出，无独立位置记忆（旧 `pos`/`panelPos` 键已退役，读取时忽略）。
 

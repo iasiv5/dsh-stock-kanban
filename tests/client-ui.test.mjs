@@ -52,7 +52,7 @@ test("均线计算：MA5 语义（12.2 常用均线）", () => {
   assert.equal(computeMa(candles, 10).length, 0);
 });
 
-test("涨跌颜色类名：trendClass 语义（A股红涨绿跌平灰；与样式表的对齐由契约测试类名缝守卫执有）", () => {
+test("涨跌颜色类名：trendClass 语义（A股红涨绿跌平灰；样式表对齐当前无自动化守卫，类名缝守卫随 verification §12.10 契约面退役）", () => {
   assert.equal(trendClass(3.5), "skc-up");
   assert.equal(trendClass(-2), "skc-down");
   assert.equal(trendClass(0), "skc-flat");

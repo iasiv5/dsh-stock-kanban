@@ -55,7 +55,7 @@
 | 场景 | 状态 | 说明 |
 |---|---|---|
 | 3. Linux 浏览器访问（远端）DSH | **已验证** | 即本次端到端环境：Chrome for Testing 152（headless）访问 DSH 0.2.2-rc.1 web 实例。DSH 版本 0.2.2-rc.1、OS Ubuntu (VM)、Chrome 152.0.7977.82。 |
-| 2. Windows 浏览器访问远端 DSH | **未验证**（代码路径同场景 3：同一份服务端 + 同一份客户端 bundle，浏览器端无平台分支代码） | 复现步骤：任意 Windows 浏览器（Edge/Chrome）访问 `https://<远端DSH地址>/`，确认右上角胶囊出现 → 点击展开 → 添加/持仓/图表。需注意远端入口若经认证网关，插件路由同源原则不受影响。 |
+| 2. Windows 浏览器访问远端 DSH | **未验证**（代码路径同场景 3：同一份服务端 + 同一份客户端 bundle，浏览器端无平台分支代码） | 复现步骤：任意 Windows 浏览器（Edge/Chrome）访问 `https://<远端DSH地址>/`，确认右下角胶囊出现 → 点击展开 → 添加/持仓/图表。需注意远端入口若经认证网关，插件路由同源原则不受影响。 |
 | 1. Windows 本机 desktop profile | **未验证** | 本机无 Windows 环境。插件已声明 `dsh.engines.dsh >=0.2.2-rc.1`，不依赖 webRuntime（0.2.1-rc.2 起移除项）；存储优先走 DSH storage hub，desktop 若无该服务自动回退文件驱动（health.driver 可查）。复现步骤：desktop 安装包后 `dsh plugin --profile desktop add <tarball>`，重启 desktop，确认胶囊与健康路由。 |
 
 ## 12.5 客户端契约测试（2026-11-08）
@@ -142,6 +142,46 @@ lifecycle 用例进程收尾多等约 4 秒属预期：effect 内 `refreshState(
 **首挂定位回退缺陷与修复（commit aef094b）**：现象＝冒烟 ①② 取证数字 1234（=1280−8−38）与 354（=400−8−38）均命中 38×26 回退值，真实浏览器首挂定位未走实测尺寸。根因（两层）：① `createCapsule`（内含 applyPosition→measureSize）先于 `doc.body.append(host)` 执行；② 胶囊 el 未入 `.skc-stack` 前测量、且首挂时胶囊文本为空（空胶囊实测宽 34px 级），数据填充后宽度跳变（实测 155.7px）越过右缘。jsdom rect 恒零，两条路径在 jsdom 下不可区分——此即漏网机理。修复：host 先 append 再创建胶囊（quota-watch 同构）+ 胶囊自挂入 `.skc-stack` 后再 applyPosition + update 时按尺寸变化重定位一次（拖拽中跳过）。回归：`tests/client-dom.test.mjs` 补 host rect 桩用例（打桩 {width:150,height:26} → 断言默认位 x=866 而非回退 978，并断言 createCapsule 返回时 el 已在 stack）。活体复核：left=1116px = 1280−8−155.7（实测宽），右缘余量恰 8px（capRight=1271.7）；两次构建 sha256 一致 `29f5543866c18a1a9f33c6f940d96ebd9630fbee2f8d571212d5376cebf7533e`；npm test 125/125。
 
 
+## 12.11 quota 联动·宿主侧（CEP v1，2026-11-09，计划 B 实施计划 docs/plans/2026-11-09-quota-embed-capsule-group-implementation-plan.md → 宿主侧已实现并验证；访客侧端到端活体待 S7）
+
+**提交链**：`91ebb74`（S2 宿主模块 `client/quota-embed.mjs` + S3 拖拽手势共享化 `attachFloatDrag` + S4 合并开关基础：store 四件套 / footer 开关 / i18n / 样式）→ `d2a9218`（S5 `client/main.mjs` 装配 + 集成组 + bundle 重建）→ 本次 S6 收口（GLOSSARY / README / 本节 / 对齐矩阵 / 一行测试标题注释）。
+
+**协议双端测试（宿主侧，离线）**：
+- `tests/client-quota-embed.test.mjs` 10 用例：降级矩阵五行（guest 缺席零事件 / legacy 共存不隐藏 / quotaMerge off 永不 engage / 能力+默认开 engage+心跳+warn/danger 渲染 / guest 消失同 disengage）、404 藏段+慢重试后恢复、传输错误保留上次渲染+正常节奏、tap→open-panel 锚点为 pill 实测 rect（零值回退 host rect）、组拖动落同一位置记忆键、setEnabled 往返（off→disengage+移除；on→重新握手再 engage）。
+- `tests/client-quota-integration.test.mjs` 8 用例（真实 `mountKanban`；fetch 桩与心跳间隔注入，心跳不依赖真实时钟）：挂载后 guest 握手→pill+开关+engage+心跳派发；挂载前同步握手→首帧即合并；拖 quota pill→host 整组位移 +20 且落同一记忆键；legacy 守卫（guest 在、不应答，跨过 500ms 超时后复核：无 pill、无开关、零 engage、零 overview 拉取、stock 胶囊零变化）；quotaMerge off（seed ui:v1）挂载前同步握手下零 engage、开关呈关态、点击开→立即合并；guest 消失→disengage 且 pill/开关移除、心跳清除；overview 传输错误→保留上次渲染且 title=`quota.stale`，恢复后清除；dispose 全清、之后的能力回复不再 engage。
+- `tests/client-dom.test.mjs`：quota 样式锚点（`--quota` cursor、数值 tabular-nums、warn/danger 阈值色、pulse 仅在 reduced-motion 守卫块内）+ footer 开关（仅 quotaCapable 渲染、随 quotaMerge 切换 label/active、点击取反、能力消失即移除）。
+- `tests/client-ui.test.mjs`：store quotaMerge 四件套 + 会话态 quotaCapable 不落盘；`tests/i18n.test.mjs`：quota.* 四键 zh/en 双侧非键名回退。
+- `npm test` 148/148，`fail 0`，exit 0（S6 收口后复跑）。
+
+**构建**：`npm run build` 两次 sha256 逐字节一致 `af6e102eff5cb8890625f11134bc493a0d61a7583de6c78cabf32af6f1c80364`（`d2a9218` 同笔重建 `lib/client.js`）。
+
+**偏差记录（语义等价，不改计划）**：颜色写法——`client/styles.mjs` 中 quota 阈值色写作 `var(--dsw-alias-label-warning,#d29922)` / `var(--dsw-alias-label-danger,#c93c3c)`（无空格，与 sk 样式表既有写法一致），计划引文为带空格形式；CSS 语义完全相同，样式锚点断言按实际写法钉死。动效：pulse 为 `transform: scale 1→1.06`、1.6s（与 quota-watch `dqw-pulse` 同语义），关键帧与类均在 `prefers-reduced-motion: no-preference` 守卫块内。文案与字形（footer「合并显示 quota」、⊞/⊟、on/off 提示、「额度数据已过期」）为计划未给定的拟定值，待主人过目。
+
+**quota.stale 消费**：`client/quota-embed.mjs` 在传输错误保留上次渲染时设置 `title=t("quota.stale")`，拉取恢复后清除；键已消费，无死键（由集成组「传输错误」用例钉死）。
+
+**活体取证（S5 附加项，只读，独立临时 headless 实例，端口 9337，临时 profile，用后已删）**：
+
+- **第一次运行（主人启用 dsh-stock-kanban 之前）——未达，不计为证据**：宿主批次不含 `dsh-stock-kanban`，45 秒内 `[data-dsh-stock-kanban-float]` 未挂载，sk 侧无法取证。落盘：`s5-legacy-live.json`、`s5-legacy-live.png`、`s5-legacy-live-run.log`、`s5-legacy-live-probe.mjs`（保留，仅作历史记录）。
+- **复查（主人启用后，同一临时 profile、同一五项判据；判据③改为归因法）——结论见下**：
+
+五项判据（复查）：
+- ① 达：stock 胶囊挂载于 2.2 秒，文本为真实行情「ⒷⓈ腾讯控股 418.40 −0.33%」。
+- ② 达：`button[data-action="quota-merge"]` 0 个；`.skc-capsule--quota` 0 个（此时 sk 已挂载，计数具有证据力，非空真）。
+- ③ 达（归因法）：overview 请求字面 2 次（t≈1.2 秒、t≈32.5 秒，约 30 秒一次，即 qw 自身轮询的节奏）；两次调用栈均归因到合并包中的 `@iasiv5/dsh-quota-watch` 模块，**归因到 stock 包 0 次**，engage 前计数 0。字面 2 次不作为判据依据。
+- ④ 达：全页 console error 0 条、exception 0 条，sk 相关 error 0 条。
+- ⑤ 不适用：CDP 与页面均正常，已执行。
+
+**归因方法**：文档最早期（`Page.addScriptToEvaluateOnNewDocument`）包装 `window.fetch`，仅透传、不改变请求；对 `api/dsh-quota-watch/overview` 请求记录 `new Error().stack`（`stackTraceLimit=50`）的帧（函数名、URL、行、列）。合并包 URL（`plugins/??…`）的帧无法仅凭 URL 区分（同一文件内含全部插件），因此对该静态文件做只读 GET，按 `__ModuleLoader__.load({ id: … })` 模块边界把帧行号映射回模块 id：本批次共 32 个模块，`dsh-stock-kanban` 位于行 141527 起；两次调用的帧均落在 `@iasiv5/dsh-quota-watch` 的行区间 22397–24357 内。判定规则：调用栈任一帧属 stock 模块即计入 stock 归因。
+
+**观察（只记录，不调整）**：stock 胶囊 rect (1125,766)–(1272,792)，qw 胶囊 rect (1106,763)–(1266,791)，二者相交面积 3525 px²，占 stock 胶囊面积的 92%；两枚胶囊几乎叠在右下角默认位，截图中 qw 胶囊覆盖在上层、stock 胶囊文字被遮挡。属 B20 已接受的共存态。
+
+复查落盘：`s5-legacy-recheck.json`、`s5-legacy-recheck.png`、`s5-legacy-recheck-run.log`、`s5-legacy-recheck-probe.mjs`。
+
+
+**未执行（S7）**：双插件活体 E2E——真实 GLM/Copilot 数据的 warn/danger 渲染、点击 quota 段开 quota-watch 面板、拖动组移动与位置记忆、开关 off/on 往返、停用 quota-watch 后额度段消失并恢复。依赖 qw 0.1.38 发版与主人批准外部动作门；本次未执行。
+
+**已知缺口**：仓内当前无源码级 CSS↔JSX 类名对齐守卫（原 `client-contract` 类名缝守卫见 §12.6，随 §12.10 契约面退役，未重建）；本节新增的 quota 类名仅经样式锚点断言覆盖。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 125 单测（vanilla 化后，12.10）+ 23 数据源探针。
@@ -157,7 +197,10 @@ lifecycle 用例进程收尾多等约 4 秒属预期：effect 内 `refreshState(
 - 腾讯 minute 主域回退备域（上游 WAF 前科）；
 - desktop 缺 storage 服务时回退文件驱动（health.driver= file 可见）。
 
-**尚未完成或被阻塞**：无核心需求阻塞项。
+**尚未完成或被阻塞**：
+- CEP 双插件活体 E2E（S7）：依赖 qw 0.1.38 发版与主人批准外部动作门，未执行（见 §12.11）；
+- legacy 活体取证：首次运行因插件未启用未达；主人启用后复查五项达成，归因法确认 stock 归因 0（见 §12.11）；
+- 其余无核心需求阻塞项。
 
 ## 已知问题
 

@@ -15,7 +15,7 @@ _Avoid_: state、全局状态
 _Avoid_: 悬浮框、悬浮球、FAB、widget
 
 **浮动壳（Float Shell）**:
-直挂 document.body 的 open shadow host（`data-dsh-stock-kanban-float`）；胶囊与面板渲染其内，样式不外泄（ADR 0001）。
+直挂 document.body 的 open shadow host（`data-dsh-stock-kanban-float`）；胶囊组（stock 胶囊；嵌入协议在线时并入 quota 胶囊）与面板渲染其内，样式不外泄（ADR 0001、ADR 0002）。
 _Avoid_: 容器、overlay、插槽（已退役）
 
 **浮动壳契约（Float Shell Contract）**:
@@ -27,7 +27,7 @@ _Avoid_: 挂载守卫、插槽契约（已退役）
 _Avoid_: 贴边停靠、dock、吸附
 
 **胶囊组（Capsule Group）**:
-浮动壳内垂直堆叠的多枚胶囊（stock 段 + quota 段）构成的单一拖拽单元：一套位置记忆、一个 z 层级、分区点击各自开面板（ADR 0002 / CEP v1，计划 B 落地）。
+浮动壳内垂直堆叠的多枚胶囊（stock 段 + quota 段）构成的单一拖拽单元：一套位置记忆、一个 z 层级、分区点击各自开面板（ADR 0002 / CEP v1）。
 _Avoid_: 合并悬浮框、合并面板
 
 **嵌入协议（Embed Protocol）**:

@@ -38,7 +38,7 @@
 | 轮询节奏 | 面板关 30s / 开 15s、详情全量 | 盯盘域节奏，服务端 TTL+退避不变 |
 | stale 呈现 | price 位「行情旧」+ title 提示 | 触价新鲜度门语义保留 |
 
-## 联动预留（计划 B，本矩阵只登记不验收）
+## 联动（计划 B · CEP v1：宿主侧已实现；访客侧端到端活体待 S7）
 
-- `.skc-stack` 纵向容器（Task 5/13）= 胶囊组结构缝（ADR 0002）。
-- 协议规格：`docs/interop/capsule-embed-protocol.md`（CEP v1）。
+- `.skc-stack` 纵向容器（Task 5/13）= 胶囊组结构缝（ADR 0002）→ **已实现**：quota 胶囊经 `createQuotaEmbed({ stack, host })` 挂入 `.skc-stack`（`client/quota-embed.mjs`、`client/main.mjs`）；证据：`tests/client-quota-integration.test.mjs`（8 用例）、`docs/verification.md` §12.11。
+- 协议规格 `docs/interop/capsule-embed-protocol.md`（CEP v1）→ **宿主侧已实现**：probe / capabilities / engage / heartbeat / disengage / open-panel 由 `client/quota-embed.mjs` 派发与消费；证据：`tests/client-quota-embed.test.mjs`（10 用例）、`tests/client-quota-integration.test.mjs`（8 用例）；活体：主人启用后的 legacy 只读复查已通过（归因法，§12.11），双插件端到端 E2E 待 S7。
