@@ -121,3 +121,38 @@ test("store · subscribe 即刻回放 + 动作通知 + unsubscribe 止噪", () =
   store.setHoldingsOnly(false);
   assert.equal(seen.length, 2, "unsubscribe 后不再触发");
 });
+
+test("store · quotaMerge 四件套（默认开/白名单/动作/导出）", () => {
+  const storage = createStorageStub();
+  const store = createStore(storage);
+  assert.equal(store.getState().ui.quotaMerge, true, "DEFAULT_UI.quotaMerge 默认开");
+  assert.equal(typeof store.setQuotaMerge, "function", "setQuotaMerge 导出");
+  store.setQuotaMerge(false);
+  const persisted = JSON.parse(storage.getItem("stock-kanban:ui:v1"));
+  assert.equal("quotaMerge" in persisted, true, "persist 白名单含 quotaMerge");
+  assert.equal(persisted.quotaMerge, false);
+  assert.equal(store.getState().ui.quotaMerge, false);
+  // 旧存储含 quotaMerge 时读取生效（沿白名单）
+  const store2 = createStore(createStorageStub({
+    "stock-kanban:ui:v1": JSON.stringify({ quotaMerge: false, lastMarket: "hk" }),
+  }));
+  assert.equal(store2.getState().ui.quotaMerge, false, "旧存储 quotaMerge 读取");
+});
+
+test("store · persist 写入 quotaMerge；会话态 quotaCapable 不落盘（默认 false，重载回默认）", () => {
+  const storage = createStorageStub();
+  const store = createStore(storage);
+  assert.equal(store.getState().ui.quotaCapable, false, "DEFAULT_UI.quotaCapable 默认 false");
+  assert.equal(typeof store.setQuotaCapable, "function", "setQuotaCapable 导出");
+  store.setQuotaCapable(true);
+  assert.equal(store.getState().ui.quotaCapable, true, "会话态内存生效");
+  const afterCapable = JSON.parse(storage.getItem("stock-kanban:ui:v1"));
+  assert.equal("quotaCapable" in afterCapable, false, "会话态 quotaCapable 不入落盘白名单");
+  store.setQuotaMerge(false);
+  const persisted = JSON.parse(storage.getItem("stock-kanban:ui:v1"));
+  assert.equal(persisted.quotaMerge, false, "persist 写入 quotaMerge");
+  assert.equal("quotaCapable" in persisted, false, "写 quotaMerge 时仍不带 quotaCapable");
+  const reloaded = createStore(storage).getState().ui;
+  assert.equal(reloaded.quotaCapable, false, "重载后会话态回默认 false");
+  assert.equal(reloaded.quotaMerge, false, "重载后 quotaMerge 沿白名单恢复");
+});

@@ -170,10 +170,19 @@ export const FLOAT_STYLE_TEXT = `
   .skc-panel { animation: skc-panel-in .14s ease-out; }
   .skc-dialog { animation: skc-dialog-in .14s ease-out; }
   .skc-toast { animation: skc-toast-in .16s ease-out; }
+  .skc-qpulse{animation:skc-qpulse 1.6s ease-in-out infinite}
+  @keyframes skc-qpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
 }
 @keyframes skc-panel-in{from{opacity:0;transform:translateY(4px) scale(.985)}to{opacity:1;transform:none}}
 @keyframes skc-dialog-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 @keyframes skc-toast-in{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%)}}
 
 @media print { :host { display:none !important } }
+
+/* 额度嵌入（CEP v1 宿主侧，ADR 0002）：quota pill 继承胶囊解剖并覆写 cursor；数值段 tabular-nums；阈值色与 qw 同名回退值一致；pulse 见动效守卫块 */
+.skc-capsule--quota{cursor:pointer}
+.skc-qval{font-variant-numeric:tabular-nums}
+.skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}
+.skc-qdanger{color:var(--dsw-alias-label-danger,#c93c3c)}
+.skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def)}
 `;

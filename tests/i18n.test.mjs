@@ -43,6 +43,19 @@ test("tErr：已知代码本地化、未知代码原样透出、detail 附加、
   assert.equal(tErr("duplicate"), "Already in watchlist");
 });
 
+test("quota.* 文案（合并开关 / 过期）：zh 与 en 双侧均有译文，非键名回退", () => {
+  const keys = ["quota.merge", "quota.merge.on", "quota.merge.off", "quota.stale"];
+  for (const key of keys) {
+    assert.ok(DICT_KEYS.zh.includes(key), `zh 字典含 ${key}`);
+    assert.ok(DICT_KEYS.en.includes(key), `en 字典含 ${key}`);
+  }
+  setLang("zh");
+  for (const key of keys) assert.notEqual(t(key), key, `zh 非键名回退：${key}`);
+  setLang("en");
+  for (const key of keys) assert.notEqual(t(key), key, `en 非键名回退：${key}`);
+  setLang("zh");
+});
+
 test("语言缝守卫：client 源码（除 i18n.mjs）字符串字面量零 CJK——面向用户的文案必须全部经 i18n 字典", () => {
   const CJK = /[\u3400-\u4dbf\u4e00-\u9fff]/;
   const violations = [];

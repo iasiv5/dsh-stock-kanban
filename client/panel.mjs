@@ -190,6 +190,11 @@ export function createPanel({ doc, win, store, views }) {
   const addBtn = makeFooterButton("add", "＋", t("add.title"), () => store.setShowAdd(true));
   const settingsBtn = makeFooterButton("settings", "⚙", t("app.settings"), () => store.setShowSettings(true));
   const refreshBtn = makeFooterButton("refresh", "⟳", t("list.refresh"), () => store.pollQuotes());
+  // 合并显示 quota 开关：仅能力在线（ui.quotaCapable）时由 render() 挂载；缺省视为开（与 store 默认一致）
+  const quotaMergeBtn = makeFooterButton("quota-merge", "⊞", t("quota.merge"), () => {
+    const on = snapshot?.ui?.quotaMerge !== false;
+    store.setQuotaMerge(!on);
+  });
   const closeBtn = makeFooterButton("close", "✕", t("app.collapse"), () => close());
 
   const footerHint = doc.createElement("span");
@@ -266,6 +271,19 @@ export function createPanel({ doc, win, store, views }) {
     privacyBtn.title = privacy ? t("privacy.on") : t("privacy.off");
     privacyBtn.classList.toggle("skc-privacy-on", privacy);
     footerHint.textContent = t("app.footer", { privacy: privacy ? t("app.footer.privacy") : "" });
+
+    // 合并显示 quota 开关：能力在线才挂载、能力消失即移除；label/active 随 ui.quotaMerge 切换
+    if (ui.quotaCapable === true) {
+      const quotaOn = ui.quotaMerge !== false;
+      quotaMergeBtn.textContent = quotaOn ? "⊞" : "⊟";
+      quotaMergeBtn.title = quotaOn ? t("quota.merge.on") : t("quota.merge.off");
+      quotaMergeBtn.setAttribute("aria-label", t("quota.merge"));
+      quotaMergeBtn.setAttribute("aria-pressed", quotaOn ? "true" : "false");
+      quotaMergeBtn.classList.toggle("skc-quota-merge-on", quotaOn);
+      if (quotaMergeBtn.parentNode !== footer) footer.insertBefore(quotaMergeBtn, closeBtn);
+    } else {
+      quotaMergeBtn.remove();
+    }
 
     addLayer.hidden = !ui.showAdd;
     settingsLayer.hidden = !ui.showSettings;

@@ -134,6 +134,11 @@ const zh = {  "market.cn": "A 股",
   "picker.label": "胶囊标的",
   "picker.empty": "先添加标的",
 
+  "quota.merge": "合并显示 quota",
+  "quota.merge.on": "quota 已并入胶囊组（点击拆分）",
+  "quota.merge.off": "quota 独立显示（点击并入胶囊组）",
+  "quota.stale": "额度数据已过期",
+
   "err.duplicate": "该标的已在自选中",
   "err.invalid-identity": "代码格式无效",
   "err.quote-unavailable": "行情暂不可用，稍后再试",
@@ -272,6 +277,11 @@ const en = {
 
   "picker.label": "Capsule",
   "picker.empty": "add symbols first",
+
+  "quota.merge": "Merge quota display",
+  "quota.merge.on": "quota merged into capsule group (click to split)",
+  "quota.merge.off": "quota shown separately (click to merge)",
+  "quota.stale": "Quota data stale",
 
   "err.duplicate": "Already in watchlist",
   "err.invalid-identity": "Invalid code format",

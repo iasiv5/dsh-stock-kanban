@@ -23,6 +23,183 @@ import { dragSlop, grabOffset, clampFrame, parseInset } from "./drag.mjs";
 const FALLBACK_SIZE = { width: 38, height: 26 };
 const ZERO_INSETS = { left: 0, right: 0, top: 0, bottom: 0 };
 
+/**
+ * 浮动壳拖拽手势（S3 从 createCapsule 抽出，行为逐语义不变）：
+ * slop 分级（mouse 6 / touch·pen 10）、grab 保留、rAF 批 transform（写 host）、
+ * 释放钳位 + saveFloatPosition + host left/top 写回、cancel 复位不落盘、
+ * suppressNextClick 吞拖拽尾随 click、tap → onTap。手势期间才绑 doc 级监听。
+ * 两枚 pill（stock 胶囊 / quota 嵌入 pill）复用同一管线：拖 = 移动 host，
+ * 落同一位置记忆键（dsh-stock-kanban:float-position），tap = 各自点击语义。
+ * readInsets 可注入（胶囊传自有探针，避免重复探针）；缺省自建惰性探针。
+ */
+export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets: readInsetsArg }) {
+  let dragging = false;
+  let moved = false;
+  let originX = 0;
+  let originY = 0;
+  let slop = 6;
+  let grab = { dx: 0, dy: 0 };
+  let dragSize = FALLBACK_SIZE;
+  let restX = 0;
+  let restY = 0;
+  let lastPoint = null;
+  let suppressNextClick = false;
+  let disposedDrag = false;
+
+  let dragProbe = null;
+  const readInsets =
+    readInsetsArg ??
+    (() => {
+      try {
+        const root = el.getRootNode();
+        if (!dragProbe && root && typeof root.append === "function" && root !== doc) {
+          dragProbe = doc.createElement("div");
+          dragProbe.style.cssText =
+            "position:fixed;visibility:hidden;pointer-events:none;width:0;height:0;overflow:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);";
+          root.append(dragProbe);
+        }
+        if (!dragProbe) return ZERO_INSETS;
+        const style = win.getComputedStyle(dragProbe);
+        return {
+          top: Math.max(parseInset(style?.paddingTop), titlebarInset(win, doc)),
+          right: parseInset(style?.paddingRight),
+          bottom: parseInset(style?.paddingBottom),
+          left: parseInset(style?.paddingLeft),
+        };
+      } catch {
+        return ZERO_INSETS;
+      }
+    });
+
+  const viewportOf = () => ({ width: win.innerWidth ?? 1024, height: win.innerHeight ?? 768 });
+
+  const scheduleFrame = (fn) =>
+    typeof win.requestAnimationFrame === "function" ? win.requestAnimationFrame.call(win, fn) : fn();
+
+  const bindGesture = () => {
+    doc.addEventListener("pointermove", onPointerMove);
+    doc.addEventListener("pointerup", onPointerUp);
+    doc.addEventListener("pointercancel", onPointerCancel);
+  };
+  const unbindGesture = () => {
+    doc.removeEventListener("pointermove", onPointerMove);
+    doc.removeEventListener("pointerup", onPointerUp);
+    doc.removeEventListener("pointercancel", onPointerCancel);
+  };
+
+  const onPointerDown = (event) => {
+    if (event.button !== 0) return;
+    dragging = true;
+    moved = false;
+    originX = event.clientX;
+    originY = event.clientY;
+    slop = dragSlop(event.pointerType);
+    restX = Number.parseFloat(host.style.left) || 0;
+    restY = Number.parseFloat(host.style.top) || 0;
+    let rect = el.getBoundingClientRect();
+    dragSize = rect.width > 0 ? { width: rect.width, height: rect.height } : FALLBACK_SIZE;
+    if (rect.width === 0) {
+      // jsdom / 未布局：rect 全零，以已写 rest 坐标合成回退矩形（与真实浏览器等价）
+      rect = { left: restX, top: restY, width: dragSize.width, height: dragSize.height };
+    }
+    grab = grabOffset({ x: event.clientX, y: event.clientY }, rect);
+    try {
+      el.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* jsdom 无活动指针时捕获不可用 */
+    }
+    bindGesture();
+  };
+
+  const onPointerMove = (event) => {
+    if (!dragging) return;
+    if (!moved) {
+      if (Math.hypot(event.clientX - originX, event.clientY - originY) < slop) return;
+      moved = true;
+      doc.body.style.userSelect = "none";
+      el.classList.add("skc-capsule--dragging");
+    }
+    lastPoint = { x: event.clientX, y: event.clientY };
+    scheduleFrame(() => {
+      if (!dragging || !lastPoint || disposedDrag) return;
+      const topLeft = clampFrame(lastPoint, grab, dragSize, viewportOf(), readInsets());
+      const dx = topLeft.x - restX;
+      const dy = topLeft.y - restY;
+      host.style.willChange = "transform";
+      host.style.transform = `translate3d(${Math.round(dx)}px, ${Math.round(dy)}px, 0)`;
+    });
+  };
+
+  const onPointerUp = (event) => {
+    if (!dragging) return;
+    dragging = false;
+    unbindGesture();
+    doc.body.style.userSelect = "";
+    if (!moved) {
+      onTap(); // 点击（未拖动的 pointerup）
+      return;
+    }
+    const point = clampFrame(
+      { x: event.clientX, y: event.clientY },
+      grab,
+      dragSize,
+      viewportOf(),
+      readInsets(),
+    );
+    suppressNextClick = true;
+    el.classList.remove("skc-capsule--dragging");
+    host.style.willChange = "";
+    host.style.transform = "";
+    saveFloatPosition(storage, point);
+    host.style.left = `${Math.round(point.x)}px`;
+    host.style.top = `${Math.round(point.y)}px`;
+  };
+
+  /** 取消的手势（滚动接管/来电/掌触）复位：不落盘，尾随 click 不吞 */
+  const onPointerCancel = () => {
+    if (!dragging) return;
+    dragging = false;
+    unbindGesture();
+    doc.body.style.userSelect = "";
+    el.classList.remove("skc-capsule--dragging");
+    host.style.willChange = "";
+    host.style.transform = "";
+  };
+
+  const onClick = () => {
+    // 拖拽释放后浏览器仍会派发 click：吞掉；轻点的 onTap 已在 pointerup 处理
+    if (suppressNextClick) suppressNextClick = false;
+  };
+
+  el.addEventListener("pointerdown", onPointerDown);
+  el.addEventListener("click", onClick);
+
+  return {
+    isDragging: () => dragging,
+    dispose() {
+      disposedDrag = true;
+      unbindGesture();
+      el.removeEventListener("pointerdown", onPointerDown);
+      el.removeEventListener("click", onClick);
+      dragProbe?.remove?.();
+    },
+  };
+}
+
+/** Windows 桌面壳标题栏带 inset（与胶囊探针同语义的私有读取） */
+function titlebarInset(win, doc) {
+  try {
+    const html = doc.documentElement;
+    return titlebarTopInset({
+      titlebar: html.hasAttribute("data-windows-titlebar"),
+      fullscreen: html.hasAttribute("data-fullscreen"),
+      height: parseInset(win.getComputedStyle(html)?.getPropertyValue("--dsh-windows-titlebar-height")),
+    });
+  } catch {
+    return 0;
+  }
+}
+
 export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel }) {
   const host = shadow.host;
   const toggle = () =>
@@ -116,7 +293,7 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
   // （实测 ~156px 级）会越过右缘——update 时按尺寸变化重定位一次（拖拽中跳过）。
   let lastAppliedSize = null;
   const repositionIfResized = () => {
-    if (dragging) return;
+    if (dragCtl.isDragging()) return;
     const size = measureSize();
     if (
       !lastAppliedSize ||
@@ -127,116 +304,9 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
     }
   };
 
-  /* ------------------------------------------------ 拖拽管线 */
+  /* ------------------------------------------------ 拖拽管线（S3 共享化：attachFloatDrag） */
 
-  let dragging = false;
-  let moved = false;
-  let originX = 0;
-  let originY = 0;
-  let slop = 6;
-  let grab = { dx: 0, dy: 0 };
-  let dragSize = FALLBACK_SIZE;
-  let restX = 0;
-  let restY = 0;
-  let lastPoint = null;
-  let suppressNextClick = false;
-
-  const scheduleFrame = (fn) =>
-    typeof win.requestAnimationFrame === "function" ? win.requestAnimationFrame.call(win, fn) : fn();
-
-  const bindGesture = () => {
-    doc.addEventListener("pointermove", onPointerMove);
-    doc.addEventListener("pointerup", onPointerUp);
-    doc.addEventListener("pointercancel", onPointerCancel);
-  };
-  const unbindGesture = () => {
-    doc.removeEventListener("pointermove", onPointerMove);
-    doc.removeEventListener("pointerup", onPointerUp);
-    doc.removeEventListener("pointercancel", onPointerCancel);
-  };
-
-  const onPointerDown = (event) => {
-    if (event.button !== 0) return;
-    dragging = true;
-    moved = false;
-    originX = event.clientX;
-    originY = event.clientY;
-    slop = dragSlop(event.pointerType);
-    restX = Number.parseFloat(host.style.left) || 0;
-    restY = Number.parseFloat(host.style.top) || 0;
-    let rect = el.getBoundingClientRect();
-    dragSize = rect.width > 0 ? { width: rect.width, height: rect.height } : FALLBACK_SIZE;
-    if (rect.width === 0) {
-      // jsdom / 未布局：rect 全零，以已写 rest 坐标合成回退矩形（与真实浏览器等价）
-      rect = { left: restX, top: restY, width: dragSize.width, height: dragSize.height };
-    }
-    grab = grabOffset({ x: event.clientX, y: event.clientY }, rect);
-    try {
-      el.setPointerCapture?.(event.pointerId);
-    } catch {
-      /* jsdom 无活动指针时捕获不可用 */
-    }
-    bindGesture();
-  };
-
-  const onPointerMove = (event) => {
-    if (!dragging) return;
-    if (!moved) {
-      if (Math.hypot(event.clientX - originX, event.clientY - originY) < slop) return;
-      moved = true;
-      doc.body.style.userSelect = "none";
-      el.classList.add("skc-capsule--dragging");
-    }
-    lastPoint = { x: event.clientX, y: event.clientY };
-    scheduleFrame(() => {
-      if (!dragging || !lastPoint || disposed) return;
-      const topLeft = clampFrame(lastPoint, grab, dragSize, viewportOf(), readInsets());
-      const dx = topLeft.x - restX;
-      const dy = topLeft.y - restY;
-      host.style.willChange = "transform";
-      host.style.transform = `translate3d(${Math.round(dx)}px, ${Math.round(dy)}px, 0)`;
-    });
-  };
-
-  const onPointerUp = (event) => {
-    if (!dragging) return;
-    dragging = false;
-    unbindGesture();
-    doc.body.style.userSelect = "";
-    if (!moved) {
-      toggle(); // 点击（未拖动的 pointerup）= 开/关面板
-      return;
-    }
-    const point = clampFrame(
-      { x: event.clientX, y: event.clientY },
-      grab,
-      dragSize,
-      viewportOf(),
-      readInsets(),
-    );
-    suppressNextClick = true;
-    el.classList.remove("skc-capsule--dragging");
-    host.style.willChange = "";
-    host.style.transform = "";
-    saveFloatPosition(storage, point);
-    applyPosition();
-  };
-
-  /** 取消的手势（滚动接管/来电/掌触）复位：不落盘，尾随 click 不吞 */
-  const onPointerCancel = () => {
-    if (!dragging) return;
-    dragging = false;
-    unbindGesture();
-    doc.body.style.userSelect = "";
-    el.classList.remove("skc-capsule--dragging");
-    host.style.willChange = "";
-    host.style.transform = "";
-  };
-
-  const onClick = () => {
-    // 拖拽释放后浏览器仍会派发 click：吞掉；轻点的 toggle 已在 pointerup 处理
-    if (suppressNextClick) suppressNextClick = false;
-  };
+  const dragCtl = attachFloatDrag({ el, host, doc, win, storage, onTap: toggle, readInsets });
 
   const onKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -260,8 +330,6 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
     host.style.top = `${Math.round(point.y)}px`;
   };
 
-  el.addEventListener("pointerdown", onPointerDown);
-  el.addEventListener("click", onClick);
   el.addEventListener("keydown", onKeyDown);
   win.addEventListener("resize", onResize);
   // 先入树再定位（quota-watch 同构）：宿主已 append（main.mjs），胶囊入
@@ -303,9 +371,7 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
 
   const dispose = () => {
     disposed = true;
-    unbindGesture();
-    el.removeEventListener("pointerdown", onPointerDown);
-    el.removeEventListener("click", onClick);
+    dragCtl.dispose();
     el.removeEventListener("keydown", onKeyDown);
     win.removeEventListener("resize", onResize);
     safeAreaProbe.remove();

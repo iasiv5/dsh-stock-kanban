@@ -15,8 +15,8 @@ import { api } from "./api.mjs";
 import { t, tErr } from "./i18n.mjs";
 
 const UI_KEY = "stock-kanban:ui:v1";
-/** 落盘字段集（会话态 panelOpen/view/detailId/showAdd/showSettings 不落盘） */
-const UI_PERSIST_KEYS = ["lastMarket", "holdingsOnly", "maVisible", "capsuleSymbolId"];
+/** 落盘字段集（会话态 panelOpen/view/detailId/showAdd/showSettings/quotaCapable 不落盘） */
+const UI_PERSIST_KEYS = ["lastMarket", "holdingsOnly", "maVisible", "capsuleSymbolId", "quotaMerge"];
 
 const DEFAULT_UI = {
   panelOpen: false,
@@ -24,10 +24,12 @@ const DEFAULT_UI = {
   detailId: null,
   showAdd: false, // 会话态：添加对话框
   showSettings: false, // 会话态：设置对话框（备份与迁移）
+  quotaCapable: false, // 会话态：quota-watch 嵌入能力在线（onCapabilityChange 驱动；footer 开关门控；不落盘）
   lastMarket: "cn",
   holdingsOnly: false,
   maVisible: { 5: true, 10: true, 20: true, 60: true },
   capsuleSymbolId: null, // null → 第一个标的
+  quotaMerge: true, // 持久：合并显示 quota（默认开；仅能力在线时生效）
 };
 
 /** 读旧 ui:v1 时只取白名单键：退役的 pos/panelPos 与未知键一律忽略，不抛错 */
@@ -193,6 +195,8 @@ export function createStore(storage = window.localStorage) {
   function setHoldingsOnly(v) { setUi({ holdingsOnly: v }); }
   function setMaVisible(v) { setUi({ maVisible: v }); }
   function setCapsuleSymbol(id) { setUi({ capsuleSymbolId: id }); }
+  function setQuotaMerge(v) { setUi({ quotaMerge: v }); }
+  function setQuotaCapable(v) { setUi({ quotaCapable: v }); }
 
   function setToast(text) {
     set({ toast: text ? { text, at: Date.now() } : null });
@@ -232,6 +236,7 @@ export function createStore(storage = window.localStorage) {
     refreshState, mutate, addSymbol, updateSymbol, removeSymbol, setPrivacy, importBackup,
     pollQuotes, restartPolling, openPanel, closePanel, togglePanel, openDetail, backToList,
     setLastMarket, setHoldingsOnly, setMaVisible, setCapsuleSymbol,
+    setQuotaMerge, setQuotaCapable,
     setToast, setShowAdd, setShowSettings, handleVisibility,
   };
 }

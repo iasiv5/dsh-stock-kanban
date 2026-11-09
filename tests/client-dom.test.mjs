@@ -9,9 +9,9 @@ import { createDetail } from "../client/detail.mjs";
 import { createAdd } from "../client/add.mjs";
 import { createBackup } from "../client/backup.mjs";
 import { createPanel } from "../client/panel.mjs";
+import { setLang, t } from "../client/i18n.mjs";
 import { buildMinuteChart, buildCandleChart } from "../client/charts.mjs";
 import { MASK } from "../client/fmt.mjs";
-import { t } from "../client/i18n.mjs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -57,6 +57,36 @@ test("FLOAT_STYLE_TEXT · 关键常量在位", () => {
     s.includes(".skc-stack { display:flex; flex-direction:column; gap:6px; }"),
     ".skc-stack 规则",
   );
+});
+
+/** 取自 headerIdx 起、与其 { 配对的整段（含头部）：用于断言规则确实落在某个 @media 守卫块内 */
+function balancedBlock(text, headerIdx) {
+  const open = text.indexOf("{", headerIdx);
+  let depth = 0;
+  for (let i = open; i < text.length; i += 1) {
+    if (text[i] === "{") depth += 1;
+    else if (text[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(headerIdx, i + 1);
+    }
+  }
+  return "";
+}
+
+test("FLOAT_STYLE_TEXT · quota pill 样式：--quota cursor、tabular-nums、warn/danger 阈值色、pulse 仅在 reduced-motion 守卫块内", () => {
+  const s = FLOAT_STYLE_TEXT;
+  assert.ok(s.includes(".skc-capsule--quota{cursor:pointer}"), "--quota 覆写 cursor:pointer");
+  assert.ok(s.includes(".skc-qval{font-variant-numeric:tabular-nums}"), "数值段 tabular-nums（spec §9）");
+  assert.ok(s.includes(".skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}"), "warn 色（与 qw 同名回退值）");
+  assert.ok(s.includes(".skc-qdanger{color:var(--dsw-alias-label-danger,#c93c3c)}"), "danger 色（与 qw 同名回退值）");
+  assert.ok(s.includes(".skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def)}"), "footer 开关 active 态样式");
+  const guardAt = s.indexOf("@media (prefers-reduced-motion: no-preference)");
+  assert.ok(guardAt >= 0, "reduced-motion 守卫块存在");
+  const guard = balancedBlock(s, guardAt);
+  assert.ok(guard.includes(".skc-qpulse{"), "pulse 类在守卫块内");
+  assert.ok(guard.includes("@keyframes skc-qpulse"), "pulse keyframes 在守卫块内");
+  assert.equal(s.split("@keyframes skc-qpulse").length - 1, 1, "keyframes 只定义一次（守卫块内）");
+  assert.equal(s.split(".skc-qpulse{").length - 1, 1, ".skc-qpulse 只出现一次（守卫块内）");
 });
 
 /* ---------------- capsule（Task 8：拖拽管线 + 键盘 + 点击） ---------------- */
@@ -470,6 +500,7 @@ function setupPanel({ viewport = [1024, 768] } = {}) {
     setShowAdd: (v) => actions.push(["setShowAdd", v]),
     setShowSettings: (v) => actions.push(["setShowSettings", v]),
     pollQuotes: () => actions.push("pollQuotes"),
+    setQuotaMerge: (v) => actions.push(["setQuotaMerge", v]),
   };
   const stubView = () => ({ el: h.document.createElement("div"), update() {}, dispose() {} });
   const views = { list: stubView(), detail: stubView(), add: stubView(), backup: stubView() };
@@ -542,6 +573,52 @@ test("panel · footer 含关闭按钮且点击关闭", () => {
     assert.equal(panel.isOpen(), false, "点击关闭");
     panel.dispose();
   } finally {
+    h.cleanup();
+  }
+});
+
+test("panel · footer 合并开关：仅 quotaCapable 时渲染；随 quotaMerge 切换 label/active；点击取反；能力消失即移除", () => {
+  const { h, panel, actions } = setupPanel();
+  const base = {
+    panelOpen: true, view: "list", detailId: null, showAdd: false, showSettings: false,
+    lastMarket: "cn", holdingsOnly: false, maVisible: { 5: true, 10: true, 20: true, 60: true },
+    capsuleSymbolId: null,
+  };
+  const snap = (ui) => ({
+    business: { rev: 1, settings: { privacyMode: false }, symbols: [] },
+    quoteMeta: { fetchedAt: null, error: null },
+    toast: null,
+    providers: null,
+    ui: { ...base, quotaMerge: true, quotaCapable: false, ...ui },
+  });
+  const btnOf = () => panel.el.querySelector('.skc-footer [data-action="quota-merge"]');
+  const lastMergeCall = () => actions.filter((a) => Array.isArray(a) && a[0] === "setQuotaMerge").pop();
+  try {
+    panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
+    panel.update(snap({}));
+    assert.equal(btnOf(), null, "能力未检测到 → 不渲染开关");
+
+    panel.update(snap({ quotaCapable: true, quotaMerge: true }));
+    let btn = btnOf();
+    assert.ok(btn, "quotaCapable → 渲染开关");
+    assert.equal(btn.getAttribute("aria-pressed"), "true", "开态 aria-pressed");
+    assert.ok(btn.classList.contains("skc-quota-merge-on"), "开态 active 样式类");
+    assert.equal(btn.title, t("quota.merge.on"), "开态 label 取 quota.merge.on");
+    btn.dispatchEvent(new h.window.MouseEvent("click", { bubbles: true }));
+    assert.deepEqual(lastMergeCall(), ["setQuotaMerge", false], "开 → 点击 → setQuotaMerge(false)");
+
+    panel.update(snap({ quotaCapable: true, quotaMerge: false }));
+    btn = btnOf();
+    assert.equal(btn.getAttribute("aria-pressed"), "false", "关态 aria-pressed");
+    assert.equal(btn.classList.contains("skc-quota-merge-on"), false, "关态无 active 类");
+    assert.equal(btn.title, t("quota.merge.off"), "关态 label 取 quota.merge.off");
+    btn.dispatchEvent(new h.window.MouseEvent("click", { bubbles: true }));
+    assert.deepEqual(lastMergeCall(), ["setQuotaMerge", true], "关 → 点击 → setQuotaMerge(true)");
+
+    panel.update(snap({ quotaCapable: false, quotaMerge: true }));
+    assert.equal(btnOf(), null, "能力消失 → 按钮移除");
+  } finally {
+    panel.dispose();
     h.cleanup();
   }
 });
