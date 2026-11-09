@@ -12,6 +12,7 @@ import { createList } from "./list.mjs";
 import { createDetail } from "./detail.mjs";
 import { createAdd } from "./add.mjs";
 import { createBackup } from "./backup.mjs";
+import { createQuotaEmbed } from "./quota-embed.mjs";
 import { FLOAT_STYLE_TEXT } from "./styles.mjs";
 import { t, resolveLang, setLang } from "./i18n.mjs";
 
@@ -74,11 +75,26 @@ export function mountKanban({ doc, win, storage }) {
   });
   stack.append(capsule.el);
 
+  /* ---------------- CEP v1 宿主侧：quota 嵌入（ADR 0002） ---------------- */
+  // 先于 subscribe 创建：挂载前即存在的 guest 会同步回复握手，此刻须已知 quotaMerge 初值，
+  // 否则同步握手会在首次 update 前抢先 engage（enabled 初值见 quota-embed.mjs）。
+  // 能力变化经 onCapabilityChange 回写 store（footer 开关门控）；pill 随 stack 流动。
+  const quotaEmbed = createQuotaEmbed({
+    doc,
+    win,
+    storage,
+    stack,
+    host,
+    enabled: store.getState().ui.quotaMerge !== false,
+    onCapabilityChange: (capable) => store.setQuotaCapable(capable),
+  });
+
   /* ---------------- renderAll 漏斗 ---------------- */
 
   let wasOpen = false;
   const renderAll = (snapshot) => {
     capsule.update(snapshot);
+    quotaEmbed.update(snapshot);
     panel.update(snapshot);
     const quoteError = snapshot?.quoteMeta?.error;
     errorGlobal.textContent = quoteError ? t("app.quote-failed", { e: quoteError }) : "";
@@ -116,6 +132,7 @@ export function mountKanban({ doc, win, storage }) {
     unsubscribe();
     store.dispose();
     capsule.dispose();
+    quotaEmbed.dispose(); // 挂在 capsule.dispose 之后（S5 装配约定）
     panel.dispose();
     for (const view of Object.values(views)) view.dispose();
     doc.removeEventListener("visibilitychange", onVisibility);

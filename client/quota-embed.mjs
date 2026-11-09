@@ -17,6 +17,7 @@ const OVERVIEW_URL = "api/dsh-quota-watch/overview";
 const REQUIRED_CAPABILITIES = ["hide-pill", "anchored-panel"];
 
 import { attachFloatDrag } from "./capsule.mjs";
+import { t } from "./i18n.mjs";
 
 function glmPercent(provider) {
   if (provider?.status === "missing" || provider?.status === "error") return undefined;
@@ -52,11 +53,12 @@ export function createQuotaEmbed({
   retryMs = 60000,
   heartbeatMs = 5000,
   onCapabilityChange,
+  enabled: initialEnabled = true, // 挂载期初值（main 传入 ui.quotaMerge）：防同步握手在首次 update 前抢先 engage
 }) {
   let disposed = false;
   let guestEl = null;
   let capable = false;
-  let enabled = true; // ui.quotaMerge（update 快照驱动；默认开）
+  let enabled = initialEnabled !== false; // ui.quotaMerge：初值取自 initialEnabled，此后由 update 快照驱动
   let engaged = false;
   let probeTimer = null;
   let heartTimer = null;
@@ -149,10 +151,14 @@ export function createQuotaEmbed({
       const data = await res.json();
       if (disposed || !engaged) return;
       paintOverview(data);
+      el.removeAttribute("title"); // 拉取恢复：清除过期提示
       schedulePoll(pollMs);
     } catch {
-      // 传输错误：保留上次渲染，正常节奏重试（与访客自身语义一致）
-      if (!disposed && engaged) schedulePoll(pollMs);
+      // 传输错误：保留上次渲染，正常节奏重试（与访客自身语义一致）；pill 标注过期（quota.stale）
+      if (!disposed && engaged) {
+        el.title = t("quota.stale");
+        schedulePoll(pollMs);
+      }
     }
   };
 
