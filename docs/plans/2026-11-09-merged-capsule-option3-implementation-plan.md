@@ -266,7 +266,7 @@
 - 验证范围：两条精确命名用例。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 两条，名字精确为「提示：单条只列一条且无分隔符」、「提示：两条含分隔符」。断言形式：每条先断言提示节点 `.skc-qseg-tip` 存在（HEAD 上缺席，必红），再断言内容与分隔符，不得仅以「不含分隔符」判定（那在节点缺席时虚绿）。
+  - Change: 两条（v5.8 改名），名字精确为「提示：单条只列一条、无分隔符，悬停段时显示」、「提示：两条含分隔符，悬停段时显示」；内容断言保留作回归守卫（S4 已写入 tip 文本，内容并非红灯来源）；悬停 CSS 断言为红灯来源（`.skc-qseg-tip{display:none}` 与 `.skc-qseg:hover .skc-qseg-tip{display:block}`，须逐字包含于 FLOAT_STYLE_TEXT）。断言形式：每条先断言提示节点 `.skc-qseg-tip` 存在（HEAD 上缺席，必红），再断言内容与分隔符，不得仅以「不含分隔符」判定（那在节点缺席时虚绿）。
   - Run: `set -o pipefail && node --test --test-name-pattern="提示：" tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 2`、`ℹ pass 0`、`ℹ fail 2`。
 - [ ] Step 2：实现并转绿
@@ -285,7 +285,7 @@
 - 验证范围：六条精确命名用例；净增 +4（新增 6、删除 2）。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 六条，名字精确为：「水平推出：优先右侧」、「水平推出：放不下则左侧」、「垂直回退：两侧都放不下时下方优先」、「垂直回退：下方放不下时翻到锚上方」（视口 [500, 300]；capsuleRect {top:200, height:26}；面板高度桩为 160px；下方放不下（234+160 > 292），翻到上方，期望 top = 32px，对应删除的 `:526`）、「水平推出：顶边与胶囊对齐并贴底钳位」、「sheet：视口不超过 480px 为底部 sheet」。夹具与各条视口和矩形（钉死，否则按文字执行会得到 pass 5 而非 pass 6）：六条共用面板高度桩 160px；面板宽度不桩，取默认 400（WIDTH_FALLBACK=400；桩宽则期望值 492、234、32 不再成立，不得桩宽）；分区与胶囊顶边不同（segRect.top = capsuleRect.top + 4），否则 HEAD 的 openFrom（只读第一个参数）可能虚绿。①「水平推出：优先右侧」视口 [1024, 768]，segRect {left:200, top:204, width:70, height:26}，capsuleRect {left:200, top:200, width:150, height:26}，期望 left = 278px、top = 200px；②「水平推出：放不下则左侧」同视口与 capsuleRect，segRect {left:900, top:204, width:70, height:26}，期望 left = 492px；③「垂直回退：两侧都放不下时下方优先」视口 [500, 768]，segRect {left:50, top:204, width:70, height:26}，期望 top = 234px（capsuleRect.bottom + 8）；④「垂直回退：下方放不下时翻到锚上方」视口 [500, 300]，segRect {left:50, top:204, width:70, height:26}，capsuleRect {left:50, top:200, width:150, height:26}，期望 top = 32px；⑤「水平推出：顶边与胶囊对齐并贴底钳位」视口 [1024, 768]，segRect {left:200, top:704, width:70, height:26}，capsuleRect {left:200, top:700, width:150, height:26}，期望 top = 600px（768 − 160 − 8）；⑥「sheet：视口不超过 480px 为底部 sheet」视口 [400, 768]。
+  - Change: 六条，名字精确为：「水平推出：优先右侧」、「水平推出：放不下则左侧」、「垂直回退：两侧都放不下时下方优先」、「垂直回退：下方放不下时翻到锚上方」（视口 [500, 300]；capsuleRect {top:200, height:26}；面板高度桩为 160px；下方放不下（234+160 > 292），翻到上方，期望 top = 32px，对应删除的 `:526`）、「水平推出：顶边与胶囊对齐并贴底钳位」、「sheet：视口不超过 480px 为底部 sheet」。夹具与各条视口和矩形（钉死，否则按文字执行会得到 pass 5 而非 pass 6）：六条共用面板高度桩 160px；面板宽度不桩，取默认 400（WIDTH_FALLBACK=400；桩宽则期望值 492、234、32 不再成立，不得桩宽）；分区与胶囊顶边不同（segRect.top = capsuleRect.top + 4），否则 HEAD 的 openFrom（只读第一个参数）可能虚绿。①「水平推出：优先右侧」视口 [1024, 768]，segRect {left:200, top:204, width:70, height:26}，capsuleRect {left:200, top:200, width:150, height:26}，期望 left = 278px、top = 200px；②「水平推出：放不下则左侧」同视口与 capsuleRect，segRect {left:900, top:204, width:70, height:26}，期望 left = 492px；③「垂直回退：两侧都放不下时下方优先」视口 [500, 768]，segRect {left:50, top:204, width:70, height:26}，capsuleRect {left:50, top:200, width:150, height:26}（v5.8：执行线推定并经 lead 核实，与④ 一致，且 234 = 226 + 8）；期望 top = 234px（capsuleRect.bottom + 8）；④「垂直回退：下方放不下时翻到锚上方」视口 [500, 300]，segRect {left:50, top:204, width:70, height:26}，capsuleRect {left:50, top:200, width:150, height:26}，期望 top = 32px；⑤「水平推出：顶边与胶囊对齐并贴底钳位」视口 [1024, 768]，segRect {left:200, top:704, width:70, height:26}，capsuleRect {left:200, top:700, width:150, height:26}，期望 top = 600px（768 − 160 − 8）；⑥「sheet：视口不超过 480px 为底部 sheet」视口 [400, 768]。
   - Run: `set -o pipefail && node --test --test-name-pattern="水平推出|垂直回退|sheet：" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 6`、`ℹ pass 1`、`ℹ fail 5`（第「sheet」条为既有行为，现即绿；其余五条在 HEAD 上红）。
 - [ ] Step 2：实现并转绿
@@ -322,7 +322,7 @@
 
 #### Task S11：待处理提醒与 i18n（先红）
 
-- 目标：`manualOutcome` 或 `manualOutcomeError` 存在时视为待处理；待处理琥珀点与条共存；点击派发 open-panel。
+- 目标：`manualOutcome` 或 `manualOutcomeError` 存在时视为待处理；待处理琥珀点与条共存；点击派发 open-panel。（v5.8：`manualOutcome: null` 按 `!== undefined` 计为待处理，与 qw 同规则；qw 的 manualOutcomeView 无记录时返回 `{}`，不发出 null，该边界在实际数据中不出现。）
 - 涉及文件：Modify `client/quota-embed.mjs`（`outcomePending = manualOutcome !== undefined || manualOutcomeError !== undefined`，与 qw client.mjs 第 1231 行同规则）；Modify `client/i18n.mjs`（新增 `quota.outcome`：zh「待处理兑换结果」，en「Pending redemption result」；并把 `quota.merge.on/off` 的「胶囊组」文案改为「合并胶囊」：zh 第 138–139 行「quota 已并入合并胶囊（点击拆分）」「quota 独立显示（点击并入合并胶囊）」，en 第 282 行「quota merged into the capsule (click to split)」）；Modify `tests/i18n.test.mjs`（quota 键列表约第 46–50 行显式加入 `quota.outcome`，这是本任务的显式断言改动；红灯来源即此）。
 - 接口契约：Consumes S3、S4、S6。Produces `quota.outcome` 键（zh/en 双侧）。
 - 验证范围：两条新用例；i18n 列表测试转绿。
@@ -340,7 +340,7 @@
 - 目标：全量全绿；bundle 同笔重建并幂等；冻结面零改动；提交实现。
 - 验证范围：两次构建 sha 一致；`FROZEN_CLEAN`。
 
-- [ ] Step 1：全量与构建
+- [ ] Step 1：全量与构建（v5.8：「胶囊组」注释清理前置于本步——client/main.mjs 第 41 行、client/styles.mjs 第 21 行、tests/client-dom.test.mjs 第 56 行改为「合并胶囊」，只改注释文字，计数不变；使 lib/client.js 由最终代码产生）
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && set -o pipefail && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/sk-s12-full.log | grep -E "^ℹ (tests|pass|fail)" && npm run build >/dev/null && sha256sum lib/client.js && npm run build >/dev/null && sha256sum lib/client.js`
   - Expected: `ℹ fail 0`；全量 `ℹ pass` 按阶段绝对数核对（偏差即停）：基线 S1 为 148；S2 +2 → 150；S3 +9 → 159；S4b +5 → 164；S4 +5 → 169；S5 +2 → 171；S6 +6 → 177；S6b +3 → 180；S7 +2 → 182；S8 净增 +4（新增 6、删除 HEAD 既有两条 `:512`、`:526`）→ 186；S9 +3 → 189；S10 +3 → 192；S11 +3（待处理 2、文案 1）→ 195。最终：`ℹ tests 195`、`ℹ pass 195`、`ℹ fail 0`。S6b 已由 Q15（A）解除阻塞：最终计数应达到 195。两次构建 sha256 相同，记为 `SK_BUNDLE_SHA`。
 - [ ] Step 2：冻结面
@@ -356,7 +356,7 @@
 - 活动文档：`GLOSSARY.md`、`README.md`、`docs/tech-notes.md`、`docs/reports/2026-11-09-capsule-parity-matrix.md`、`docs/interop/capsule-embed-protocol.md`、`docs/verification.md`。历史 ADR 0001/0002 与旧计划保留「胶囊组」原文，属于历史记录，不计入清零。
 - 涉及文件：Modify 上述活动文档；Modify `docs/adr/0003-*`（如有修订）。
 
-- [ ] Step 1：基线（在改动前取数）
+- [ ] Step 1：基线（在改动前取数）（v5.8：CEP 为英文规范，标记改用英文短语：`right, bottom`、`dispose also sends it`、`Merged capsule`；GLOSSARY 的中文标记「合并胶囊」「待处理提醒」不变。活动文档清零中，GLOSSARY 的 `_Avoid_` 列表保留「胶囊组」作为应避免的旧说法，有意保留，非遗漏。）
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && for m in "拆除时补发" "锚点补 right、bottom" "待处理提醒" "合并胶囊"; do printf "%s: " "$m"; grep -c "$m" docs/interop/capsule-embed-protocol.md GLOSSARY.md | tr '\n' ' '; echo; done`
   - Expected: 四个标记在 CEP 与 GLOSSARY 中计数均为 0；若非 0，先停下核对，不得继续。
 - [ ] Step 2：更新文档

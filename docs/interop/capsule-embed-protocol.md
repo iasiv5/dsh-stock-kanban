@@ -4,9 +4,9 @@
 
 **Parties**
 
-- **Host**: the `dsh-stock-kanban` float shell (body-level open shadow root, `div[data-dsh-stock-kanban-float]`, containing a vertical `.skc-stack`).
+- **Host**: the `dsh-stock-kanban` float shell (body-level open shadow root, `div[data-dsh-stock-kanban-float]`, containing the merged capsule: one pill with a stock segment and a quota segment).
 - **Guest**: the `@iasiv5/dsh-quota-watch` float shell (`div[data-dsh-quota-watch-float]`, capsule + panel in one open shadow root).
-- **Capsule group**: the host's stack holding both pills; one drag unit, one position memory (`dsh-stock-kanban:float-position`), one z-index tier (2147483000).
+- **Merged capsule**: the host's single pill holding the stock segment and the quota segment (`div[data-seg="quota"]`); one drag unit, one position memory (`dsh-stock-kanban:float-position`), one z-index tier (2147483000).
 
 ## 1. Transport
 
@@ -33,8 +33,8 @@ The host merges only if `capabilities ⊇ {hide-pill, anchored-panel}` AND the u
 |---|---|---|---|
 | `dsh-quota-watch:embed-engage` | Host → window | `{ v: 1 }` | Guest hides its capsule pill **only** (float host and panel stay fully functional) and pauses its own client polling chain |
 | `dsh-quota-watch:embed-heartbeat` | Host → window | `{ v: 1 }` | Host sends every 5 s while merged. Guest self-restores (unhide pill + resume polling) after 3 consecutive missed beats (15 s) — orphan protection against a host that vanished without disengage (disabled, crashed, HMR) |
-| `dsh-quota-watch:embed-disengage` | Host → window | `{ v: 1 }` | Guest restores pill + polling immediately (user toggled merge off, host tears down) |
-| `dsh-quota-watch:open-panel` | Host → window | `{ v: 1, anchor: { left, top, width, height } }` | Dispatched on quota-pill click; guest opens its panel anchored per its own `placePanel` semantics near the supplied viewport rect; its native toggle semantics are preserved (panel open → the same click path closes it) |
+| `dsh-quota-watch:embed-disengage` | Host → window | `{ v: 1 }` | Guest restores pill + polling immediately (user toggled merge off, or host tears down: dispose also sends it) |
+| `dsh-quota-watch:open-panel` | Host → window | `{ v: 1, anchor: { left, top, width, height, right, bottom } }` | Dispatched on quota-segment tap (right/bottom are additive; guests ignore unknown fields); guest opens its panel anchored per its own `placePanel` semantics near the supplied viewport rect; its native toggle semantics are preserved (panel open → the same click path closes it) |
 
 ## 5. Data channel
 
@@ -60,4 +60,4 @@ Events carry no credentials and no quota data — only rects, flags, and version
 
 ## 9. Visual contract (host obligation)
 
-The quota pill inside `.skc-stack` follows the shared capsule anatomy (26 px pill, `blur(10px) saturate(1.2)`, `color-mix … 86%`, radius 999, `::before` −9 px hit area, tabular numerals) and renders guest data with the guest's threshold semantics (warn >80 ≤95, danger >95, pulse >95 under `prefers-reduced-motion` guard).
+The quota segment inside the merged capsule follows the shared capsule anatomy (26 px capsule, `blur(10px) saturate(1.2)`, `color-mix … 86%`, radius 999, `::before` inset −10 px on the stretched 24 px segment (44 px hit area), tabular numerals) and renders guest data with the guest's threshold semantics (warn >80 ≤95, danger >95, pulse >95 under `prefers-reduced-motion` guard).

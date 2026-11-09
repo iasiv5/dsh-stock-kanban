@@ -32,7 +32,7 @@
 |---|---|---|
 | 面板弹出轴 | 垂直（下方优先/上方翻转） | 400px 宽列表面板；quota-watch 侧弹服务其 240px 窄栏 |
 | 面板宽度 | min(400px, vw−16px) | 承载列表+K线图表 |
-| 胶囊内容语义 | 名称+现价+涨跌%+Ⓑ/Ⓢ 触价标记；红涨绿跌（#e5484d/#2bb596） | A股惯例盯盘域 |
+| 胶囊内容语义 | 名称+现价+涨跌%+B/S 触价标记；红涨绿跌（#e5484d/#2bb596） | A股惯例盯盘域 |
 | 胶囊背景令牌 | `--dsw-alias-bg-elevated`（quota-watch 用 bg-base） | B11 只约束 86% 混合比 |
 | 点击触发通道 | pointerup 触发 toggle（quota-watch 用 click+suppressNextClick） | 规格自洽；边界语义备案（评审建议 #3） |
 | 轮询节奏 | 面板关 30s / 开 15s、详情全量 | 盯盘域节奏，服务端 TTL+退避不变 |
@@ -40,5 +40,5 @@
 
 ## 联动（计划 B · CEP v1：宿主侧已实现；访客侧端到端活体待 S7）
 
-- `.skc-stack` 纵向容器（Task 5/13）= 胶囊组结构缝（ADR 0002）→ **已实现**：quota 胶囊经 `createQuotaEmbed({ stack, host })` 挂入 `.skc-stack`（`client/quota-embed.mjs`、`client/main.mjs`）；证据：`tests/client-quota-integration.test.mjs`（8 用例）、`docs/verification.md` §12.11。
+- `.skc-stack` 纵向容器（Task 5/13）= 合并胶囊结构缝（ADR 0002 的结构缝；形态由 ADR 0003 取代）→ **已实现（方案③）**：quota 胶囊经 `createQuotaEmbed({ target, host })` 挂载（方案③起：挂载目标为合并胶囊本体，`.skc-stack` 已不再承载额度胶囊）（`client/quota-embed.mjs`、`client/main.mjs`）；证据：`tests/client-quota-integration.test.mjs`（8 用例）、`docs/verification.md` §12.11。
 - 协议规格 `docs/interop/capsule-embed-protocol.md`（CEP v1）→ **宿主侧已实现**：probe / capabilities / engage / heartbeat / disengage / open-panel 由 `client/quota-embed.mjs` 派发与消费；证据：`tests/client-quota-embed.test.mjs`（10 用例）、`tests/client-quota-integration.test.mjs`（8 用例）；活体：主人启用后的 legacy 只读复查已通过（归因法，§12.11），双插件端到端 E2E 待 S7。

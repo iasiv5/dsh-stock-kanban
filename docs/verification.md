@@ -182,6 +182,36 @@ lifecycle 用例进程收尾多等约 4 秒属预期：effect 内 `refreshState(
 
 **已知缺口**：仓内当前无源码级 CSS↔JSX 类名对齐守卫（原 `client-contract` 类名缝守卫见 §12.6，随 §12.10 契约面退役，未重建）；本节新增的 quota 类名仅经样式锚点断言覆盖。
 
+## 12.12 合并胶囊·方案③（2026-11-09，ADR 0003；sk 实施提交 8d5a907，qw 竞态修复 1e29f47）
+
+实施范围（计划 `docs/plans/2026-11-09-merged-capsule-option3-implementation-plan.md`）：
+- 形态：单胶囊两段（股票段 | 1px 分隔线 | 额度段双迷你条，GLM 上、Copilot 下，单条居中，无数据则隐藏）；额度段并入股票胶囊本体，`quota-embed` 挂载目标为胶囊元素。
+- 面板：分区点击（左段开股票面板，右段开 qw 面板）；股票面板水平推出（右侧优先、左侧次之、两侧都放不下回退垂直），顶边与胶囊对齐；视口 ≤480px 为底部 sheet。
+- 窄屏（≤480px）：隐藏股票名称、保留价格与涨跌；额度段热区 44px（`::before` inset −10 px 作用于 align-self:stretch 的 24 px 段）。
+- 待处理兑换：`manualOutcome` 或 `manualOutcomeError` 存在即显示琥珀小点，即使没有数字；点击打开 qw 面板。
+- 字形与颜色（B26）：额度危险态琥珀（`#d29922`）；股票标记、列表徽章与详情目标价文案统一为拉丁 B/S；涨跌色只作用于股价与涨跌幅。
+- 文案（B37）：`quota.merge.on/off` 与新增 `quota.outcome` 的 zh/en 双侧统一为「合并胶囊」术语；合并开关（footer「合并显示 quota」）保留。
+- 面板与胶囊的交互修复：面板开着时再点股票胶囊最终关闭（Q14；外点豁免粒度 Q15=A：胶囊根且不含额度段）。
+
+测试与构建（sk，逐阶段核对，计数来自 `npm test` 原始输出）：
+- 基线 148/148/0；S1–S11 逐阶段红→绿，累计 195/195/0（S12 全量）。
+- bundle `lib/client.js` 两次构建 sha256 相同：`5e52d6da…858e7`。
+- 冻结面（`src/`、`data/`、`locale/`、`cordis.patch.yml`、`scripts/probe-markets.mjs`）自 `4124df4` 起零差异（FROZEN_CLEAN）。
+
+qw 侧（竞态修复，2026-11-09）：
+- 1e29f47：外点关闭后同一手势的 `open-panel` 不重开（500 毫秒窗口，B32）。
+- 线上热部署：bundle sha `e5506dce…f49d6`，链接数 1；备份 `.dsh-research/qw-hotdeploy-backup-20261109-race/`。
+- 用户目测：额度小胶囊再点关闭无问题。
+
+已知缺口（非本计划引入，记录待办）：
+- 额度段键盘激活（回车/空格开额度面板）为 HEAD 既有缺失：段保留 `role="button"`、`tabIndex=0` 与 aria 属性，但无键盘处理。
+- `manualOutcome: null` 按 `!== undefined` 计为待处理，与 qw 同规则；qw 的 `manualOutcomeView()` 无记录时返回 `{}`，不发出 null，该边界在实际数据中不出现。
+
+未验证（待 S14，需主人批准后在临时 profile 中以真实指针执行）：
+- P1 额度段是胶囊子节点；P2 双条与单条居中；P3 额度段真实指针轻点开 qw 面板并再点关闭；P4 股票段开股票面板并水平推出，面板开着时再点股票胶囊最终关闭；P5 控制台无 error；P6 停用 stock 后 qw 胶囊立即恢复；P7 整组拖动，位置记忆键不变；P8 B26 字形与颜色；P9 B27 五态；P10 B29 翻转与钳位；P11 B30 窄屏 44px 与底部 sheet；P12 滑入约 150 ms。
+
+发版：v0.1.38 暂缓（本计划不包含发版动作）。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 125 单测（vanilla 化后，12.10）+ 23 数据源探针。

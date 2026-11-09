@@ -105,7 +105,7 @@
 
 插槽（`shell.overlay`）→ body 直挂的切换理由（ADR 0001 `docs/adr/0001-client-vanilla-rewrite-and-body-float-shell.md`）：
 
-1. **行为基准已迁移**。位置与拖拽模型整套对齐 `@iasiv5/dsh-quota-watch@0.1.37`（自由坐标 {x,y} + 实测几何钳位 + transform/rAF 拖拽管线 + slop 6/10；对齐矩阵 `docs/reports/2026-11-09-capsule-parity-matrix.md`）。该基准的挂载形态就是 body 直挂 open shadow host：位置记忆天然落 host `left/top`，`.skc-stack` 胶囊组缝（ADR 0002 计划 B）也只在自有 host 内可塑——经宿主插槽注入时两者都要绕层适配。
+1. **行为基准已迁移**。位置与拖拽模型整套对齐 `@iasiv5/dsh-quota-watch@0.1.37`（自由坐标 {x,y} + 实测几何钳位 + transform/rAF 拖拽管线 + slop 6/10；对齐矩阵 `docs/reports/2026-11-09-capsule-parity-matrix.md`）。该基准的挂载形态就是 body 直挂 open shadow host：位置记忆天然落 host `left/top`，`.skc-stack` 合并胶囊缝（ADR 0002 计划 B，形态由 ADR 0003 取代）也只在自有 host 内可塑——经宿主插槽注入时两者都要绕层适配。
 2. **React 树退役即插槽价值归零**。插槽契约的存在意义之一是承接 React 组件树（宿主 register 渲染函数 + 异常整体卸载）；vanilla 化后 `apply(ctx)` 只需 `ctx.effect` 挂一次性浮壳，`inject: []`（`tests/package-shape.test.mjs` lockstep 守卫），宿主不再向插件注任何通道。
 3. **隔离靠 shadow 不靠插槽**。样式与事件隔离由 open shadow root 承担（`FLOAT_STYLE_TEXT` 全部注入 root 内，页面级 `<style id="stock-kanban-styles">` 注入退役）；DSH 主题令牌定义在 `<body>`，body 直挂子元素照常继承（quota-watch 实证，ADR 0001 同款论证）。
 
