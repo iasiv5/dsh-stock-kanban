@@ -313,7 +313,7 @@
 - 验证范围：三条精确命名用例。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 三条，名字精确为：「窄屏：视口 400 时胶囊带 skc-compact」、「窄屏：视口 800 时胶囊不带 skc-compact」、「窄屏：额度段热区扩到 44px」（断言 FLOAT_STYLE_TEXT 中 `[data-seg="quota"]::before` 规则的 `inset` 为 `-10px`；段高由 `align-self: stretch` 取胶囊内高 24，24 + 2×10 = 44px 热区；HEAD 上规则缺席，必红）。
+  - Change: 三条，名字精确为：「窄屏：视口 400 时胶囊带 skc-compact」、「窄屏：视口 800 时胶囊不带 skc-compact」、「窄屏：额度段热区扩到 44px」（断言 FLOAT_STYLE_TEXT 中 `[data-seg="quota"]::before` 规则的 `inset` 为 `-10px`，且 `[data-seg="quota"]` 规则含 `align-self:stretch`（两者缺一即红；评审方实测漏 stretch 时段高为 6、热区仅 26px）；段高 stretch 为内高 24，24 + 2×10 = 44px 热区；HEAD 上规则缺席，必红）。
   - Run: `set -o pipefail && node --test --test-name-pattern="窄屏：" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 3`、`ℹ pass 1`、`ℹ fail 2`（第 2 条现即满足，为不变量）。
 - [ ] Step 2：实现并转绿
