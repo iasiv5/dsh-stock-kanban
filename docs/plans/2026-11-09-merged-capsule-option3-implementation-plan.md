@@ -221,6 +221,22 @@
   - Run: `set -o pipefail && node --test --test-name-pattern="分区" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)" && npm test 2>&1 | grep -E "^ℹ (pass|fail)"`
   - Expected: 分区用例通过；全量 `fail 0`。
 
+#### Task S6b：面板开着时再点胶囊 → 最终关闭（Q14，已由主人确认）
+
+- 目标：股票面板开着时点击股票胶囊，面板最终关闭，而不是被外点关闭后又被 tap 重开。
+- 涉及文件：Modify `client/panel.mjs`（外点关闭的 `onDocPointerDown`，第 127–135 行）；Modify `tests/client-dom.test.mjs`。
+- 接口契约：Consumes S6（胶囊 `onTap` 分流，股票段 toggle）。Produces 行为：外点关闭忽略 `composedPath` 中带 `data-dsh-stock-kanban-capsule` 的 pointerdown；胶囊的 pointerup → onTap → toggle 完成关闭。既有外点关闭（点面板外的普通元素）不变。
+- 验证范围：「再点胶囊」用例与既有「外点关闭」用例同时绿。
+
+- [ ] Step 1：写用例（先红）
+  - Change: 用例名含「再点胶囊」：(a) 打开面板；(b) 在股票胶囊上派发 `pointerdown`（composedPath 含胶囊）→ 面板仍打开；(c) 同一胶囊上派发未拖动的 `pointerup` → 面板最终关闭（`isOpen() === false`）；(d) 对照：面板外的普通元素上派发 `pointerdown` → 面板关闭（既有行为不变）。
+  - Run: `set -o pipefail && node --test --test-name-pattern="再点胶囊" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
+  - Expected: 失败（当前外点关闭先关面板，随后 tap 重开，断言 (c) 不成立，最终态为打开）。
+- [ ] Step 2：实现
+  - Change: `client/panel.mjs` 第 130 行之后加入：`if (event.composedPath().some((n) => n?.dataset?.dshStockKanbanCapsule !== undefined)) return;`（与第 130 行的面板自身判定并列；`composedPath` 抛错时仍走第 131–132 行的「不误关」分支）。
+  - Run: `set -o pipefail && node --test --test-name-pattern="再点胶囊|外点" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
+  - Expected: `fail 0`（既有「panel · 外点关闭与 Esc 关闭」用例仍绿）。
+
 #### Task S7：悬停数字
 
 - 目标：悬停额度段，浮出只列有数据的条；分隔符仅两条都有时显示。
@@ -351,6 +367,7 @@
 
 - qw：`npm test` 全绿，`pass` = `QW_BASE_PASS + 1`；两次构建 sha 一致；竞态用例通过。
 - sk：`npm test` 全绿；两次构建 sha 一致；`FROZEN_CLEAN`；S14 的 P1–P7 逐条有结论。
+- 面板开着时再点股票胶囊：最终关闭（S6b，用例「再点胶囊」绿）。
 - 停用 stock 后 qw 胶囊的恢复时间：拆除即发 disengage，应立即恢复（主人目视确认）。
 
 ## 审阅 Checkpoint
