@@ -70,7 +70,7 @@
 - 验证范围：`npm test` 全绿。
 
 - [ ] Step 1：基线
-  - Run: `cd /home/ubuntu/workspace/dsh-quota-watch && git status --porcelain && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/qw-q1-baseline.log | grep -E "^ℹ (tests|pass|fail)"`
+  - Run: `mkdir -p /home/ubuntu/workspace/.dsh-research/merged-capsule-impl && cd /home/ubuntu/workspace/dsh-quota-watch && git status --porcelain && set -o pipefail && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/qw-q1-baseline.log | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 工作树干净；`fail 0`；`pass` 为 `QW_BASE_PASS`（预期 264）。
 
 #### Task Q2：竞态用例（先红）
@@ -83,7 +83,7 @@
 - [ ] Step 1：写用例（三段）
   - Change: 在 `tests/client.test.mjs` 追加用例「外点关闭后同一手势的 open-panel 不重开」。流程：(a) 挂载并使面板打开（派发 `open-panel` 或点击胶囊）；(b) 在 `document.body` 上派发 `pointerdown`（目标为面板外的元素，`composedPath` 不含面板）→ 面板应关闭；(c) 用 `mock.method(Date, 'now', …)` 将时间推进 100 毫秒，派发 `window` 上的 `dsh-quota-watch:open-panel` CustomEvent（detail `{v:1, anchor:{left:100,top:200,width:150,height:26}}`）→ 期望 `panel.hidden === true`；(d) 再把时间推进到距 (b) 超过 500 毫秒后派发一次 `open-panel` → 期望 `panel.hidden === false`。
 - [ ] Step 2：确认红
-  - Run: `node --test tests/client.test.mjs --test-name-pattern="同一手势" 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test --test-name-pattern="同一手势" tests/client.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 失败于 (c) 的断言（当前代码会重开，`panel.hidden === false`）。
 
 #### Task Q3：实现窗口判定
@@ -96,7 +96,7 @@
 - [ ] Step 1：实现
   - Change: 模块级 `let lastOutsideCloseAt = 0`。在 `onDocPointerDown` 真正关闭面板的分支（即 `openKey = undefined` 之前）记录 `lastOutsideCloseAt = Date.now()`。在 `onOpenPanel(rect)` 开头、`suppressNextClick` 判断之后加入：`if (lastOutsideCloseAt !== 0 && Date.now() - lastOutsideCloseAt < OUTSIDE_CLOSE_GESTURE_MS) { lastOutsideCloseAt = 0; return }`。
 - [ ] Step 2：确认绿
-  - Run: `node --test tests/client.test.mjs --test-name-pattern="同一手势" 2>&1 | tail -4 && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/qw-q3-full.log | grep -E "^ℹ (pass|fail)"`
+  - Run: `set -o pipefail && node --test --test-name-pattern="同一手势" tests/client.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)" && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/qw-q3-full.log | grep -E "^ℹ (pass|fail)"`
   - Expected: 新用例 `pass 1`；全量 `fail 0`，`pass` = `QW_BASE_PASS + 1`。
 
 #### Task Q4：构建、幂等、提交
@@ -132,7 +132,7 @@
 - 验证范围：工作树干净；`npm test` 全绿。
 
 - [ ] Step 1：基线
-  - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && git status --porcelain && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/sk-s1-baseline.log | grep -E "^ℹ (tests|pass|fail)"`
+  - Run: `mkdir -p /home/ubuntu/workspace/.dsh-research/merged-capsule-impl && cd /home/ubuntu/workspace/dsh-stock-kanban && git status --porcelain && set -o pipefail && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/sk-s1-baseline.log | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 工作树干净（ADR 0003 与本计划已由 Lead 在评审前提交）；`fail 0`。
 - [ ] Step 2：记录基准
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && git rev-parse HEAD | tee /home/ubuntu/workspace/.dsh-research/stock-kanban-vanilla-impl/sk-base-ref-plan-c.txt`
@@ -147,11 +147,11 @@
 
 - [ ] Step 1：写两个用例（先红）
   - Change: (a) 用 fake guest 完成握手并 engage，触发 tap，断言 `anchor.right === left + width`、`anchor.bottom === top + height`；(b) engage 后调用 `dispose()`，断言收到恰好一次 `embed-disengage`。
-  - Run: `node --test tests/client-quota-embed.test.mjs 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 两条失败（字段缺失；dispose 未派发）。
 - [ ] Step 2：实现
   - Change: `onTapOpen` 锚点对象补 `right: left + width`、`bottom: top + height`。`dispose` 中 `stopEngage(false)` 改为 `stopEngage(true)`（`dispatch` 无 `disposed` 守卫，`stopEngage` 内部亦无，已核实）。
-  - Run: `node --test tests/client-quota-embed.test.mjs 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `fail 0`。
 
 #### Task S3：额度段纯模型（先红）
@@ -168,11 +168,11 @@
 
 - [ ] Step 1：写直测（先红）
   - Change: 覆盖 8 组：只有 GLM；只有 Copilot（单条居中由 DOM 处理，模型只需单条）；两条都有（GLM 在前、`divider === true`）；两条都无且无待处理（`hidden`）；两条都无但有待处理（`dot`）；过期（`stale: true` 保留到 `bars[i].stale`）；阈值边界（80 为 normal，81 为 warn，95 为 warn，96 为 danger）；非有限值（`NaN` 视为无数）。
-  - Run: `node --test tests/client-quota-segment.test.mjs 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test tests/client-quota-segment.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 模块不存在导致失败。
 - [ ] Step 2：实现模型
   - Change: 按上面的接口实现 `client/quota-segment.mjs`，纯函数，无 DOM 依赖。
-  - Run: `node --test tests/client-quota-segment.test.mjs 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test tests/client-quota-segment.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `fail 0`。
 
 #### Task S4：段的 DOM 渲染（替换文本版）
@@ -184,11 +184,11 @@
 
 - [ ] Step 1：改写直测（先红）
   - Change: 断言 `mode === 'bars'` 时存在条与对应 `data-tone`；单条时带 `.skc-qseg-single`；两条时无该类；`mode === 'dot'` 时存在 `.skc-qdot` 且无条；`mode === 'hidden'` 时段 `hidden === true`；过期时段有 `title`。
-  - Run: `node --test tests/client-quota-embed.test.mjs 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 新断言失败。
 - [ ] Step 2：实现渲染
   - Change: `renderSegment(segEl, model)` 只负责落地 DOM，不做判断。
-  - Run: `node --test tests/client-quota-embed.test.mjs 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `fail 0`。
 
 #### Task S5：额度段并入胶囊（挂载目标改为胶囊）
@@ -199,10 +199,10 @@
 - 验证范围：集成组全绿；胶囊既有拖拽用例（`client-dom`）零改动全绿。
 
 - [ ] Step 1：改写集成断言（先红）：额度段选择器从 `.skc-capsule--quota` 改为 `[data-seg="quota"]`，且父节点为胶囊。
-  - Run: `node --test tests/client-quota-integration.test.mjs 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test tests/client-quota-integration.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 选择器相关用例失败。
 - [ ] Step 2：实现挂载与分段
-  - Change: 按接口改 `quota-embed` 参数与挂载；`capsule` 把股票内容包进 `data-seg="stock"`；`main` 装配时传 `target: capsule.el`。
+  - Change: 按接口改 `quota-embed` 参数与挂载；`capsule` 把股票内容包进 `data-seg="stock"`；`main` 装配时传 `target: capsule.el`。撤除 `quota-embed` 对段元素的 `attachFloatDrag` 绑定（约第 286 行，`attachFloatDrag(onTap: onTapOpen)`）：段的指针交互只由胶囊的 `attachFloatDrag` 经 `onTap(event)` 分流（见 S6），不得保留第二个 drag 控制器（否则一次轻点触发两个 tap 处理器，已由探针证实）。
   - Run: `npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/sk-s5-full.log | grep -E "^ℹ (pass|fail)"`
   - Expected: `fail 0`。
 
@@ -214,10 +214,11 @@
 - 验证范围：点额度段不触发股票 toggle；点股票段触发 toggle 且带股票段矩形；拖拽后不触发任何 tap。
 
 - [ ] Step 1：写分流用例（先红）
-  - Run: `node --test tests/client-dom.test.mjs --test-name-pattern="分区" 2>&1 | tail -4`
-  - Expected: 失败（当前无分流）。
+  - Change: 用例名均含「分区」：(a)「分区：额度段轻点 → 股票 toggle 调用 0 次，open-panel 派发 1 次」；(b)「分区：股票段轻点 → 股票 toggle 调用 1 次且带股票段矩形，open-panel 派发 0 次」；(c)「分区：拖拽释放 → 不触发任何 tap」。注意 (a) 必须断言 toggle 次数为 0，这正是 P-01 的缺陷。
+  - Run: `set -o pipefail && node --test --test-name-pattern="分区" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
+  - Expected: 失败（当前无分流；段内轻点会同时触发两个 tap 处理器，toggle 次数为 1 而非 0）。
 - [ ] Step 2：实现分流并转绿
-  - Run: `node --test tests/client-dom.test.mjs --test-name-pattern="分区" 2>&1 | tail -4 && npm test 2>&1 | grep -E "^ℹ (pass|fail)"`
+  - Run: `set -o pipefail && node --test --test-name-pattern="分区" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)" && npm test 2>&1 | grep -E "^ℹ (pass|fail)"`
   - Expected: 分区用例通过；全量 `fail 0`。
 
 #### Task S7：悬停数字
@@ -228,10 +229,10 @@
 - 验证范围：文本断言；样式断言（新规则追加，既有串未动）。
 
 - [ ] Step 1：写断言（先红）：单条只含一个标签、无分隔符；两条含分隔符。
-  - Run: `node --test tests/client-quota-embed.test.mjs --test-name-pattern="提示" 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test --test-name-pattern="提示" tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 失败。
 - [ ] Step 2：实现并转绿
-  - Run: `node --test tests/client-quota-embed.test.mjs --test-name-pattern="提示" 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test --test-name-pattern="提示" tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `fail 0`。
 
 #### Task S8：面板水平推出（先红）
@@ -245,10 +246,10 @@
 - 验证范围：水平用例、回退用例、sheet 用例全绿。
 
 - [ ] Step 1：写用例（先红）：宽视口、分区在视口中部 → 面板 `left === rect.right + 8`；分区贴右缘 → 面板 `left === rect.left − width − 8`；两侧都放不下的窄视口 → 面板 `top` 为垂直回退值；分区靠近底部 → `top` 贴底钳位。
-  - Run: `node --test tests/client-dom.test.mjs --test-name-pattern="水平|回退" 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test --test-name-pattern="水平推出|垂直回退" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 失败。
 - [ ] Step 2：实现并转绿
-  - Run: `node --test tests/client-dom.test.mjs --test-name-pattern="水平|回退|sheet" 2>&1 | tail -4 && npm test 2>&1 | grep -E "^ℹ (pass|fail)"`
+  - Run: `set -o pipefail && node --test --test-name-pattern="水平推出|垂直回退|sheet" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)" && npm test 2>&1 | grep -E "^ℹ (pass|fail)"`
   - Expected: 全绿。
 
 #### Task S9：滑入动效
@@ -259,10 +260,10 @@
 - 验证范围：类名断言；守卫位置断言（规则文本位于守卫块内，与既有 `skc-qpulse` 同惯例）。
 
 - [ ] Step 1：写断言（先红）：打开后面板带 `skc-panel--slide`；关闭后移除；样式规则在守卫内。
-  - Run: `node --test tests/client-dom.test.mjs --test-name-pattern="滑入" 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test --test-name-pattern="滑入" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 失败。
 - [ ] Step 2：实现并转绿
-  - Run: `node --test tests/client-dom.test.mjs --test-name-pattern="滑入" 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test --test-name-pattern="滑入" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `fail 0`。
 
 #### Task S10：窄屏降级
@@ -273,10 +274,10 @@
 - 验证范围：视口 400 时类存在；视口 800 时类不存在；额度段热区伪元素规则存在。
 
 - [ ] Step 1：写用例（先红）
-  - Run: `node --test tests/client-dom.test.mjs --test-name-pattern="窄屏" 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test --test-name-pattern="窄屏" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 失败。
 - [ ] Step 2：实现并转绿
-  - Run: `node --test tests/client-dom.test.mjs --test-name-pattern="窄屏" 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test --test-name-pattern="窄屏" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `fail 0`。
 
 #### Task S11：待处理提醒与 i18n
@@ -287,10 +288,10 @@
 - 验证范围：`dot` 模式的集成用例；`tests/i18n.test.mjs` 全绿（DICT 对齐）。
 
 - [ ] Step 1：写用例（先红）：`overview` 返回 `manualOutcome` 且两家无数 → 段为 dot，点击派发 `open-panel`；`tests/i18n.test.mjs` 的 DICT 对齐因新键未加而失败。
-  - Run: `node --test tests/client-quota-embed.test.mjs tests/i18n.test.mjs 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test tests/client-quota-embed.test.mjs tests/i18n.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: 失败。
 - [ ] Step 2：实现并转绿
-  - Run: `node --test tests/client-quota-embed.test.mjs tests/i18n.test.mjs 2>&1 | tail -4`
+  - Run: `set -o pipefail && node --test tests/client-quota-embed.test.mjs tests/i18n.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `fail 0`。
 
 #### Task S12：全量、构建、提交
