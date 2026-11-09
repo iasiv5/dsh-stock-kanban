@@ -220,6 +220,22 @@ qw 侧（竞态修复，2026-11-09）：
 - 测试：全量 193/193/0；bundle 重建幂等 sha `8068685b…4a93f`。
 - 决策记录：ADR 0003 第 10 条（宽度约 290px 由主人接受，推翻 0002 的宽度否决理由）。
 
+## 12.14 合并胶囊文字溢出修复（2026-11-10，主人实测发现 → 已修复并验证）
+
+现象：文案版上线后，较窄窗口下「Copilot 54%」的百分号溢出胶囊背景之外（主人截图）。
+
+根因（两层，均以 Chromium 实测取证，探针 `.dsh-research/merged-capsule-impl/textform-*`）：
+1. **≤520px 的 `max-width:52vw`** 把胶囊钳得比文案窄：420 视口实测 seg 右缘超出胶囊右缘 4px；
+2. fixed 宿主 shrink-to-fit 被视口剩余空间压窄时，flex 压缩额度段——四路位置钳位（挂载/拖动/释放/视口 resize）不含「胶囊内容变宽」这一路径，额度文案到货后无人重钳。
+
+修复（sk `…`，全量 193/193/0，bundle `a81f549b…92`）：
+- `[data-seg]{flex-shrink:0}`：分区不参与 flex 压缩；
+- `.skc-stack{align-items:flex-start}` 与 `.skc-capsule{width:max-content}`：胶囊恒为内容全宽；
+- `ResizeObserver`（胶囊尺寸变化 → 重跑视口钳位，jsdom 守卫跳过，dispose 断开）；`measureSize` 改以胶囊 rect 为准（宿主可能窄于胶囊）；
+- ≤520 放开 `max-width:52vw` 为 `max-width:none`（防出屏交给位置钳位；≤480 compact 已隐藏名称）。
+
+验证：420 视口实测 seg 右缘 401 < 胶囊右缘 412（不再溢出）；1280 视口同验；截图 `textform-narrow-capsule-3x.png` / `textform-capsule-3x.png`。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 125 单测（vanilla 化后，12.10）+ 23 数据源探针。
