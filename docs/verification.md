@@ -116,9 +116,35 @@ lifecycle 用例进程收尾多等约 4 秒属预期：effect 内 `refreshState(
 
 验证：npm test 94/94；CDP 真机 en 模式（`document.documentElement.lang=en` 触发实时切换）——面板全树 58 个文本节点 + title/placeholder 属性零 UI 中文（残余 CJK 仅为标的名＝行情数据本名，任何语言保持原样）；en 版市值行实测 `Value 63,422.00 CNY · PnL -342.00 (-0.54%)`；UI chrome 全英（Watchlist / Position / Targets / A-shares）。
 
+## 12.10 客户端 vanilla 化（2026-11-09，实施计划 docs/plans/2026-11-09-client-vanilla-rewrite-implementation-plan.md → 已实现并验证）
+
+**测试面切换**：stub-react 浅渲染契约面退役（`tests/helpers/{react-stub,react-resolve-hook,client-env,contract-harness}.mjs` + `tests/client-contract.test.mjs`，−9 用例），改为 jsdom DOM 级测试（`tests/client-dom.test.mjs` + `tests/helpers/dom-harness.mjs`，原生 PointerEvent 主路径 + Event 回退、setViewport 强写）与纯函数 parity 向量（`tests/client-drag.test.mjs`/`tests/client-float-prefs.test.mjs`，与 quota-watch 同向量）；包形状守卫 `tests/package-shape.test.mjs` 执有 exports 5 项、`dsh.client.platform=web`、inject lockstep（package.json ↔ client/main.mjs 均 `[]`）、零运行时依赖、devDep jsdom。
+
+**验证证据**（Task 1–15，commit f35e05c）：
+- npm test 124/124（`fail 0`；基线 94 → 窗口期后 VANILLA_BASELINE 98 → 最终 124）；
+- `npm run build` 两次 sha256 一致：`92299b3f1d9803647fecc16b590e6194df99ae27745088f977250f3994a9cd0f`；
+- `lib/client.js` 零 `require("react")`；`client/` 目录 `grep '"react'` 零命中；
+- 冻结面机器断言 `FROZEN_CLEAN`（BASE_REF 4680bdb 对照 `src/`、`data/`、`locale/`、`cordis.patch.yml`、`scripts/probe-markets.mjs` 零改动）；
+- `dsh-stock-kanban:float-position` 键字面量在源（client/float-prefs.mjs）与 bundle 各 ≥1。
+
+**测试几何修正记录（Task 8 ③）**：默认右下位 (978,734) 本身已贴右钳位缘——`maxX = vw − MARGIN − insets.right − width = 1024 − 8 − 0 − 38(FALLBACK) = 978`，拖拽 +20 后 topLeft x=998 必越过 maxX 被钳回 978，「host 相对初始值 +20px」在默认起始位**几何上不可观测**（纯函数插桩证实非实现 bug）。处置：该用例预置 seed 位置 (300,300)，+20 → (320,300) 落在界内可观测；断言语义（相对初始值 +20 + 落盘终点钳位坐标 {x:320,y:300}）不变。
+
+**活体冒烟（Task 17 Step 4，2026-11-09，CDP：Chrome for Testing 152 headless @9223 → 127.0.0.1:3080，symlink 安装，六项观察条件全命中）**：
+1. 刷新后胶囊出现在视口右下并渲染真实行情：`ⒷⓈ贵州茅台 1,442.17 −0.75%`（open shadow host、`.skc-stack` 装胶囊）；
+2. 合成拖拽 (1234,623)→(956,460)：transform 清零、`localStorage["dsh-stock-kanban:float-position"] = {"x":956.15625,"y":460}`（形如 {"x":…,"y":…}）；
+3. 轻点胶囊开面板：列表视图（`.skc-listwrap` + 四市场 Tab + 计数）、`role="dialog"`、锚定下方不足翻上方生效（top=95px）；Esc 关闭、面板外 pointerdown 关闭均验证；
+4. 视口 400×700（≤480px）：面板转 `.skc-panel--sheet` 且内联 left/top 清除（CSS 定位底部 sheet）；
+5. 预置旧 `ui:v1`（含 `pos:{x:50,y:50,dock:"left"}`）+ 清 float-position 后 reload：胶囊落默认右下（非 50,50），`pos` 被忽略；`ui:v1` 持久化字段集无 pos（白名单落盘）；
+6. 无页面级 `<style id="stock-kanban-styles">`：样式全部在 shadow root 内 `<style>`（含 `2147483000` z-index 锚点）。
+
+**活体暂态记录（宿主内存档案，非本仓缺陷）**：每次冷 reload 控制台报一条 `web boot: 1 entry did not activate — dsh-stock-kanban: failed` 且 UI 横幅闪现；根因＝宿主进程（跨 Task 15 存活、未重启）boot manifest 的 graphRows 仍是旧插件档案 `inject:["slots"]`，与新模块 `inject:[]` 不匹配→首激活失败→同页 graph reconcile 按新内容哈希重试接活（fiber active、`fiberInject=[]`——**`inject:[]` 语义经 active fiber 实证受支持**）；宿主下次重启重读 package.json 后该暂态彻底消失。修复提交后复核：宿主按文件哈希已下发新 bundle（rev 漂变至 5f8f3d8b…）。
+
+**首挂定位回退缺陷与修复（commit aef094b）**：现象＝冒烟 ①② 取证数字 1234（=1280−8−38）与 354（=400−8−38）均命中 38×26 回退值，真实浏览器首挂定位未走实测尺寸。根因（两层）：① `createCapsule`（内含 applyPosition→measureSize）先于 `doc.body.append(host)` 执行；② 胶囊 el 未入 `.skc-stack` 前测量、且首挂时胶囊文本为空（空胶囊实测宽 34px 级），数据填充后宽度跳变（实测 155.7px）越过右缘。jsdom rect 恒零，两条路径在 jsdom 下不可区分——此即漏网机理。修复：host 先 append 再创建胶囊（quota-watch 同构）+ 胶囊自挂入 `.skc-stack` 后再 applyPosition + update 时按尺寸变化重定位一次（拖拽中跳过）。回归：`tests/client-dom.test.mjs` 补 host rect 桩用例（打桩 {width:150,height:26} → 断言默认位 x=866 而非回退 978，并断言 createCapsule 返回时 el 已在 stack）。活体复核：left=1116px = 1280−8−155.7（实测宽），右缘余量恰 8px（capRight=1271.7）；两次构建 sha256 一致 `29f5543866c18a1a9f33c6f940d96ebd9630fbee2f8d571212d5376cebf7533e`；npm test 125/125。
+
+
 ## 未验证与降级汇总（13 章交付口径）
 
-**已完成且验证通过**：见上表全部 ✅ 项 + 89 单测 + 23 数据源探针。
+**已完成且验证通过**：见上表全部 ✅ 项 + 125 单测（vanilla 化后，12.10）+ 23 数据源探针。
 
 **已实现但未在目标环境验证**：
 - Windows 浏览器场景与 Windows desktop profile（同代码路径，按 12.4 步骤可复现）；

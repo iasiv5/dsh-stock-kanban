@@ -17,7 +17,8 @@
 | OKX 加密协议：ticker/candles/instruments、HTTP 200+code 字符串判错、UTC+8 日线切分、5m×288 分时、Binance 451/CoinGecko 403 选型结论 | Justin-Mai `crypto.js` 全文 | `src/markets/okx.mjs` | 重写；新增 tickers 全量端点做批量行情（>2 个标的一次请求，上游逐个 ticker） |
 | smartbox 搜索解析（GBK + 字面 \uXXXX 还原、GP/ETF 类型过滤） | Justin-Mai `index.js` fetchSmartbox L171-215；Bob-Bo1 `lib/index.js` parseSearchText | `src/markets/search.mjs` parseSmartbox | 重写；保留 hk GP + us GP/ETF + sh/sz ETF 过滤规则 |
 | 标的池数据文件 a_stocks/hk_stocks/etf_stocks.json | Justin-Mai `data/*.json`（上游 Awu12277） | `data/*.json` | 原样复制（MIT 随附，版权归原作者） |
-| 悬浮胶囊交互模型：拖动/贴边吸附/位置记忆/拖动阈值防误触 | Awu12277 `client.js`（sk-pill/sk-dock 及拖动处理） | `client/capsule.mjs`、`client/fmt.mjs`（shouldDrag/clampToViewport/snapToEdge） | React 重写；吸附封装为纯函数并测试；位置按访问端 localStorage |
+| 悬浮胶囊交互模型：拖动/贴边吸附/位置记忆/拖动阈值防误触 | Awu12277 `client.js`（sk-pill/sk-dock 及拖动处理） | `client/capsule.mjs`（一代 React 实现，vanilla 重写后由下述「悬浮胶囊二代」行取代） | React 重写；吸附封装为纯函数并测试；位置按访问端 localStorage |
+| 悬浮胶囊二代（自由坐标+钳位+transform 拖拽管线+body shadow 挂载） | dsh-quota-watch `src/client/{drag,prefs}.mjs`、`src/client.mjs` L572-793/L1118-1148 | `client/{drag,float-prefs,capsule,panel,main}.mjs` | 同作者双仓移植（MIT）；slop 6/10、MARGIN 8、键格式与 v0.1.37 逐字对齐，parity 测试同向量 |
 | 目标价触价概念（≤买触发/≥卖触发/标记展示） | Awu12277/Justin-Mai `computeTrigger` | `src/targets.mjs` targetState | **语义修正**：上游 sell 优先静默覆盖 buy → 本插件 both 显式状态 + 保存时 confirm 校验；增加行情新鲜度门（过期/缺失不伪装触价） |
 | SVG 分时/K线绘制思路（价格线/均价线/昨收虚线/成交量柱/MA） | Awu12277 `client.js` SvgMinute/SvgCandles/computeMa | `client/charts.mjs`、`client/chartmath.mjs` | 重写；去掉 CDN lightweight-charts 主路径（纯 SVG 一条路径）；MA 参数沿用参考实现 MA5/10/20/60 |
 | 持仓数据模型惯例（quantity/costPrice 正数校验、原子写文件、同源 POST 校验） | Bob-Bo1 `lib/index.js` normalizeHoldings/savePayload/sameOriginPost | `src/model.mjs`、`src/store.mjs`、`src/access.mjs` | 改造：存储改为 DSH storage hub KV 驱动（实例级共享）+ 文件回退；同源校验吸收 quota-watch 的 Origin/Sec-Fetch 双检实现 |

@@ -45,7 +45,10 @@ dsh plugin --profile web remove dsh-stock-kanban                # 卸载（数�
 | 数据 | 位置 | 共享范围 |
 |---|---|---|
 | 自选/持仓/目标价/隐私开关 | DSH 服务端 `~/.dsh/storages/stock_kanban.json`（DSH storage hub json 后端；缺失该服务时回退 `~/.dsh/stock-kanban/data.json`，health 路由的 `driver` 字段可查当前驱动） | 同一 DSH 实例的全部浏览器（Windows/Linux 访问同一远端 DSH 看到同一份） |
-| 胶囊位置、面板位置、上次市场、只看持仓、均线显隐、胶囊展示标的 | 各访问端浏览器 `localStorage["stock-kanban:ui:v1"]` | 按浏览器独立 |
+| 胶囊位置（自由坐标 {x,y}） | 各访问端浏览器 `localStorage["dsh-stock-kanban:float-position"]` | 按浏览器独立 |
+| 上次市场、只看持仓、均线显隐、胶囊展示标的 | 各访问端浏览器 `localStorage["stock-kanban:ui:v1"]` | 按浏览器独立 |
+
+胶囊位置为自由坐标并按实测几何钳位（不迁移历史 `ui:v1` 的 `pos` 格式）；面板锚定胶囊弹出，无独立位置记忆（旧 `pos`/`panelPos` 键已退役，读取时忽略）。
 
 不同 DSH 实例（如 Windows 本机 desktop 与远端 web）数据完全独立，迁移用手动导出/导入。
 

@@ -100,3 +100,13 @@
 守卫收拢：`build-client.mjs` 的 `FORBIDDEN` 符号黑名单（只记得单个历史符号的浅守卫）已退役，`tests/client-contract.test.mjs`（经 `npm test`）为泄漏类唯一守卫。`SNAPSHOT_KEYS` 装配期一次求值、随 store 默认状态键自动扩展，形状断言免维护。若未来客户端出现第二处 observer 类接线，可考虑抽 `createLangObserver` 式工厂；当前单点不抽。
 
 2026-11-09 类名缝（CSS↔JSX 类名对齐）纳入契约测试面：渲染态 walkTree + 源码全集双层断言（token ⊆ CSS 定义，动态生产者须注册，无豁免清单；详见 verification 12.6）。该缝至此共两起事故：0d950f3 样式重写丢命中面（04c1993 修）、trendClass 前缀错配致涨跌配色自首版起从未生效（本次修）。
+
+## 11. 客户端 vanilla 化决策（2026-11-09）
+
+插槽（`shell.overlay`）→ body 直挂的切换理由（ADR 0001 `docs/adr/0001-client-vanilla-rewrite-and-body-float-shell.md`）：
+
+1. **行为基准已迁移**。位置与拖拽模型整套对齐 `@iasiv5/dsh-quota-watch@0.1.37`（自由坐标 {x,y} + 实测几何钳位 + transform/rAF 拖拽管线 + slop 6/10；对齐矩阵 `docs/reports/2026-11-09-capsule-parity-matrix.md`）。该基准的挂载形态就是 body 直挂 open shadow host：位置记忆天然落 host `left/top`，`.skc-stack` 胶囊组缝（ADR 0002 计划 B）也只在自有 host 内可塑——经宿主插槽注入时两者都要绕层适配。
+2. **React 树退役即插槽价值归零**。插槽契约的存在意义之一是承接 React 组件树（宿主 register 渲染函数 + 异常整体卸载）；vanilla 化后 `apply(ctx)` 只需 `ctx.effect` 挂一次性浮壳，`inject: []`（`tests/package-shape.test.mjs` lockstep 守卫），宿主不再向插件注任何通道。
+3. **隔离靠 shadow 不靠插槽**。样式与事件隔离由 open shadow root 承担（`FLOAT_STYLE_TEXT` 全部注入 root 内，页面级 `<style id="stock-kanban-styles">` 注入退役）；DSH 主题令牌定义在 `<body>`，body 直挂子元素照常继承（quota-watch 实证，ADR 0001 同款论证）。
+
+§10 的 stub-react 契约测试随插槽形态一并退役：DOM 级测试（jsdom 29 + 原生 PointerEvent）+ 纯函数 parity 向量接棒，测试面反而更贴真实接缝（拖拽手势、键盘、外点、shadow 结构均为真 DOM 断言）。
