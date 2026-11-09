@@ -219,7 +219,7 @@
 - 验证范围：两条精确命名用例；全量回归。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 两条，名字精确为「合并：额度段为胶囊子节点（父为胶囊根）」、「合并：stack 上无独立额度节点」。断言形式（钉死，避免 HEAD 虚绿）：第 1 条先断言 `[data-seg="quota"]` 节点存在（HEAD 上缺席，必红），再断言其父节点为胶囊根；第 2 条断言 `stack.querySelector('.skc-capsule--quota') === null`（HEAD 上 pill 在 stack，必红），不得写成 `[data-seg="quota"]` 的缺席判断（那在 HEAD 上为绿）。
+  - Change: 两条，名字精确为「合并：额度段为胶囊子节点（父为胶囊根）」、「合并：stack 上无独立额度节点」。前置（两条共用）：先 `addGuest(h)` 并 `await tick()`，使 engage 完成、pill 位于 stack；否则 `.skc-capsule--quota` 缺席，断言虚绿。断言形式（钉死，避免 HEAD 虚绿）：第 1 条先断言 `[data-seg="quota"]` 节点存在（HEAD 上缺席，必红），再断言其父节点为胶囊根；第 2 条断言 `stack.querySelector('.skc-capsule--quota') === null`（HEAD 上 pill 在 stack，必红），不得写成 `[data-seg="quota"]` 的缺席判断（那在 HEAD 上为绿）。
   - Run: `set -o pipefail && node --test --test-name-pattern="合并：" tests/client-quota-integration.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 2`、`ℹ pass 0`、`ℹ fail 2`。
 - [ ] Step 2：实现与迁移
@@ -285,7 +285,7 @@
 - 验证范围：六条精确命名用例；净增 +4（新增 6、删除 2）。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 六条，名字精确为：「水平推出：优先右侧」、「水平推出：放不下则左侧」、「垂直回退：两侧都放不下时下方优先」、「垂直回退：下方放不下时翻到锚上方」（视口 300、下方放不下（200+26+8 > 292），期望 top = 32，对应删除的 `:526`）、「水平推出：顶边与胶囊对齐并贴底钳位」、「sheet：视口不超过 480px 为底部 sheet」。断言前提：segRect.top 与 capsuleRect.top 必须不同（如 segRect.top = capsuleRect.top + 4），否则 HEAD 的 openFrom（只读第一个参数）可能虚绿。
+  - Change: 六条，名字精确为：「水平推出：优先右侧」、「水平推出：放不下则左侧」、「垂直回退：两侧都放不下时下方优先」、「垂直回退：下方放不下时翻到锚上方」（视口 [500, 300]；capsuleRect {top:200, height:26}；面板高度桩为 160px；下方放不下（234+160 > 292），翻到上方，期望 top = 32px，对应删除的 `:526`）、「水平推出：顶边与胶囊对齐并贴底钳位」、「sheet：视口不超过 480px 为底部 sheet」。夹具与各条视口和矩形（钉死，否则按文字执行会得到 pass 5 而非 pass 6）：六条共用面板高度桩 160px；分区与胶囊顶边不同（segRect.top = capsuleRect.top + 4），否则 HEAD 的 openFrom（只读第一个参数）可能虚绿。①「水平推出：优先右侧」视口 [1024, 768]，segRect {left:200, top:204, width:70, height:26}，capsuleRect {left:200, top:200, width:150, height:26}，期望 left = 278px、top = 200px；②「水平推出：放不下则左侧」同视口，segRect.left = 900，期望 left = 492px；③「垂直回退：两侧都放不下时下方优先」视口 [500, 768]，segRect {left:50, top:204, width:70, height:26}，期望 top = 234px（capsuleRect.bottom + 8）；④「垂直回退：下方放不下时翻到锚上方」视口 [500, 300]，期望 top = 32px；⑤「水平推出：顶边与胶囊对齐并贴底钳位」视口 [1024, 768]，capsuleRect.top = 700，期望 top = 600px（768 − 160 − 8）；⑥「sheet：视口不超过 480px 为底部 sheet」视口 [400, 768]。
   - Run: `set -o pipefail && node --test --test-name-pattern="水平推出|垂直回退|sheet：" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 6`、`ℹ pass 1`、`ℹ fail 5`（第「sheet」条为既有行为，现即绿；其余五条在 HEAD 上红）。
 - [ ] Step 2：实现并转绿
@@ -313,7 +313,7 @@
 - 验证范围：三条精确命名用例。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 三条，名字精确为：「窄屏：视口 400 时胶囊带 skc-compact」、「窄屏：视口 800 时胶囊不带 skc-compact」、「窄屏：额度段热区扩到 44px」（断言 FLOAT_STYLE_TEXT 含 `[data-seg="quota"]::before` 规则，HEAD 上缺席，必红）。
+  - Change: 三条，名字精确为：「窄屏：视口 400 时胶囊带 skc-compact」、「窄屏：视口 800 时胶囊不带 skc-compact」、「窄屏：额度段热区扩到 44px」（断言 FLOAT_STYLE_TEXT 中 `[data-seg="quota"]::before` 规则的 `inset` 为 `-9px`，即胶囊高 26 加上下各 9 等于 44px 热区；HEAD 上规则缺席，必红）。
   - Run: `set -o pipefail && node --test --test-name-pattern="窄屏：" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 3`、`ℹ pass 1`、`ℹ fail 2`（第 2 条现即满足，为不变量）。
 - [ ] Step 2：实现并转绿
@@ -360,7 +360,7 @@
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && for m in "拆除时补发" "锚点补 right、bottom" "待处理提醒" "合并胶囊"; do printf "%s: " "$m"; grep -c "$m" docs/interop/capsule-embed-protocol.md GLOSSARY.md | tr '\n' ' '; echo; done`
   - Expected: 四个标记在 CEP 与 GLOSSARY 中计数均为 0；若非 0，先停下核对，不得继续。
 - [ ] Step 2：更新文档
-  - Change: CEP 规范——§1（双 pill stack → 单胶囊双段）、§2（补 seg 说明）、§4（锚点补 right、bottom；拆除时补发 `embed-disengage`）、§9（额度段在胶囊内，不在 `.skc-stack`）；GLOSSARY——「胶囊组」改为「合并胶囊」，新增「待处理提醒」；README、tech-notes、对齐矩阵同步术语与形态；`docs/verification.md` 新增 §12.12。英文术语与 Ⓑ/Ⓢ 文档面：`docs/interop/capsule-embed-protocol.md` 第 9 行与 `GLOSSARY.md` 第 29 行的英文「Capsule group」改为「merged capsule」；`README.md` 第 9 行与 `docs/reports/2026-11-09-capsule-parity-matrix.md` 第 35 行的 Ⓑ/Ⓢ 改为 B/S（B26 文档面）。代码注释同步（不影响判据）：`client/main.mjs` 第 41 行、`client/styles.mjs` 第 21 行、`tests/client-dom.test.mjs` 第 55 行的「胶囊组」注释改为「合并胶囊」。合并开关（footer「合并显示 quota」）保留：它是用户拆分/合并额度段的唯一入口；ADR 0003 后果节同步记载。
+  - Change: CEP 规范——§1（双 pill stack → 单胶囊双段）、§2（补 seg 说明）、§4（锚点补 right、bottom；拆除时补发 `embed-disengage`）、§9（额度段在胶囊内，不在 `.skc-stack`）；GLOSSARY——「胶囊组」改为「合并胶囊」，新增「待处理提醒」；README、tech-notes、对齐矩阵同步术语与形态；`docs/verification.md` 新增 §12.12。英文术语与 Ⓑ/Ⓢ 文档面：`docs/interop/capsule-embed-protocol.md` 第 9 行与 `GLOSSARY.md` 第 29 行的英文「Capsule group」改为「merged capsule」，且 CEP 第 9 行的描述「stack holding both pills」同步改写为单胶囊双段（不只替换术语）；`README.md` 第 9 行与 `docs/reports/2026-11-09-capsule-parity-matrix.md` 第 35 行的 Ⓑ/Ⓢ 改为 B/S（B26 文档面）。代码注释同步（不影响判据）：`client/main.mjs` 第 41 行、`client/styles.mjs` 第 21 行、`tests/client-dom.test.mjs` 第 55 行的「胶囊组」注释改为「合并胶囊」。合并开关（footer「合并显示 quota」）保留：它是用户拆分/合并额度段的唯一入口；ADR 0003 后果节同步记载。
 - [ ] Step 3：验证
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && for m in "拆除时补发" "锚点补 right、bottom" "待处理提醒" "合并胶囊"; do printf "%s: " "$m"; grep -c "$m" docs/interop/capsule-embed-protocol.md GLOSSARY.md | tr '\n' ' '; echo; done && for f in GLOSSARY.md README.md docs/tech-notes.md docs/reports/2026-11-09-capsule-parity-matrix.md docs/interop/capsule-embed-protocol.md docs/verification.md; do printf "%s 胶囊组: " "$f"; grep -c "胶囊组" "$f"; printf "%s capsule group: " "$f"; grep -ci "capsule group" "$f"; done && for f in README.md docs/reports/2026-11-09-capsule-parity-matrix.md; do printf "%s Ⓑ/Ⓢ: " "$f"; grep -c -e "Ⓑ" -e "Ⓢ" "$f"; done`
   - Expected: Step 1 的四个标记每个 ≥1；活动文档中「胶囊组」与「capsule group」（大小写不敏感）计数全部为 0；README.md 与对齐矩阵中 Ⓑ/Ⓢ 计数为 0。
