@@ -27,7 +27,7 @@
 - **显式断言改动（B26、B37 授权）**：`client/styles.mjs` 的 `FLOAT_STYLE_TEXT` 只追加，唯一例外是危险色规则（`tests/client-dom.test.mjs` 约第 81 行整条替换，见 S4b）；列表与详情的 Ⓑ/Ⓢ 文本按 S4b 改为 B/S；`quota.merge.on/off` 的「胶囊组」文案按 S11 改为「合并胶囊」；`tests/i18n.test.mjs` 的 quota 键列表显式加入 `quota.outcome`（S11）。其余既有逐字断言串不动。
 - **qw**：ADR 0007 冻结面不动（`mountQuotaCard` options bag、dispose 契约、`./client` 导出、`inject=['slots']`）。`dependencies` 零 `@deepseek-ai/*`。动 `src/client.mjs` 的提交须同笔重建 `lib/client.js`。不改版本号。
 - **红灯判据纪律（P-30）**：每个红步写明精确用例名与精确计数。计数不符即停下报告，不以「fail 0」代替。
-- **外部动作门**（主人批准前不执行）：Q5（qw 热部署）、S14（活体复核）、豁免粒度（Q15）。禁止 tag、push、publish；禁止 dshm_* 与 plugin_manager；禁止重启宿主。
+- **外部动作门**（主人批准前不执行）：Q5（qw 热部署，已完成）、S14（活体复核）。豁免粒度已由 Q15 确认为 A，不再是门。禁止 tag、push、publish；禁止 dshm_* 与 plugin_manager；禁止重启宿主。
 - **输出目录**：所有 tee 日志写入 `/home/ubuntu/workspace/.dsh-research/merged-capsule-impl/`，每个命令前 `mkdir -p`。管道命令一律 `set -o pipefail`，判据统一用 `grep -E "^ℹ (tests|pass|fail)"`，禁用 `tail -4`。
 - **测试命令形式**：选项在前、文件在后：`node --test --test-name-pattern="…" tests/x.test.mjs`。
 
@@ -247,14 +247,14 @@
 - 目标：股票面板开着时点股票胶囊，面板最终关闭，而不是被外点关闭后又被 tap 重开。
 - 涉及文件：Modify `client/panel.mjs`（外点判定第 127–135 行；`update` 第 315–322 行）；Modify `tests/client-dom.test.mjs`。
 - 接口契约：Consumes S6。Produces 行为：外点关闭忽略满足豁免条件的 pointerdown；面板局部 `open` 与 store 的 `panelOpen` 同步。
-- 豁免粒度（Q15，**待主人决定**）：下文按推荐写法（路径含胶囊根且不含额度段）。若主人选整胶囊豁免，删去「且不含额度段」条件，额度段按压将不关闭股票面板（评审探针 P13 已证实该差异）。
+- 豁免粒度（Q15，**主人已确认 A**）：路径含胶囊根且不含额度段时豁免。额度段按压关闭股票面板并打开 qw 面板；整胶囊豁免不采用（评审探针 P13 已证实：额度段按压将不关闭股票面板）。
 
 - [ ] Step 1：写用例（先红）
   - Change: 三条，名字精确为：「再点胶囊：面板开着时点股票胶囊最终关闭」（(a) 打开面板；(b) 胶囊上 pointerdown → 仍开；(c) 未拖动 pointerup → `isOpen() === false`）、「再点胶囊：点面板外普通元素仍关闭」、「再点胶囊：额度段按压 → 股票面板关闭」。
   - Run: `set -o pipefail && node --test --test-name-pattern="再点胶囊" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 3`、`ℹ pass 2`、`ℹ fail 1`。第 1 条红在断言 (b)「胶囊 pointerdown 后面板仍开」：HEAD 的外点关闭在 pointerdown 时已关闭面板，(c) 不会执行到；第 2、3 条现即绿。
 - [ ] Step 2：实现并转绿
-  - Change: (i) 第 130 行之后加入：若 `composedPath` 含 `dataset.dshStockKanbanCapsule !== undefined` 且不含 `dataset.seg === "quota"`，则直接返回（豁免粒度见上，Q15）；(ii) `update` 中 `snapshot = next;` 之后、`render()` 之前加入：`if (next?.ui?.panelOpen === false && open) open = false;`（面板可见性只由局部 `open` 决定，第 242 行 `el.hidden = !open`，不读 store；仅改 (i) 时胶囊 toggle 已把 store 关闭，面板仍显示，评审副本已证实）。**阻塞声明**：S6b 整体阻塞于 Q15。Q15 未批准前，Step 2 的 (i) 与 (ii) 均不执行，三条用例保持红；(i) 与 (ii) 必须同时执行（评审方已实测：只加 (i) 时 (c) 仍红）。
+  - Change: (i) 第 130 行之后加入：若 `composedPath` 含 `dataset.dshStockKanbanCapsule !== undefined` 且不含 `dataset.seg === "quota"`，则直接返回（豁免粒度见上，Q15 已确认 A）；(ii) `update` 中 `snapshot = next;` 之后、`render()` 之前加入：`if (next?.ui?.panelOpen === false && open) open = false;`（面板可见性只由局部 `open` 决定，第 242 行 `el.hidden = !open`，不读 store；仅改 (i) 时胶囊 toggle 已把 store 关闭，面板仍显示，评审副本已证实）。**依赖**：(i) 与 (ii) 必须同时执行（评审方已实测：只加 (i) 时 (c) 仍红）。S6b 已由 Q15（A）解除阻塞。
   - Run: `set -o pipefail && node --test --test-name-pattern="再点胶囊" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)" && npm test 2>&1 | grep -E "^ℹ (pass|fail)"`
   - Expected: `ℹ tests 3`、`ℹ pass 3`、`ℹ fail 0`；全量 `ℹ fail 0`。
 
@@ -342,7 +342,7 @@
 
 - [ ] Step 1：全量与构建
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && set -o pipefail && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/sk-s12-full.log | grep -E "^ℹ (tests|pass|fail)" && npm run build >/dev/null && sha256sum lib/client.js && npm run build >/dev/null && sha256sum lib/client.js`
-  - Expected: `ℹ fail 0`；全量 `ℹ pass` 按阶段绝对数核对（偏差即停）：基线 S1 为 148；S2 +2 → 150；S3 +9 → 159；S4 +5 → 164；S4b +5 → 169；S5 +2 → 171；S6 +6 → 177；S6b +3 → 180；S7 +2 → 182；S8 净增 +3（新增 5、删除 HEAD 既有两条被改写的用例）→ 185；S9 +3 → 188；S10 +3 → 191；S11 +3（待处理 2、文案 1）→ 194。最终：`ℹ tests 194`、`ℹ pass 194`、`ℹ fail 0`。S6b 阻塞于 Q15：未批准前最终计数无法达到 194。两次构建 sha256 相同，记为 `SK_BUNDLE_SHA`。
+  - Expected: `ℹ fail 0`；全量 `ℹ pass` 按阶段绝对数核对（偏差即停）：基线 S1 为 148；S2 +2 → 150；S3 +9 → 159；S4 +5 → 164；S4b +5 → 169；S5 +2 → 171；S6 +6 → 177；S6b +3 → 180；S7 +2 → 182；S8 净增 +3（新增 5、删除 HEAD 既有两条被改写的用例）→ 185；S9 +3 → 188；S10 +3 → 191；S11 +3（待处理 2、文案 1）→ 194。最终：`ℹ tests 194`、`ℹ pass 194`、`ℹ fail 0`。S6b 已由 Q15（A）解除阻塞：最终计数应达到 194。两次构建 sha256 相同，记为 `SK_BUNDLE_SHA`。
 - [ ] Step 2：冻结面
   - Run: `BASE_REF=$(cat /home/ubuntu/workspace/.dsh-research/stock-kanban-vanilla-impl/sk-base-ref-plan-c.txt) && test -z "$(git diff --name-only "${BASE_REF:?}" -- src/ data/ locale/ cordis.patch.yml scripts/probe-markets.mjs)" && echo FROZEN_CLEAN`
   - Expected: 输出 `FROZEN_CLEAN`。
@@ -390,7 +390,7 @@
 
 - 开始前批判性复查整份计划；发现缺项、矛盾或锚点与仓库现实不符，先停下报告，不改 ADR 0003 的规格。
 - 每任务先红后绿；每步汇报一次；计数不符即停。
-- Q5、S14 与豁免粒度（Q15）为外部动作门，未经主人批准不执行。
+- Q5（已完成）与 S14 为外部动作门，未经主人批准不执行。Q15 已由主人确认为 A。
 - 两仓提交都必须全绿，红测试不入库；触碰 `client/` 或 `src/client.mjs` 的提交同笔带重建的 bundle。
 
 ## 最终验证
