@@ -58,6 +58,19 @@ test("FLOAT_STYLE_TEXT · 关键常量在位", () => {
     s.includes(".skc-stack { display:flex; flex-direction:column; gap:6px; }"),
     ".skc-stack 规则",
   );
+  // 2026-11-10 溢出修复：胶囊不随宿主被视口剩余空间压窄、分区不参与 flex 压缩
+  assert.ok(
+    s.includes(".skc-stack{align-items:flex-start}"),
+    "stack 不拉伸胶囊（胶囊按内容全宽渲染）",
+  );
+  assert.ok(
+    s.includes(".skc-capsule [data-seg]{flex-shrink:0}"),
+    "分区 flex-shrink:0（文案宽度恒为内容宽）",
+  );
+  assert.ok(
+    s.includes(".skc-capsule{width:max-content}"),
+    "胶囊永不窄于内容（width:max-content）",
+  );
 });
 
 /** 取自 headerIdx 起、与其 { 配对的整段（含头部）：用于断言规则确实落在某个 @media 守卫块内 */

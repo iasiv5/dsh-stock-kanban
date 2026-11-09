@@ -283,8 +283,10 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel,
   /** 尺寸实测读 host（位置载体；host 先 append 再创建胶囊，真实浏览器 rect 可用）。
    * jsdom rect 恒零 → 回退 38×26（回归测试对 host rect 打桩验证实测路径）。 */
   const measureSize = () => {
-    const rect = host.getBoundingClientRect();
-    return rect.width > 0 ? { width: rect.width, height: rect.height } : FALLBACK_SIZE;
+    // 胶囊 width:max-content 后，宿主（shrink-to-fit）可能窄于胶囊：钳位算术以胶囊真实宽为准
+    const rect = el.getBoundingClientRect();
+    const source = rect.width > 0 ? rect : host.getBoundingClientRect();
+    return source.width > 0 ? { width: source.width, height: source.height } : FALLBACK_SIZE;
   };
   const applyPosition = () => {
     const viewport = viewportOf();
@@ -336,9 +338,8 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel,
   /** 窄屏降级（B30，ADR 0003 第 6 条）：视口 ≤480 时胶囊带 skc-compact（隐藏股票名称，保留价格与涨跌） */
   const syncCompact = () => el.classList.toggle("skc-compact", viewportOf().width <= 480);
 
-  /** 窗口变化：重测 insets 钳回可视区（仅视觉，不回写存储）；窄屏类随视口同步 */
-  const onResize = () => {
-    syncCompact();
+  /** 视口钳位（仅视觉，不回写存储）：挂载/拖动/释放/视口 resize 之外，胶囊自身变宽（额度文案到货）也须重钳 */
+  const clampHostToViewport = () => {
     const viewport = viewportOf();
     const size = measureSize();
     const insets = readInsets();
@@ -352,8 +353,22 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel,
     host.style.top = `${Math.round(point.y)}px`;
   };
 
+  /** 窗口变化：窄屏类随视口同步 + 钳回可视区 */
+  const onResize = () => {
+    syncCompact();
+    clampHostToViewport();
+  };
+
   el.addEventListener("keydown", onKeyDown);
   win.addEventListener("resize", onResize);
+  // 2026-11-10 实录：fixed 宿主 shrink-to-fit 被视口剩余空间压窄，flex 再压缩额度段，
+  // 文字溢出胶囊背景。额度文案到货使胶囊变宽（内容宽 ≠ 挂载时的宽）时必须重钳位。
+  // ResizeObserver 在 jsdom 缺席（守卫跳过）；活体验证见 .dsh-research/merged-capsule-impl/textform-*。
+  let resizeObserver = null;
+  if (typeof win.ResizeObserver === "function") {
+    resizeObserver = new win.ResizeObserver(() => clampHostToViewport());
+    resizeObserver.observe(el);
+  }
   // 先入树再定位（quota-watch 同构）：宿主已 append（main.mjs），胶囊入
   // .skc-stack 后 host 才有可测内容——空 host 的真实 rect 是 0，首挂定位
   // 会错误地走 38×26 回退。stack 缺席时（单元测试）落 shadow root。
@@ -397,6 +412,7 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel,
     dragCtl.dispose();
     el.removeEventListener("keydown", onKeyDown);
     win.removeEventListener("resize", onResize);
+    if (resizeObserver) resizeObserver.disconnect();
     safeAreaProbe.remove();
     el.remove();
   };

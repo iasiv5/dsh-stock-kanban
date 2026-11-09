@@ -20,6 +20,7 @@ export const FLOAT_STYLE_TEXT = `
 
 /* 合并胶囊 stack（计划 B 缝：未来第二枚 pill 直接追加） */
 .skc-stack { display:flex; flex-direction:column; gap:6px; }
+.skc-stack{align-items:flex-start} /* 胶囊按内容全宽渲染，不随宿主被视口剩余空间压窄（2026-11-10 溢出修复） */
 
 /* 胶囊（对齐 quota-watch 解剖：26px pill、命中区外扩、grab 光标、touch-action:none） */
 .skc-capsule { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 10px; border-radius:999px; touch-action:none; cursor:grab; border:1px solid var(--dsw-alias-border-secondary,rgba(128,128,128,.35)); background:var(--dsw-alias-bg-elevated,var(--dsw-alias-bg-base,#1f1f1f)); background:color-mix(in srgb,var(--dsw-alias-bg-elevated,var(--dsw-alias-bg-base,#1f1f1f)) 86%,transparent); -webkit-backdrop-filter:blur(10px) saturate(1.2); backdrop-filter:blur(10px) saturate(1.2); box-shadow:0 4px 14px rgba(0,0,0,.22); color:var(--dsw-alias-label-primary,inherit); font-size:11px; line-height:24px; user-select:none; white-space:nowrap; position:relative; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; }
@@ -191,6 +192,13 @@ export const FLOAT_STYLE_TEXT = `
 .skc-qdot{display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--dsw-alias-label-warning,#d29922)}
 .skc-capsule [data-seg="stock"]{display:inline-flex;align-items:center;gap:6px}
 [data-seg="quota"]{cursor:pointer}
+.skc-capsule [data-seg]{flex-shrink:0} /* 分区不参与 flex 压缩：文案宽度恒为内容宽（2026-11-10 溢出修复） */
+.skc-capsule{width:max-content} /* 胶囊永不窄于内容：宿主 shrink-to-fit 被视口剩余空间钳住时，由 ResizeObserver 重钳位左移（2026-11-10 溢出修复） */
+/* ≤520 的 52vw 钳制会把文案版（较宽）挤出胶囊背景（2026-11-10 实录：420 视口 seg 右缘超出胶囊 4px）——
+   放开为内容全宽，防出屏交给既有位置钳位（ResizeObserver 重钳位）；≤480 另有 compact 隐藏名称降级 */
+@media (max-width:520px){
+  .skc-capsule{max-width:none}
+}
 @media (prefers-reduced-motion: no-preference) {
 @keyframes skc-panel-slide{from{transform:translateX(12px);opacity:0}to{transform:translateX(0);opacity:1}}
 .skc-panel--slide{animation:skc-panel-slide 150ms ease-out}
