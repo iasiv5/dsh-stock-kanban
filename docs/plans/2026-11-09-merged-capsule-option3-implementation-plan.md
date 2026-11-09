@@ -24,7 +24,7 @@
 ## 全局约束
 
 - **sk**：冻结面零改动——`src/`、`data/`、`locale/`、`cordis.patch.yml`、`scripts/probe-markets.mjs` 不动。零运行时依赖。i18n 新键 zh/en 双侧同加；客户端源码字符串字面量禁止 CJK（`tests/i18n.test.mjs` 守卫）。
-- **显式断言改动（B26 授权）**：`client/styles.mjs` 的 `FLOAT_STYLE_TEXT` 只追加，唯一例外是危险色规则；`tests/client-dom.test.mjs` 约第 81 行的 `#c93c3c` 断言同步改为 `#d29922`；其余既有逐字断言串不动。
+- **显式断言改动（B26、B37 授权）**：`client/styles.mjs` 的 `FLOAT_STYLE_TEXT` 只追加，唯一例外是危险色规则（`tests/client-dom.test.mjs` 约第 81 行整条替换，见 S4b）；列表与详情的 Ⓑ/Ⓢ 文本按 S4b 改为 B/S；`quota.merge.on/off` 的「胶囊组」文案按 S11 改为「合并胶囊」；`tests/i18n.test.mjs` 的 quota 键列表显式加入 `quota.outcome`（S11）。其余既有逐字断言串不动。
 - **qw**：ADR 0007 冻结面不动（`mountQuotaCard` options bag、dispose 契约、`./client` 导出、`inject=['slots']`）。`dependencies` 零 `@deepseek-ai/*`。动 `src/client.mjs` 的提交须同笔重建 `lib/client.js`。不改版本号。
 - **红灯判据纪律（P-30）**：每个红步写明精确用例名与精确计数。计数不符即停下报告，不以「fail 0」代替。
 - **外部动作门**（主人批准前不执行）：Q5（qw 热部署）、S14（活体复核）、豁免粒度（Q15）。禁止 tag、push、publish；禁止 dshm_* 与 plugin_manager；禁止重启宿主。
@@ -142,7 +142,7 @@
 - 验证范围：两条精确命名用例。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 两条用例，名字精确为「锚点：buildAnchorRect 产出 right 与 bottom」与「拆除：engage 后 dispose 恰好派发一次 embed-disengage」。
+  - Change: 两条用例，名字精确为「锚点：buildAnchorRect 产出 right 与 bottom」与「拆除：engage 后 dispose 恰好派发一次 embed-disengage」。导入形式：测试文件须以命名空间导入 `import * as qe from "../client/quota-embed.mjs"`，并在用例体内调用 `qe.buildAnchorRect`。不得使用具名导入 `buildAnchorRect`：HEAD 上该导出不存在，会在链接期 SyntaxError，两条用例都不执行，计数变为 1/0/1（已由评审方实测）。
   - Run: `set -o pipefail && node --test --test-name-pattern="锚点：buildAnchorRect|拆除：engage" tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 2`、`ℹ pass 0`、`ℹ fail 2`。
 - [ ] Step 2：实现并转绿
@@ -185,7 +185,7 @@
 - 验证范围：五条精确命名用例。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 五条，名字精确为：「段渲染：两条时双条并有分隔线」、「段渲染：单条时带 skc-qseg-single 居中」、「段渲染：只有待处理时仅显示琥珀点」、「段渲染：两条无且无待处理时段隐藏」、「段渲染：过期条变暗并带 title」。
+  - Change: 五条，名字精确为：「段渲染：两条时双条并有分隔线」、「段渲染：单条时带 skc-qseg-single 居中」、「段渲染：只有待处理时仅显示琥珀点」、「段渲染：两条无且无待处理时段隐藏」、「段渲染：过期条变暗并带 title」。段隐藏条的断言写法：`const seg = el.querySelector('[data-seg="quota"]'); assert.ok(!seg || seg.hidden)`（HEAD 上无 data-seg，节点缺席即满足，故该条在 HEAD 上为绿，与 Expected 一致）。
   - Run: `set -o pipefail && node --test --test-name-pattern="段渲染：" tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 5`、`ℹ fail 4`、`ℹ pass 1`（第「段隐藏」条旧版即隐藏，既有行为保持为绿，属预期）。
 - [ ] Step 2：实现并转绿
@@ -195,17 +195,17 @@
 
 #### Task S4b：字形与颜色规则（B26，先红）
 
-- 目标：额度危险态改琥珀；股票标记改拉丁 B/S；涨跌色只作用于股价与涨跌幅。
-- 涉及文件：Modify `client/styles.mjs`（`.skc-qdanger` 颜色改为 `var(--dsw-alias-label-warning,#d29922)`，危险态以 S9 守卫内的脉冲区分）；Modify `client/capsule.mjs`（第 220、223 行 Ⓑ/Ⓢ 改为 B/S，字重 500）；Modify `tests/client-dom.test.mjs`（约第 81 行 `#c93c3c` 同步改为 `#d29922`；其余对 Ⓑ/Ⓢ 的既有断言先 `grep -n "Ⓑ\|Ⓢ" tests/*.mjs` 定位后同步改写）。
-- 验证范围：三条精确命名用例。
+- 目标：额度危险态改琥珀；所有用户可见的圆圈字母 Ⓑ/Ⓢ（胶囊、列表、详情）统一为拉丁 B/S；涨跌色只作用于股价与涨跌幅。
+- 涉及文件：Modify `client/styles.mjs`（`.skc-qdanger` 颜色改为 `var(--dsw-alias-label-warning,#d29922)`，危险态以 S9 守卫内的脉冲区分）；Modify `client/capsule.mjs`（第 220、223 行 Ⓑ/Ⓢ 改为 B/S，字重 500）；Modify `client/list.mjs`（第 25、29 行徽章文本 "Ⓑ"、"Ⓢ" 改为 "B"、"S"）；Modify `client/i18n.mjs`（第 84、85 行与 228、229 行的 `detail.buy-target`、`detail.sell-target`：zh「买入目标价（≤ 触发 B，{ccy}）」「卖出目标价（≥ 触发 S，{ccy}）」；en「Buy target (≤ fires B, {ccy})」「Sell target (≥ fires S, {ccy})」；i18n.mjs 豁免 CJK 守卫）；Modify `tests/i18n.test.mjs`（新增用例 5）；Modify `tests/client-dom.test.mjs`（危险色断言整条替换，见下；列表徽章用例位于此文件；其余对 Ⓑ/Ⓢ 的既有断言先 `grep -n "Ⓑ\|Ⓢ" tests/*.mjs` 定位后同步改写）。
+- 验证范围：五条精确命名用例；危险色断言整条替换如下（只改数值会失败，必须包括变量名 `label-warning`）：`assert.ok(s.includes(".skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}"), "danger 色已改琥珀（B26，与 qw 警告色同名回退值）");`，替换原第 81 行 `label-danger,#c93c3c` 断言。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 三条，名字精确为：「字形：额度危险态为琥珀（B26）」、「字形：股票标记为拉丁 B/S（B26）」、「字形：涨跌色只作用于股价与涨跌幅（B26）」（第三条为不变量，现状即绿）。
-  - Run: `set -o pipefail && node --test --test-name-pattern="字形：" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
-  - Expected: `ℹ tests 3`、`ℹ fail 2`、`ℹ pass 1`。
+  - Change: 五条，名字精确为：「字形：额度危险态为琥珀（B26）」、「字形：股票标记为拉丁 B/S（B26）」、「字形：涨跌色只作用于股价与涨跌幅（B26）」（第三条为不变量，现状即绿）、「字形：列表买卖徽章为拉丁 B/S（B26）」（tests/client-dom.test.mjs）、「字形：详情目标价文案为拉丁 B/S，zh/en 双侧（B26）」（tests/i18n.test.mjs）。
+  - Run: `set -o pipefail && node --test --test-name-pattern="字形：" tests/client-dom.test.mjs tests/i18n.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
+  - Expected: `ℹ tests 5`、`ℹ pass 1`、`ℹ fail 4`（第三条为不变量现即绿；其余四条在 HEAD 上红）。
 - [ ] Step 2：实现并转绿
   - Run: 同 Step 1。
-  - Expected: `ℹ tests 3`、`ℹ pass 3`、`ℹ fail 0`。
+  - Expected: `ℹ tests 5`、`ℹ pass 5`、`ℹ fail 0`。
 
 #### Task S5：额度段并入胶囊（挂载目标改为胶囊）
 
@@ -235,9 +235,9 @@
 - 验证范围：六条精确命名用例。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 六条，名字精确为：「分区：额度段轻点 → 股票 toggle 0 次、open-panel 1 次」、「分区：股票段轻点 → 股票 toggle 1 次且带股票段矩形、open-panel 0 次」、「分区：pointerdown 在额度段、pointerup 在胶囊根 → 仍按额度段处理」、「分区：拖拽释放 → 不触发任何 tap」、「分区：键盘 Enter 开股票面板时带股票段矩形」、「锚点：onQuotaTap 与 onTapOpen 同一构造函数（含 right/bottom）」。
+  - Change: 六条，名字精确为：「分区：额度段轻点 → 股票 toggle 0 次、open-panel 1 次」、「分区：股票段轻点 → 股票 toggle 1 次且带股票段矩形、open-panel 0 次」、「分区：pointerdown 在额度段、pointerup 在胶囊根 → 仍按额度段处理」、「分区：拖拽释放 → 不触发任何 tap」、「分区：键盘 Enter 开股票面板时带股票段矩形」、「锚点：onQuotaTap 与 onTapOpen 同一构造函数（含 right/bottom）」。第 6 条与 S2 同属 tests/client-quota-embed.test.mjs，同样使用命名空间导入 `qe`，不得具名导入 `buildAnchorRect`。
   - Run: `set -o pipefail && node --test --test-name-pattern="分区：|锚点：onQuotaTap" tests/client-dom.test.mjs tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
-  - Expected: `ℹ tests 6`、`ℹ fail 4`、`ℹ pass 2`。红灯为第 1、3、5、6 条；绿灯为第 2、4 条（当前行为即满足）。若实测不符，停下报告。
+  - Expected: `ℹ tests 6`、`ℹ pass 1`、`ℹ fail 5`。红灯为第 1、2、3、5、6 条（第 2 条断言「带股票段矩形」：HEAD 上 onTogglePanel() 不带参数，必红）；绿灯仅第 4 条（拖拽释放不触发任何 tap）。若实测不符，停下报告。
 - [ ] Step 2：实现并转绿
   - Run: 同 Step 1；再 `npm test` 全量。
   - Expected: `ℹ tests 6`、`ℹ pass 6`、`ℹ fail 0`；全量 `ℹ fail 0`。
@@ -252,9 +252,9 @@
 - [ ] Step 1：写用例（先红）
   - Change: 三条，名字精确为：「再点胶囊：面板开着时点股票胶囊最终关闭」（(a) 打开面板；(b) 胶囊上 pointerdown → 仍开；(c) 未拖动 pointerup → `isOpen() === false`）、「再点胶囊：点面板外普通元素仍关闭」、「再点胶囊：额度段按压 → 股票面板关闭」。
   - Run: `set -o pipefail && node --test --test-name-pattern="再点胶囊" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
-  - Expected: `ℹ tests 3`、`ℹ pass 2`、`ℹ fail 1`（第 1 条红：当前外点关闭先关面板，tap 重开；第 2、3 条现即绿）。
+  - Expected: `ℹ tests 3`、`ℹ pass 2`、`ℹ fail 1`。第 1 条红在断言 (b)「胶囊 pointerdown 后面板仍开」：HEAD 的外点关闭在 pointerdown 时已关闭面板，(c) 不会执行到；第 2、3 条现即绿。
 - [ ] Step 2：实现并转绿
-  - Change: (i) 第 130 行之后加入：若 `composedPath` 含 `dataset.dshStockKanbanCapsule !== undefined` 且不含 `dataset.seg === "quota"`，则直接返回（豁免粒度见上，Q15）；(ii) `update` 中 `snapshot = next;` 之后、`render()` 之前加入：`if (next?.ui?.panelOpen === false && open) open = false;`（面板可见性只由局部 `open` 决定，第 242 行 `el.hidden = !open`，不读 store；仅改 (i) 时胶囊 toggle 已把 store 关闭，面板仍显示，评审副本已证实）。
+  - Change: (i) 第 130 行之后加入：若 `composedPath` 含 `dataset.dshStockKanbanCapsule !== undefined` 且不含 `dataset.seg === "quota"`，则直接返回（豁免粒度见上，Q15）；(ii) `update` 中 `snapshot = next;` 之后、`render()` 之前加入：`if (next?.ui?.panelOpen === false && open) open = false;`（面板可见性只由局部 `open` 决定，第 242 行 `el.hidden = !open`，不读 store；仅改 (i) 时胶囊 toggle 已把 store 关闭，面板仍显示，评审副本已证实）。**阻塞声明**：S6b 整体阻塞于 Q15。Q15 未批准前，Step 2 的 (i) 与 (ii) 均不执行，三条用例保持红；(i) 与 (ii) 必须同时执行（评审方已实测：只加 (i) 时 (c) 仍红）。
   - Run: `set -o pipefail && node --test --test-name-pattern="再点胶囊" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)" && npm test 2>&1 | grep -E "^ℹ (pass|fail)"`
   - Expected: `ℹ tests 3`、`ℹ pass 3`、`ℹ fail 0`；全量 `ℹ fail 0`。
 
@@ -299,7 +299,7 @@
 - 验证范围：三条精确命名用例。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 三条，名字精确为：「滑入：打开时带 skc-panel--slide」、「滑入：关闭时移除该类」、「滑入：样式位于减少动态效果守卫内」。
+  - Change: 三条，名字精确为：「滑入：打开时带 skc-panel--slide，关闭后移除该类」（同一用例内先断言打开时带类，再断言关闭后不带类；HEAD 上打开即不带类，必红）、「滑入：样式位于减少动态效果守卫内」、「滑入：时长约 150 毫秒（CSS 含 150ms）」。
   - Run: `set -o pipefail && node --test --test-name-pattern="滑入：" tests/client-dom.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 3`、`ℹ pass 0`、`ℹ fail 3`。
 - [ ] Step 2：实现并转绿
@@ -323,14 +323,14 @@
 #### Task S11：待处理提醒与 i18n（先红）
 
 - 目标：`manualOutcome` 或 `manualOutcomeError` 存在时视为待处理；待处理琥珀点与条共存；点击派发 open-panel。
-- 涉及文件：Modify `client/quota-embed.mjs`（`outcomePending = manualOutcome !== undefined || manualOutcomeError !== undefined`，与 qw client.mjs 第 1231 行同规则）；Modify `client/i18n.mjs`（新增 `quota.outcome`：zh「待处理兑换结果」，en「Pending redemption result」）；Modify `tests/i18n.test.mjs`（quota 键列表约第 46–50 行显式加入 `quota.outcome`，这是本任务的显式断言改动；红灯来源即此）。
+- 涉及文件：Modify `client/quota-embed.mjs`（`outcomePending = manualOutcome !== undefined || manualOutcomeError !== undefined`，与 qw client.mjs 第 1231 行同规则）；Modify `client/i18n.mjs`（新增 `quota.outcome`：zh「待处理兑换结果」，en「Pending redemption result」；并把 `quota.merge.on/off` 的「胶囊组」文案改为「合并胶囊」：zh 第 138–139 行「quota 已并入合并胶囊（点击拆分）」「quota 独立显示（点击并入合并胶囊）」，en 第 282 行「quota merged into the merged capsule (click to split)」）；Modify `tests/i18n.test.mjs`（quota 键列表约第 46–50 行显式加入 `quota.outcome`，这是本任务的显式断言改动；红灯来源即此）。
 - 接口契约：Consumes S3、S4、S6。Produces `quota.outcome` 键（zh/en 双侧）。
 - 验证范围：两条新用例；i18n 列表测试转绿。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 两条新用例，名字精确为「待处理：manualOutcome 存在且无数，段仅含琥珀点，点击派发 open-panel」、「待处理：manualOutcomeError 同样视为待处理」。i18n 红灯来源：`tests/i18n.test.mjs` 的 quota 键列表测试；其精确名先执行 `grep -n "^test(" tests/i18n.test.mjs` 取得，并写入日志。
+  - Change: 两条新用例（tests/client-quota-embed.test.mjs），名字精确为「待处理：manualOutcome 存在且无数，段仅含琥珀点，点击派发 open-panel」、「待处理：manualOutcomeError 同样视为待处理」。i18n 两处（tests/i18n.test.mjs）：（a）显式断言改动：quota 键列表测试「quota.* 文案（合并开关 / 过期）：zh 与 en 双侧均有译文，非键名回退」加入 `quota.outcome`；（b）新增用例「文案：合并开关的 quota.merge.on/off 使用「合并胶囊」，zh/en 双侧一致（B37）」。红灯来源即此两处；其精确名先执行 `grep -n "^test(" tests/i18n.test.mjs` 取得，并写入日志。其精确名先执行 `grep -n "^test(" tests/i18n.test.mjs` 取得，并写入日志。
   - Run: `set -o pipefail && node --test --test-name-pattern="待处理：" tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
-  - Expected: `ℹ tests 2`、`ℹ pass 0`、`ℹ fail 2`。另运行 `node --test tests/i18n.test.mjs` 应在加入列表后出现该测试的断言失败（列表加入前为绿，证明列表是有效红源，非恒真）。
+  - Expected: `ℹ tests 2`、`ℹ pass 0`、`ℹ fail 2`。另运行 `set -o pipefail && node --test --test-name-pattern="合并开关 / 过期|文案：合并开关" tests/i18n.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`，期望 `ℹ tests 2`、`ℹ pass 0`、`ℹ fail 2`（列表已加入 quota.outcome 而 DICT 尚未加入，且文案仍含「胶囊组」，两条均为断言级红灯，非恒真）。
 - [ ] Step 2：实现并转绿
   - Run: `set -o pipefail && node --test tests/client-quota-embed.test.mjs tests/i18n.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ fail 0`。
@@ -342,7 +342,7 @@
 
 - [ ] Step 1：全量与构建
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && set -o pipefail && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/sk-s12-full.log | grep -E "^ℹ (tests|pass|fail)" && npm run build >/dev/null && sha256sum lib/client.js && npm run build >/dev/null && sha256sum lib/client.js`
-  - Expected: `ℹ fail 0`；`ℹ pass` 等于前序全量加上本计划新增用例数（以各任务所列为准，偏差即停）；两行 sha256 相同，记为 `SK_BUNDLE_SHA`。
+  - Expected: `ℹ fail 0`；全量 `ℹ pass` 按阶段绝对数核对（偏差即停）：基线 S1 为 148；S2 +2 → 150；S3 +9 → 159；S4 +5 → 164；S4b +5 → 169；S5 +2 → 171；S6 +6 → 177；S6b +3 → 180；S7 +2 → 182；S8 净增 +3（新增 5、删除 HEAD 既有两条被改写的用例）→ 185；S9 +3 → 188；S10 +3 → 191；S11 +3（待处理 2、文案 1）→ 194。最终：`ℹ tests 194`、`ℹ pass 194`、`ℹ fail 0`。S6b 阻塞于 Q15：未批准前最终计数无法达到 194。两次构建 sha256 相同，记为 `SK_BUNDLE_SHA`。
 - [ ] Step 2：冻结面
   - Run: `BASE_REF=$(cat /home/ubuntu/workspace/.dsh-research/stock-kanban-vanilla-impl/sk-base-ref-plan-c.txt) && test -z "$(git diff --name-only "${BASE_REF:?}" -- src/ data/ locale/ cordis.patch.yml scripts/probe-markets.mjs)" && echo FROZEN_CLEAN`
   - Expected: 输出 `FROZEN_CLEAN`。
@@ -360,7 +360,7 @@
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && for m in "拆除时补发" "锚点补 right、bottom" "待处理提醒" "合并胶囊"; do printf "%s: " "$m"; grep -c "$m" docs/interop/capsule-embed-protocol.md GLOSSARY.md | tr '\n' ' '; echo; done`
   - Expected: 四个标记在 CEP 与 GLOSSARY 中计数均为 0；若非 0，先停下核对，不得继续。
 - [ ] Step 2：更新文档
-  - Change: CEP 规范——§1（双 pill stack → 单胶囊双段）、§2（补 seg 说明）、§4（锚点补 right、bottom；拆除时补发 `embed-disengage`）、§9（额度段在胶囊内，不在 `.skc-stack`）；GLOSSARY——「胶囊组」改为「合并胶囊」，新增「待处理提醒」；README、tech-notes、对齐矩阵同步术语与形态；`docs/verification.md` 新增 §12.12。
+  - Change: CEP 规范——§1（双 pill stack → 单胶囊双段）、§2（补 seg 说明）、§4（锚点补 right、bottom；拆除时补发 `embed-disengage`）、§9（额度段在胶囊内，不在 `.skc-stack`）；GLOSSARY——「胶囊组」改为「合并胶囊」，新增「待处理提醒」；README、tech-notes、对齐矩阵同步术语与形态；`docs/verification.md` 新增 §12.12。代码注释同步（不影响判据）：`client/main.mjs` 第 41 行、`client/styles.mjs` 第 21 行、`tests/client-dom.test.mjs` 第 55 行的「胶囊组」注释改为「合并胶囊」。合并开关（footer「合并显示 quota」）保留：它是用户拆分/合并额度段的唯一入口；ADR 0003 后果节同步记载。
 - [ ] Step 3：验证
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && for m in "拆除时补发" "锚点补 right、bottom" "待处理提醒" "合并胶囊"; do printf "%s: " "$m"; grep -c "$m" docs/interop/capsule-embed-protocol.md GLOSSARY.md | tr '\n' ' '; echo; done && for f in GLOSSARY.md README.md docs/tech-notes.md docs/reports/2026-11-09-capsule-parity-matrix.md docs/interop/capsule-embed-protocol.md docs/verification.md; do printf "%s 胶囊组: " "$f"; grep -c "胶囊组" "$f"; done`
   - Expected: Step 1 的四个标记每个 ≥1；活动文档中「胶囊组」计数全部为 0。
