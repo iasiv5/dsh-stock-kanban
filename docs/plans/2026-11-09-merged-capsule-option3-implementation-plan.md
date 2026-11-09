@@ -24,7 +24,7 @@
 ## 全局约束
 
 - **sk**：冻结面零改动——`src/`、`data/`、`locale/`、`cordis.patch.yml`、`scripts/probe-markets.mjs` 不动。零运行时依赖。i18n 新键 zh/en 双侧同加；客户端源码字符串字面量禁止 CJK（`tests/i18n.test.mjs` 守卫）。
-- **显式断言改动（B26、B37 授权）**：`client/styles.mjs` 的 `FLOAT_STYLE_TEXT` 只追加，唯一例外是危险色规则（`tests/client-dom.test.mjs` 约第 81 行整条替换，见 S4b）；列表与详情的 Ⓑ/Ⓢ 文本按 S4b 改为 B/S；`quota.merge.on/off` 的「胶囊组」文案按 S11 改为「合并胶囊」；`tests/i18n.test.mjs` 的 quota 键列表显式加入 `quota.outcome`（S11）。其余既有逐字断言串不动。
+- **显式断言改动（B26、B37 授权）**：`client/styles.mjs` 的 `FLOAT_STYLE_TEXT` 只追加，唯一例外是危险色规则（`tests/client-dom.test.mjs` 约第 81 行整条替换，见 S4b）；列表与详情的 Ⓑ/Ⓢ 文本按 S4b 改为 B/S；`quota.merge.on/off` 的「胶囊组」文案按 S11 改为「合并胶囊」；`tests/i18n.test.mjs` 的 quota 键列表显式加入 `quota.outcome`（S11）。其余既有逐字断言串不动。v5.6 起的显式例外：B26 字重（`.skc-capsule-mark` 原地由 700 改为 500，无既有断言）；S4/S5 追加的基础样式属于 append-only 的新增，不改既有断言串。
 - **qw**：ADR 0007 冻结面不动（`mountQuotaCard` options bag、dispose 契约、`./client` 导出、`inject=['slots']`）。`dependencies` 零 `@deepseek-ai/*`。动 `src/client.mjs` 的提交须同笔重建 `lib/client.js`。不改版本号。
 - **红灯判据纪律（P-30）**：每个红步写明精确用例名与精确计数。计数不符即停下报告，不以「fail 0」代替。
 - **外部动作门**（主人批准前不执行）：Q5（qw 热部署，已完成）、S14（活体复核）。豁免粒度已由 Q15 确认为 A，不再是门。禁止 tag、push、publish；禁止 dshm_* 与 plugin_manager；禁止重启宿主。
@@ -189,7 +189,7 @@
   - Run: `set -o pipefail && node --test --test-name-pattern="段渲染：" tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 5`、`ℹ fail 4`、`ℹ pass 1`（第「段隐藏」条旧版即隐藏，既有行为保持为绿，属预期）。
 - [ ] Step 2：实现并转绿
-  - Change: `renderSegment(segEl, model)` 只负责落地 DOM，不做判断。
+  - Change: `renderSegment(segEl, model)` 只负责落地 DOM，不做判断；由 `quota-embed.mjs` 导出（纯落地函数，供 S4 直测；派生逻辑属 S11，保持 S11 的红灯计数不变）。测试③「段渲染：只有待处理时仅显示琥珀点」以 `quotaSegmentModel({outcomePending:true})` 直接落地。过渡期规则（v5.6-A）：段渲染在现有 pill 元素内；`pill.hidden` 同步为「段是否可见」；`skc-qpulse` 挂在段 `div.skc-qseg` 上（任一条 tone 为 danger 时）；过期与传输错误的 title 保留在 pill 层（S5 迁到段）。基础样式追加（`client/styles.mjs`，append-only）：`.skc-qseg`、`.skc-qseg[hidden]{display:none}`、`.skc-qseg-divider`、`.skc-qseg-bars`、`.skc-qbar`、`.skc-qbar-fill`（warn/danger 变色）、`.skc-qdot`。既有 client-quota-embed 行 4（169–176）原位改写（计数不变）：169 由 pill.hidden 同步满足；170–175 改为段内 `.skc-qbar-fill`（glm→warn、copilot→danger）与 tip 文本「GLM 82% · Copilot 97%」；176 改查段上的 `skc-qpulse`；177–186 心跳不变；传输用例 253/258 由 pill.hidden 同步满足，不改。
   - Run: 同 Step 1。
   - Expected: `ℹ tests 5`、`ℹ pass 5`、`ℹ fail 0`。
 
@@ -211,11 +211,11 @@
 
 - 目标：额度段成为胶囊子节点；撤除段内的第二个 drag 控制器。
 - 涉及文件：
-  - Modify `client/quota-embed.mjs`：参数 `stack` 改为 `target`；第 175 行 `stack.append(el)` 改为 `target.append(seg)`；拆除时移除段而非整个 pill；**撤除第 286 行 `attachFloatDrag(onTap: onTapOpen)` 绑定，并删除第 294 行 `dragCtl.dispose()`**（否则 dispose 引用已删变量）。
+  - Modify `client/quota-embed.mjs`：参数 `stack` 改为 `target`；第 175 行 `stack.append(el)` 改为 `target.append(seg)`；拆除时移除段而非整个 pill；**撤除第 286 行 `attachFloatDrag(onTap: onTapOpen)` 绑定，并删除第 294 行 `dragCtl.dispose()`**（否则 dispose 引用已删变量）。`onQuotaTap()` 在本步引入（S6 不再引入）。
   - Modify `client/capsule.mjs`：股票内容包进 `div[data-seg="stock"]`；胶囊根属性 `data-dsh-stock-kanban-capsule` 保留（第 213 行）。
   - Modify `client/main.mjs`：第 82 行装配传 `target: capsule.el`，删除 `stack`。
-  - Modify `tests/client-quota-embed.test.mjs`：setup 的 `stack`（约 70–74 行）改为 `target`；约 13 处 `.skc-capsule--quota` 选择器改为 `[data-seg="quota"]`；embed 的 tap/drag 用例（约 265、292 行）仅改选择器，行为由 S6 覆盖。
-  - Modify `tests/client-quota-integration.test.mjs`：约 2 处选择器。
+  - Modify `tests/client-quota-embed.test.mjs`：setup 的 `stack`（约 70–74 行）改为 `target`；约 14 处 `.skc-capsule--quota` 选择器（含 S4 新增的过期 title 用例对 pill 的引用）改为 `[data-seg="quota"]`；embed 的 tap/drag 用例（约 265–310 行）按 v5.6 方案 A 改写，计数不变：tap 用例直接调用 `embed.onQuotaTap()`（断言 open-panel 恰一次、anchor 含 right/bottom、零值回退 host rect）；拖动用例改为胶囊级（先 `createCapsule`，再以 `target: capsule.el` 装入 embed，对段拖动，断言 host 左移 20、记忆键一致）；测试名中的「pill」改为「段」。
+  - Modify `tests/client-quota-integration.test.mjs`：1 处选择器（`pillOf` 改指段；第 215 行的股票负向断言保持不变）。
 - 验证范围：两条精确命名用例；全量回归。
 
 - [ ] Step 1：写用例（先红）
@@ -223,14 +223,14 @@
   - Run: `set -o pipefail && node --test --test-name-pattern="合并：" tests/client-quota-integration.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 2`、`ℹ pass 0`、`ℹ fail 2`。
 - [ ] Step 2：实现与迁移
-  - Change: 按上面的修改清单执行。
+  - Change: 按上面的修改清单执行。追加：基础样式（`client/styles.mjs`，append-only）：`.skc-capsule [data-seg="stock"]{display:inline-flex;align-items:center;gap:6px}`；段承接原 pill 的 `role="button"`、`tabIndex=0`、`aria-haspopup="dialog"`、`aria-expanded`（属性迁移，计数不变；键盘激活属 HEAD 既有缺口，记入 S13 已知缺口）。中间态（已知，不提交）：S5 之后、S6 之前，额度段点击走股票 toggle，由 S6 修复。
   - Run: `set -o pipefail && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/sk-s5-full.log | grep -E "^ℹ (pass|fail)"`
   - Expected: `ℹ fail 0`；`ℹ pass` 等于前一步全量（迁移不增减用例）。
 
 #### Task S6：分区分流、指针记录、键盘锚点、onQuotaTap 锚点（先红）
 
 - 目标：段内轻点按所按下的分区分流；pointerup 的 target 不再参与判定；键盘路径带股票段锚点；额度段的 open-panel 锚点与 S2 同一构造函数。
-- 涉及文件：Modify `client/capsule.mjs`（pointerdown 记录 `event.target` 为 `downTarget`；未拖动 pointerup 调用 `onTap(downTarget)`；键盘 toggle 约 311–316 行传股票段矩形）；Modify `client/quota-embed.mjs`（提供 `onQuotaTap()`，派发 `open-panel`，锚点由 `buildAnchorRect(segRect)` 构造）；Modify `client/main.mjs`（`onTogglePanel(segRect, capsuleRect)`）；Modify `tests/client-dom.test.mjs`、`tests/client-quota-embed.test.mjs`。
+- 涉及文件：Modify `client/capsule.mjs`（pointerdown 记录 `event.target` 为 `downTarget`；未拖动 pointerup 调用 `onTap(downTarget)`；键盘 toggle 约 311–316 行传股票段矩形）；Modify `client/quota-embed.mjs`（`onQuotaTap()` 已由 S5 引入；本步仅确认其锚点由 `buildAnchorRect(segRect)` 构造）；Modify `client/main.mjs`（`onTogglePanel(segRect, capsuleRect)`）；Modify `tests/client-dom.test.mjs`、`tests/client-quota-embed.test.mjs`。
 - 接口契约：Consumes S2、S5。Produces `onTap(target)`：`target.closest('[data-seg="quota"]')` 命中时调用 `onQuotaTap()`，否则调用股票 toggle 并传入 `[data-seg="stock"]` 的矩形。
 - 验证范围：六条精确命名用例。
 
@@ -342,7 +342,7 @@
 
 - [ ] Step 1：全量与构建
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && set -o pipefail && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/sk-s12-full.log | grep -E "^ℹ (tests|pass|fail)" && npm run build >/dev/null && sha256sum lib/client.js && npm run build >/dev/null && sha256sum lib/client.js`
-  - Expected: `ℹ fail 0`；全量 `ℹ pass` 按阶段绝对数核对（偏差即停）：基线 S1 为 148；S2 +2 → 150；S3 +9 → 159；S4 +5 → 164；S4b +5 → 169；S5 +2 → 171；S6 +6 → 177；S6b +3 → 180；S7 +2 → 182；S8 净增 +4（新增 6、删除 HEAD 既有两条 `:512`、`:526`）→ 186；S9 +3 → 189；S10 +3 → 192；S11 +3（待处理 2、文案 1）→ 195。最终：`ℹ tests 195`、`ℹ pass 195`、`ℹ fail 0`。S6b 已由 Q15（A）解除阻塞：最终计数应达到 195。两次构建 sha256 相同，记为 `SK_BUNDLE_SHA`。
+  - Expected: `ℹ fail 0`；全量 `ℹ pass` 按阶段绝对数核对（偏差即停）：基线 S1 为 148；S2 +2 → 150；S3 +9 → 159；S4b +5 → 164；S4 +5 → 169；S5 +2 → 171；S6 +6 → 177；S6b +3 → 180；S7 +2 → 182；S8 净增 +4（新增 6、删除 HEAD 既有两条 `:512`、`:526`）→ 186；S9 +3 → 189；S10 +3 → 192；S11 +3（待处理 2、文案 1）→ 195。最终：`ℹ tests 195`、`ℹ pass 195`、`ℹ fail 0`。S6b 已由 Q15（A）解除阻塞：最终计数应达到 195。两次构建 sha256 相同，记为 `SK_BUNDLE_SHA`。
 - [ ] Step 2：冻结面
   - Run: `BASE_REF=$(cat /home/ubuntu/workspace/.dsh-research/stock-kanban-vanilla-impl/sk-base-ref-plan-c.txt) && test -z "$(git diff --name-only "${BASE_REF:?}" -- src/ data/ locale/ cordis.patch.yml scripts/probe-markets.mjs)" && echo FROZEN_CLEAN`
   - Expected: 输出 `FROZEN_CLEAN`。
@@ -360,7 +360,7 @@
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && for m in "拆除时补发" "锚点补 right、bottom" "待处理提醒" "合并胶囊"; do printf "%s: " "$m"; grep -c "$m" docs/interop/capsule-embed-protocol.md GLOSSARY.md | tr '\n' ' '; echo; done`
   - Expected: 四个标记在 CEP 与 GLOSSARY 中计数均为 0；若非 0，先停下核对，不得继续。
 - [ ] Step 2：更新文档
-  - Change: CEP 规范——§1（双 pill stack → 单胶囊双段）、§2（补 seg 说明）、§4（锚点补 right、bottom；拆除时补发 `embed-disengage`）、§9（额度段在胶囊内，不在 `.skc-stack`）；GLOSSARY——「胶囊组」改为「合并胶囊」，新增「待处理提醒」；README、tech-notes、对齐矩阵同步术语与形态；`docs/verification.md` 新增 §12.12。英文术语与 Ⓑ/Ⓢ 文档面：`docs/interop/capsule-embed-protocol.md` 第 9 行与 `GLOSSARY.md` 第 29 行的英文「Capsule group」改为「merged capsule」，且 CEP 第 9 行的描述「stack holding both pills」同步改写为单胶囊双段（不只替换术语）；`README.md` 第 9 行与 `docs/reports/2026-11-09-capsule-parity-matrix.md` 第 35 行的 Ⓑ/Ⓢ 改为 B/S（B26 文档面）。代码注释同步（不影响判据）：`client/main.mjs` 第 41 行、`client/styles.mjs` 第 21 行、`tests/client-dom.test.mjs` 第 55 行的「胶囊组」注释改为「合并胶囊」。合并开关（footer「合并显示 quota」）保留：它是用户拆分/合并额度段的唯一入口；ADR 0003 后果节同步记载。
+  - Change: CEP 规范——§1（双 pill stack → 单胶囊双段）、§2（补 seg 说明）、§4（锚点补 right、bottom；拆除时补发 `embed-disengage`）、§9（额度段在胶囊内，不在 `.skc-stack`）；GLOSSARY——「胶囊组」改为「合并胶囊」，新增「待处理提醒」；README、tech-notes、对齐矩阵同步术语与形态；`docs/verification.md` 新增 §12.12。英文术语与 Ⓑ/Ⓢ 文档面：`docs/interop/capsule-embed-protocol.md` 第 9 行与 `GLOSSARY.md` 第 29 行的英文「Capsule group」改为「merged capsule」，且 CEP 第 9 行的描述「stack holding both pills」同步改写为单胶囊双段（不只替换术语）；`README.md` 第 9 行与 `docs/reports/2026-11-09-capsule-parity-matrix.md` 第 35 行的 Ⓑ/Ⓢ 改为 B/S（B26 文档面）。代码注释同步（不影响判据）：`client/main.mjs` 第 41 行、`client/styles.mjs` 第 21 行、`tests/client-dom.test.mjs` 第 55 行的「胶囊组」注释改为「合并胶囊」。合并开关（footer「合并显示 quota」）保留：它是用户拆分/合并额度段的唯一入口；ADR 0003 后果节同步记载。已知缺口（记入 §12.12）：额度段键盘激活（回车/空格开额度面板）为 HEAD 既有缺失，本计划不新增，属后续 a11y 小项。
 - [ ] Step 3：验证
   - Run: `cd /home/ubuntu/workspace/dsh-stock-kanban && for m in "拆除时补发" "锚点补 right、bottom" "待处理提醒" "合并胶囊"; do printf "%s: " "$m"; grep -c "$m" docs/interop/capsule-embed-protocol.md GLOSSARY.md | tr '\n' ' '; echo; done && for f in GLOSSARY.md README.md docs/tech-notes.md docs/reports/2026-11-09-capsule-parity-matrix.md docs/interop/capsule-embed-protocol.md docs/verification.md; do printf "%s 胶囊组: " "$f"; grep -c "胶囊组" "$f"; printf "%s capsule group: " "$f"; grep -ci "capsule group" "$f"; done && for f in README.md docs/reports/2026-11-09-capsule-parity-matrix.md; do printf "%s Ⓑ/Ⓢ: " "$f"; grep -c -e "Ⓑ" -e "Ⓢ" "$f"; done`
   - Expected: Step 1 的四个标记每个 ≥1；活动文档中「胶囊组」与「capsule group」（大小写不敏感）计数全部为 0；README.md 与对齐矩阵中 Ⓑ/Ⓢ 计数为 0。
