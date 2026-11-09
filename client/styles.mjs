@@ -18,7 +18,7 @@ export const FLOAT_STYLE_TEXT = `
 :host { font: inherit; font-size: 12px; line-height: 1.45; color: var(--dsw-alias-label-primary,inherit); }
 :host *, :host *::before, :host *::after { box-sizing: border-box; }
 
-/* 胶囊组 stack（计划 B 缝：未来第二枚 pill 直接追加） */
+/* 合并胶囊 stack（计划 B 缝：未来第二枚 pill 直接追加） */
 .skc-stack { display:flex; flex-direction:column; gap:6px; }
 
 /* 胶囊（对齐 quota-watch 解剖：26px pill、命中区外扩、grab 光标、touch-action:none） */
@@ -33,7 +33,7 @@ export const FLOAT_STYLE_TEXT = `
 .skc-capsule-name{font-weight:600;max-width:16vw;overflow:hidden;text-overflow:ellipsis}
 .skc-capsule-price{font-weight:600;font-variant-numeric:tabular-nums}
 .skc-capsule-pct{font-weight:500;font-variant-numeric:tabular-nums}
-.skc-capsule-mark{font-weight:700}
+.skc-capsule-mark{font-weight:500}
 .skc-mark-buy{color:#e5484d}
 .skc-mark-sell{color:#2bb596}
 .skc-up{color:#e5484d}
@@ -183,6 +183,25 @@ export const FLOAT_STYLE_TEXT = `
 .skc-capsule--quota{cursor:pointer}
 .skc-qval{font-variant-numeric:tabular-nums}
 .skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}
-.skc-qdanger{color:var(--dsw-alias-label-danger,#c93c3c)}
+.skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}
 .skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def)}
+.skc-qseg{display:inline-flex;align-items:center;gap:6px}
+.skc-qseg[hidden]{display:none}
+.skc-qseg-divider{display:inline-block;width:1px;height:14px;background:rgba(128,128,128,.4)}
+.skc-qseg-bars{display:flex;flex-direction:column;justify-content:center;gap:2px;width:44px}
+.skc-qbar{display:block;height:3px;border-radius:2px;background:rgba(128,128,128,.25);overflow:hidden}
+.skc-qbar-fill{display:block;height:100%;background:var(--dsw-alias-label-secondary,#8a8f98)}
+.skc-qbar-fill[data-tone="warn"],.skc-qbar-fill[data-tone="danger"]{background:var(--dsw-alias-label-warning,#d29922)}
+.skc-qdot{display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--dsw-alias-label-warning,#d29922)}
+.skc-capsule [data-seg="stock"]{display:inline-flex;align-items:center;gap:6px}
+[data-seg="quota"]{cursor:pointer}
+.skc-qseg-tip{display:none}
+.skc-qseg:hover .skc-qseg-tip{display:block}
+@media (prefers-reduced-motion: no-preference) {
+@keyframes skc-panel-slide{from{transform:translateX(12px);opacity:0}to{transform:translateX(0);opacity:1}}
+.skc-panel--slide{animation:skc-panel-slide 150ms ease-out}
+}
+.skc-compact .skc-stock-name{display:none}
+[data-seg="quota"]{position:relative;align-self:stretch}
+[data-seg="quota"]::before{content:"";position:absolute;inset:-10px}
 `;

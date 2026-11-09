@@ -38,7 +38,7 @@ export function mountKanban({ doc, win, storage }) {
   style.textContent = FLOAT_STYLE_TEXT;
   shadow.append(style);
 
-  // 计划 B 缝：胶囊组 stack，未来第二枚 pill 直接追加
+  // 计划 B 缝：合并胶囊 stack，未来第二枚 pill 直接追加
   const stack = doc.createElement("div");
   stack.className = "skc-stack";
   shadow.append(stack);
@@ -65,13 +65,19 @@ export function mountKanban({ doc, win, storage }) {
   const panel = createPanel({ doc, win, store, views });
   shadow.append(panel.el);
 
+  /** 最近一次股票段切换的矩形（S8：面板开启上升沿以此锚定；开启或收起后清空） */
+  let lastStock = null;
   const capsule = createCapsule({
     doc,
     win,
     storage,
     shadow,
     store,
-    onTogglePanel: () => store.togglePanel(),
+    onTogglePanel: (segRect, capsuleRect) => {
+      lastStock = { segRect, capsuleRect };
+      store.togglePanel();
+    },
+    onQuotaTap: () => quotaEmbed.onQuotaTap(), // 延迟绑定：quotaEmbed 在 capsule 之后创建
   });
   stack.append(capsule.el);
 
@@ -83,7 +89,7 @@ export function mountKanban({ doc, win, storage }) {
     doc,
     win,
     storage,
-    stack,
+    target: capsule.el,
     host,
     enabled: store.getState().ui.quotaMerge !== false,
     onCapabilityChange: (capable) => store.setQuotaCapable(capable),
@@ -99,11 +105,14 @@ export function mountKanban({ doc, win, storage }) {
     const quoteError = snapshot?.quoteMeta?.error;
     errorGlobal.textContent = quoteError ? t("app.quote-failed", { e: quoteError }) : "";
     errorGlobal.hidden = !quoteError;
-    // 面板开启瞬间：以胶囊实测矩形锚定（锚定即位置，无独立位置记忆）
+    // 面板开启瞬间：以所点股票段矩形（水平推出）与胶囊矩形（顶边/回退）锚定；无记录时回退胶囊矩形
     const isOpenNow = snapshot?.ui?.panelOpen === true;
     if (isOpenNow && !wasOpen) {
-      panel.openFrom(capsule.el.getBoundingClientRect());
+      const capRect = capsule.el.getBoundingClientRect();
+      panel.openFrom(lastStock?.segRect ?? capRect, lastStock?.capsuleRect ?? capRect);
+      lastStock = null;
     }
+    if (!isOpenNow) lastStock = null;
     wasOpen = isOpenNow;
   };
 

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { createDomHarness } from "./helpers/dom-harness.mjs";
 import { FLOAT_STYLE_TEXT } from "../client/styles.mjs";
 import { createCapsule } from "../client/capsule.mjs";
+import { createQuotaEmbed } from "../client/quota-embed.mjs";
 import { createList } from "../client/list.mjs";
 import { createDetail } from "../client/detail.mjs";
 import { createAdd } from "../client/add.mjs";
@@ -52,7 +53,7 @@ test("FLOAT_STYLE_TEXT · 关键常量在位", () => {
   assert.ok(s.includes("@media print { :host { display:none !important } }"), "print 隐藏");
   // ⑦ 动效 reduced-motion 守卫
   assert.ok(s.includes("@media (prefers-reduced-motion: no-preference)"), "reduced-motion 守卫");
-  // ⑧ 胶囊组 stack（计划 B 缝）
+  // ⑧ 合并胶囊 stack（计划 B 缝）
   assert.ok(
     s.includes(".skc-stack { display:flex; flex-direction:column; gap:6px; }"),
     ".skc-stack 规则",
@@ -78,7 +79,7 @@ test("FLOAT_STYLE_TEXT · quota pill 样式：--quota cursor、tabular-nums、wa
   assert.ok(s.includes(".skc-capsule--quota{cursor:pointer}"), "--quota 覆写 cursor:pointer");
   assert.ok(s.includes(".skc-qval{font-variant-numeric:tabular-nums}"), "数值段 tabular-nums（spec §9）");
   assert.ok(s.includes(".skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}"), "warn 色（与 qw 同名回退值）");
-  assert.ok(s.includes(".skc-qdanger{color:var(--dsw-alias-label-danger,#c93c3c)}"), "danger 色（与 qw 同名回退值）");
+  assert.ok(s.includes(".skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}"), "danger 色已改琥珀（B26，与 qw 警告色同名回退值）");
   assert.ok(s.includes(".skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def)}"), "footer 开关 active 态样式");
   const guardAt = s.indexOf("@media (prefers-reduced-motion: no-preference)");
   assert.ok(guardAt >= 0, "reduced-motion 守卫块存在");
@@ -87,6 +88,75 @@ test("FLOAT_STYLE_TEXT · quota pill 样式：--quota cursor、tabular-nums、wa
   assert.ok(guard.includes("@keyframes skc-qpulse"), "pulse keyframes 在守卫块内");
   assert.equal(s.split("@keyframes skc-qpulse").length - 1, 1, "keyframes 只定义一次（守卫块内）");
   assert.equal(s.split(".skc-qpulse{").length - 1, 1, ".skc-qpulse 只出现一次（守卫块内）");
+});
+
+test("字形：额度危险态为琥珀（B26）", () => {
+  assert.ok(
+    FLOAT_STYLE_TEXT.includes(".skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}"),
+    "danger 色已改琥珀（B26，与 qw 警告色同名回退值）",
+  );
+});
+
+test("字形：股票标记为拉丁 B/S（B26）", () => {
+  const { h, capsule } = setupCapsule();
+  try {
+    capsule.update({
+      ui: { capsuleSymbolId: "s1", panelOpen: false },
+      business: { symbols: [{ id: "s1", market: "cn", code: "sh600519", name: "贵州茅台" }] },
+      quotes: {
+        s1: { status: "ok", price: 1450, changePercent: 1.2, target: { status: "fresh", buyTriggered: true, sellTriggered: true } },
+      },
+    });
+    assert.equal(capsule.el.querySelector(".skc-mark-buy").textContent, "B", "买入标记为拉丁 B");
+    assert.equal(capsule.el.querySelector(".skc-mark-sell").textContent, "S", "卖出标记为拉丁 S");
+    assert.ok(FLOAT_STYLE_TEXT.includes(".skc-capsule-mark{font-weight:500}"), "股票标记字重 500（B26 字形）");
+  } finally {
+    capsule.dispose();
+    h.cleanup();
+  }
+});
+
+test("字形：涨跌色只作用于股价与涨跌幅（B26）", () => {
+  const { h, capsule } = setupCapsule();
+  try {
+    capsule.update({
+      ui: { capsuleSymbolId: "s1", panelOpen: false },
+      business: { symbols: [{ id: "s1", market: "cn", code: "sh600519", name: "贵州茅台" }] },
+      quotes: {
+        s1: { status: "ok", price: 1450, changePercent: 1.2, target: { status: "fresh", buyTriggered: true, sellTriggered: false } },
+      },
+    });
+    const trend = /skc-(up|down|flat)/;
+    const el = capsule.el;
+    assert.match(el.querySelector(".skc-capsule-price").className, trend, "股价带涨跌色");
+    assert.match(el.querySelector(".skc-capsule-pct").className, trend, "涨跌幅带涨跌色");
+    assert.doesNotMatch(el.querySelector(".skc-capsule-name").className, trend, "名称不带涨跌色");
+    assert.doesNotMatch(el.querySelector(".skc-mark-buy").className, trend, "买入标记不带涨跌色");
+    assert.doesNotMatch(el.querySelector(".skc-mark-sell").className, trend, "卖出标记不带涨跌色");
+  } finally {
+    capsule.dispose();
+    h.cleanup();
+  }
+});
+
+test("字形：列表买卖徽章为拉丁 B/S（B26）", () => {
+  const { h, list, restoreGlobals } = setupList();
+  try {
+    const snap = LIST_SNAPSHOT();
+    snap.quotes.s1 = {
+      status: "ok",
+      price: 1450,
+      changePercent: 1.2,
+      target: { status: "fresh", buyTriggered: true, sellTriggered: true },
+    };
+    list.update(snap);
+    const row = list.el.querySelector(".skc-row");
+    assert.equal(row.querySelector(".skc-badge-buy").textContent, "B", "列表买入徽章为 B");
+    assert.equal(row.querySelector(".skc-badge-sell").textContent, "S", "列表卖出徽章为 S");
+  } finally {
+    restoreGlobals();
+    h.cleanup();
+  }
 });
 
 /* ---------------- capsule（Task 8：拖拽管线 + 键盘 + 点击） ---------------- */
@@ -292,7 +362,7 @@ test("list · 快照渲染两行 + 触价标记 + 行点击 openDetail", () => {
     const rows = list.el.querySelectorAll(".skc-row");
     assert.equal(rows.length, 2, "两标的渲染两行");
     assert.ok(list.el.querySelector(".skc-tab-active"), "市场 Tab 在位");
-    assert.ok(rows[0].querySelector(".skc-badge-buy"), "触发买点标有 Ⓑ badge");
+    assert.ok(rows[0].querySelector(".skc-badge-buy"), "触发买点标有 B badge");
     rows[0].dispatchEvent(new h.window.MouseEvent("click", { bubbles: true }));
     assert.deepEqual(
       actions.filter((a) => a[0] === "openDetail").map((a) => a[1]),
@@ -509,30 +579,167 @@ function setupPanel({ viewport = [1024, 768] } = {}) {
   return { h, host, shadow, panel, store, views, actions };
 }
 
-test("panel · openFrom 下方优先弹出（top = anchor.top + height + 8）", () => {
-  const { h, panel } = setupPanel();
+/** S8 面板夹具：高度桩 160px；宽度不桩（offsetWidth 为 0 → WIDTH_FALLBACK 400） */
+function setupPanelAnchored(viewport) {
+  const s = setupPanel({ viewport });
+  Object.defineProperty(s.panel.el, "offsetHeight", { configurable: true, get: () => 160 });
+  return s;
+}
+
+test("水平推出：优先右侧", () => {
+  const { h, panel } = setupPanelAnchored([1024, 768]);
   try {
-    assert.equal(panel.isOpen(), false, "初始关闭");
-    panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
-    assert.equal(panel.el.style.top, "234px", "200+26+8");
-    assert.equal(panel.el.style.left, "100px", "left 随锚");
-    assert.equal(panel.isOpen(), true, "openFrom 后开启");
+    panel.openFrom(
+      { left: 200, top: 204, width: 70, height: 26 }, // segRect（分区）
+      { left: 200, top: 200, width: 150, height: 26 }, // capsuleRect（胶囊）
+    );
+    assert.equal(panel.el.style.left, "278px", "left = segRect.right + 8（优先右侧）");
+    assert.equal(panel.el.style.top, "200px", "top = capsuleRect.top（顶边与胶囊对齐）");
     panel.dispose();
   } finally {
     h.cleanup();
   }
 });
 
-test("panel · 视口矮时翻转到锚上方", () => {
-  const { h, panel } = setupPanel({ viewport: [1024, 300] });
+test("水平推出：放不下则左侧", () => {
+  const { h, panel } = setupPanelAnchored([1024, 768]);
   try {
-    panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
-    // 下方放不下（234+160 > 292）→ 翻上方：200−160−8 = 32
-    assert.equal(panel.el.style.top, "32px", "翻转到锚上方");
+    panel.openFrom(
+      { left: 900, top: 204, width: 70, height: 26 },
+      { left: 200, top: 200, width: 150, height: 26 },
+    );
+    // 右侧放不下（970+8+400 > 1016）→ 左侧：900 − 400 − 8 = 492
+    assert.equal(panel.el.style.left, "492px", "放不下右侧 → left = segRect.left − width − 8");
     panel.dispose();
   } finally {
     h.cleanup();
   }
+});
+
+test("垂直回退：两侧都放不下时下方优先", () => {
+  const { h, panel } = setupPanelAnchored([500, 768]);
+  try {
+    panel.openFrom(
+      { left: 50, top: 204, width: 70, height: 26 },
+      { left: 50, top: 200, width: 150, height: 26 },
+    );
+    // 两侧都放不下 → 下方优先：capsuleRect.bottom + 8 = 234
+    assert.equal(panel.el.style.top, "234px", "下方优先：capsuleRect.bottom + 8");
+    panel.dispose();
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("垂直回退：下方放不下时翻到锚上方", () => {
+  const { h, panel } = setupPanelAnchored([500, 300]);
+  try {
+    panel.openFrom(
+      { left: 50, top: 204, width: 70, height: 26 },
+      { left: 50, top: 200, width: 150, height: 26 },
+    );
+    // 下方放不下（234+160 > 292）→ 翻上方：capsuleRect.top − 160 − 8 = 32（补回原「视口矮时翻转」覆盖）
+    assert.equal(panel.el.style.top, "32px", "翻转到胶囊上方");
+    panel.dispose();
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("水平推出：顶边与胶囊对齐并贴底钳位", () => {
+  const { h, panel } = setupPanelAnchored([1024, 768]);
+  try {
+    panel.openFrom(
+      { left: 200, top: 704, width: 70, height: 26 },
+      { left: 200, top: 700, width: 150, height: 26 },
+    );
+    // 顶边取 capsuleRect.top = 700，贴底钳位：768 − 160 − 8 = 600
+    assert.equal(panel.el.style.top, "600px", "顶边对齐胶囊并贴底钳位");
+    panel.dispose();
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("sheet：视口不超过 480px 为底部 sheet", () => {
+  const { h, panel } = setupPanelAnchored([400, 768]);
+  try {
+    panel.openFrom(
+      { left: 200, top: 204, width: 70, height: 26 },
+      { left: 200, top: 200, width: 150, height: 26 },
+    );
+    assert.equal(panel.el.classList.contains("skc-panel--sheet"), true, "窄视口为底部 sheet");
+    assert.equal(panel.el.style.left, "", "sheet 丢弃内联锚定坐标");
+    panel.dispose();
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("滑入：打开时带 skc-panel--slide，关闭后移除该类", () => {
+  const { h, panel } = setupPanel();
+  try {
+    panel.openFrom({ left: 200, top: 204, width: 70, height: 26 });
+    assert.equal(panel.el.classList.contains("skc-panel--slide"), true, "打开时带滑入类");
+    panel.close();
+    assert.equal(panel.el.classList.contains("skc-panel--slide"), false, "关闭后移除滑入类");
+    panel.dispose();
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("滑入：样式位于减少动态效果守卫内", () => {
+  const s = FLOAT_STYLE_TEXT;
+  assert.ok(
+    s.indexOf(".skc-panel--slide") >= 0 &&
+      s.indexOf(".skc-panel--slide") > s.indexOf("prefers-reduced-motion: no-preference"),
+    "滑入样式存在且位于 reduced-motion 守卫之内",
+  );
+});
+
+test("滑入：时长约 150 毫秒（CSS 含 150ms）", () => {
+  assert.ok(FLOAT_STYLE_TEXT.includes("150ms"), "滑入时长 150ms（CSS 含 150ms）");
+});
+
+/* ---------------- S10：窄屏降级（B30；Step 1 先红） ---------------- */
+
+test("窄屏：视口 400 时胶囊带 skc-compact", () => {
+  const { h, capsule } = setupCapsule();
+  try {
+    h.setViewport(h.window, 400, 768);
+    h.window.dispatchEvent(new h.window.Event("resize"));
+    assert.equal(capsule.el.classList.contains("skc-compact"), true, "视口 400 → 胶囊带 skc-compact");
+    capsule.dispose();
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("窄屏：视口 800 时胶囊不带 skc-compact", () => {
+  const { h, capsule } = setupCapsule();
+  try {
+    h.setViewport(h.window, 800, 768);
+    h.window.dispatchEvent(new h.window.Event("resize"));
+    assert.equal(capsule.el.classList.contains("skc-compact"), false, "视口 800 → 胶囊不带 skc-compact");
+    capsule.dispose();
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("窄屏：额度段热区扩到 44px", () => {
+  const s = FLOAT_STYLE_TEXT;
+  assert.match(
+    s,
+    /\[data-seg="quota"\]::before\{[^}]*inset:-10px[^}]*\}/,
+    "额度段热区伪元素 inset:-10px（段高 24 + 2×10 = 44px）",
+  );
+  assert.match(
+    s,
+    /\[data-seg="quota"\]\{[^}]*align-self:stretch[^}]*\}/,
+    "额度段 align-self:stretch（段高为内高 24，热区才达 44px）",
+  );
 });
 
 test("panel · 窄视口 ≤480 转底部 sheet", () => {
@@ -731,6 +938,331 @@ test("main · apply 有 effect 时经 ctx.effect 注册", async () => {
   } finally {
     restoreGlobals();
     h.cleanup();
+  }
+});
+
+/* ---------------- S6：分区分流（胶囊根 pointer 路径 + 额度段 onQuotaTap；Step 1 先红） ---------------- */
+
+const QUOTA_OK_OVERVIEW = {
+  providers: [
+    { key: "glm", status: "ready", plan: { windows: [{ key: "5h", percent: 40 }] } },
+    { key: "copilot", status: "ready", quota: { balanceAvailable: true, percentRemaining: 60 } },
+  ],
+};
+
+async function setupCapsuleWithQuota() {
+  const h = createDomHarness();
+  h.setViewport(h.window, 1024, 768);
+  const host = h.document.createElement("div");
+  h.document.body.append(host);
+  const shadow = host.attachShadow({ mode: "open" });
+  const stack = h.document.createElement("div");
+  stack.className = "skc-stack";
+  shadow.append(stack);
+  const calls = [];
+  const opened = [];
+  h.window.addEventListener("dsh-quota-watch:open-panel", (ev) => opened.push(ev.detail));
+  let embed = null;
+  const capsule = createCapsule({
+    doc: h.document,
+    win: h.window,
+    storage: h.localStorage,
+    shadow,
+    store: null,
+    onTogglePanel: (segRect, capsuleRect) => calls.push({ segRect, capsuleRect }),
+    onQuotaTap: () => embed?.onQuotaTap(),
+  });
+  embed = createQuotaEmbed({
+    doc: h.document,
+    win: h.window,
+    storage: h.localStorage,
+    target: capsule.el,
+    host,
+    fetchImpl: async () =>
+      new Response(JSON.stringify(QUOTA_OK_OVERVIEW), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    probeTimeoutMs: 50,
+    pollMs: 10000,
+    retryMs: 10000,
+    heartbeatMs: 80,
+  });
+  const guest = h.document.createElement("div");
+  guest.setAttribute("data-dsh-quota-watch-float", "");
+  h.document.body.append(guest);
+  await sleep(30);
+  h.window.dispatchEvent(
+    new h.window.CustomEvent("dsh-quota-watch:embed-capabilities", {
+      detail: { v: 1, capabilities: ["hide-pill", "anchored-panel", "poll-pause"], guestVersion: "0.1.38" },
+      composed: true,
+      bubbles: true,
+    }),
+  );
+  await sleep(80);
+  return { h, host, shadow, stack, capsule, embed, calls, opened };
+}
+
+function disposeCapsuleWithQuota(s) {
+  s.embed.dispose();
+  s.capsule.dispose();
+  s.h.cleanup();
+}
+
+const STOCK_RECT = { left: 12, top: 34, width: 80, height: 24, right: 92, bottom: 58, x: 12, y: 34 };
+
+test("分区：额度段轻点 → 股票 toggle 0 次、open-panel 1 次", async () => {
+  const s = await setupCapsuleWithQuota();
+  try {
+    const seg = s.capsule.el.querySelector('[data-seg="quota"]');
+    assert.ok(seg, "额度段是胶囊子节点");
+    s.h.firePointer(seg, "pointerdown", { x: 60, y: 33 });
+    s.h.firePointer(seg, "pointerup", { x: 60, y: 33 });
+    assert.equal(s.calls.length, 0, "股票 toggle 0 次");
+    assert.equal(s.opened.length, 1, "open-panel 1 次");
+  } finally {
+    disposeCapsuleWithQuota(s);
+  }
+});
+
+test("分区：股票段轻点 → 股票 toggle 1 次且带股票段矩形、open-panel 0 次", async () => {
+  const s = await setupCapsuleWithQuota();
+  try {
+    const stockSeg = s.capsule.el.querySelector('[data-seg="stock"]');
+    assert.ok(stockSeg, "股票段是胶囊子节点");
+    stockSeg.getBoundingClientRect = () => STOCK_RECT;
+    s.h.firePointer(stockSeg, "pointerdown", { x: 40, y: 40 });
+    s.h.firePointer(stockSeg, "pointerup", { x: 40, y: 40 });
+    assert.equal(s.calls.length, 1, "股票 toggle 1 次");
+    assert.deepEqual(s.calls[0].segRect, STOCK_RECT, "带股票段矩形");
+    assert.equal(s.opened.length, 0, "open-panel 0 次");
+  } finally {
+    disposeCapsuleWithQuota(s);
+  }
+});
+
+test("分区：pointerdown 在额度段、pointerup 在胶囊根 → 仍按额度段处理", async () => {
+  const s = await setupCapsuleWithQuota();
+  try {
+    const seg = s.capsule.el.querySelector('[data-seg="quota"]');
+    s.h.firePointer(seg, "pointerdown", { x: 60, y: 33 });
+    s.h.firePointer(s.capsule.el, "pointerup", { x: 60, y: 33 });
+    assert.equal(s.calls.length, 0, "未误走股票 toggle");
+    assert.equal(s.opened.length, 1, "仍按额度段处理：open-panel 1 次");
+  } finally {
+    disposeCapsuleWithQuota(s);
+  }
+});
+
+test("分区：拖拽释放 → 不触发任何 tap", async () => {
+  const s = await setupCapsuleWithQuota();
+  try {
+    const seg = s.capsule.el.querySelector('[data-seg="quota"]');
+    s.h.firePointer(seg, "pointerdown", { x: 100, y: 100 });
+    s.h.firePointer(seg, "pointermove", { x: 120, y: 100 }); // 超 slop 6
+    s.h.firePointer(seg, "pointerup", { x: 120, y: 100 });
+    assert.equal(s.calls.length, 0, "无股票 toggle");
+    assert.equal(s.opened.length, 0, "无 open-panel");
+  } finally {
+    disposeCapsuleWithQuota(s);
+  }
+});
+
+test("分区：键盘 Enter 开股票面板时带股票段矩形", async () => {
+  const s = await setupCapsuleWithQuota();
+  try {
+    const stockSeg = s.capsule.el.querySelector('[data-seg="stock"]');
+    stockSeg.getBoundingClientRect = () => STOCK_RECT;
+    s.capsule.el.dispatchEvent(new s.h.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    assert.equal(s.calls.length, 1, "键盘 Enter → 股票 toggle 1 次");
+    assert.deepEqual(s.calls[0].segRect, STOCK_RECT, "键盘路径带股票段矩形");
+    assert.equal(s.opened.length, 0, "open-panel 0 次");
+  } finally {
+    disposeCapsuleWithQuota(s);
+  }
+});
+
+/* ---------------- S6b：面板开着时再点胶囊（Q14；Q15=A；Step 1 先红） ---------------- */
+
+/** 最小 store 桩：panelOpen 语义与 store.mjs 一致（togglePanel/closePanel 通知订阅者），不触发网络 */
+function makePanelStoreStub() {
+  let state = {
+    business: { rev: 0, settings: { privacyMode: false }, symbols: [], driverKind: null, loaded: true },
+    quotes: {},
+    quoteMeta: { fetchedAt: null, error: null },
+    ui: {
+      panelOpen: false,
+      view: "list",
+      detailId: null,
+      showAdd: false,
+      showSettings: false,
+      capsuleSymbolId: null,
+      lastMarket: "cn",
+      holdingsOnly: false,
+      quotaMerge: true,
+    },
+    toast: null,
+    providers: null,
+  };
+  const listeners = new Set();
+  const setUi = (patch) => {
+    state = { ...state, ui: { ...state.ui, ...patch } };
+    for (const fn of [...listeners]) fn(state);
+  };
+  return {
+    getState: () => state,
+    subscribe(fn) {
+      listeners.add(fn);
+      fn(state); // 即刻回放一次（与 store.subscribe 同语义）
+      return () => listeners.delete(fn);
+    },
+    togglePanel() {
+      setUi({ panelOpen: !state.ui.panelOpen });
+    },
+    closePanel() {
+      setUi({ panelOpen: false });
+    },
+    restartPolling() {},
+    pollQuotes() {},
+    setCapsuleSymbol() {},
+    setShowAdd() {},
+    setShowSettings() {},
+    setPrivacy() {},
+    setQuotaMerge() {},
+    setToast() {},
+  };
+}
+
+const panelViewStub = (doc) => ({ el: doc.createElement("div"), update() {}, dispose() {} });
+
+async function setupStockPanelWithQuota() {
+  const h = createDomHarness();
+  h.setViewport(h.window, 1024, 768);
+  const host = h.document.createElement("div");
+  h.document.body.append(host);
+  const shadow = host.attachShadow({ mode: "open" });
+  const stack = h.document.createElement("div");
+  stack.className = "skc-stack";
+  shadow.append(stack);
+  const store = makePanelStoreStub();
+  const panel = createPanel({
+    doc: h.document,
+    win: h.window,
+    store,
+    views: {
+      list: panelViewStub(h.document),
+      detail: panelViewStub(h.document),
+      add: panelViewStub(h.document),
+      backup: panelViewStub(h.document),
+    },
+  });
+  shadow.append(panel.el);
+  let embed = null;
+  const capsule = createCapsule({
+    doc: h.document,
+    win: h.window,
+    storage: h.localStorage,
+    shadow,
+    store,
+    onTogglePanel: () => store.togglePanel(),
+    onQuotaTap: () => embed?.onQuotaTap(),
+  });
+  stack.append(capsule.el);
+  let wasOpen = false;
+  // 与 main.mjs 的 renderAll 同构：面板开启瞬间以胶囊矩形锚定
+  const unsubscribe = store.subscribe((snapshot) => {
+    capsule.update(snapshot);
+    panel.update(snapshot);
+    const isOpenNow = snapshot.ui.panelOpen === true;
+    if (isOpenNow && !wasOpen) panel.openFrom(capsule.el.getBoundingClientRect());
+    wasOpen = isOpenNow;
+  });
+  embed = createQuotaEmbed({
+    doc: h.document,
+    win: h.window,
+    storage: h.localStorage,
+    target: capsule.el,
+    host,
+    fetchImpl: async () =>
+      new Response(JSON.stringify(QUOTA_OK_OVERVIEW), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    probeTimeoutMs: 50,
+    pollMs: 10000,
+    retryMs: 10000,
+    heartbeatMs: 80,
+  });
+  const guest = h.document.createElement("div");
+  guest.setAttribute("data-dsh-quota-watch-float", "");
+  h.document.body.append(guest);
+  await sleep(30);
+  h.window.dispatchEvent(
+    new h.window.CustomEvent("dsh-quota-watch:embed-capabilities", {
+      detail: { v: 1, capabilities: ["hide-pill", "anchored-panel", "poll-pause"], guestVersion: "0.1.38" },
+      composed: true,
+      bubbles: true,
+    }),
+  );
+  await sleep(80);
+  return { h, host, capsule, panel, store, embed, unsubscribe };
+}
+
+function disposeStockPanel(s) {
+  s.unsubscribe();
+  s.embed.dispose();
+  s.panel.dispose();
+  s.capsule.dispose();
+  s.h.cleanup();
+}
+
+/** 轻点股票段打开面板（真实 pointer 路径：pointerdown + 未拖动 pointerup） */
+function tapStockOpen(s) {
+  const stockSeg = s.capsule.el.querySelector('[data-seg="stock"]');
+  s.h.firePointer(stockSeg, "pointerdown", { x: 40, y: 40 });
+  s.h.firePointer(stockSeg, "pointerup", { x: 40, y: 40 });
+}
+
+test("再点胶囊：面板开着时点股票胶囊最终关闭", async () => {
+  const s = await setupStockPanelWithQuota();
+  try {
+    const stockSeg = s.capsule.el.querySelector('[data-seg="stock"]');
+    tapStockOpen(s);
+    assert.equal(s.panel.isOpen(), true, "(a) 面板已打开");
+    s.h.firePointer(stockSeg, "pointerdown", { x: 40, y: 40 });
+    assert.equal(s.panel.isOpen(), true, "(b) 胶囊 pointerdown 后面板仍开");
+    s.h.firePointer(stockSeg, "pointerup", { x: 40, y: 40 });
+    assert.equal(s.panel.isOpen(), false, "(c) 未拖动 pointerup 后面板最终关闭");
+  } finally {
+    disposeStockPanel(s);
+  }
+});
+
+test("再点胶囊：点面板外普通元素仍关闭", async () => {
+  const s = await setupStockPanelWithQuota();
+  try {
+    tapStockOpen(s);
+    assert.equal(s.panel.isOpen(), true, "前置：面板已打开");
+    const outside = s.h.document.createElement("div");
+    s.h.document.body.append(outside);
+    s.h.firePointer(outside, "pointerdown", { x: 500, y: 500 });
+    assert.equal(s.panel.isOpen(), false, "面板外普通元素按下 → 面板关闭");
+  } finally {
+    disposeStockPanel(s);
+  }
+});
+
+test("再点胶囊：额度段按压 → 股票面板关闭", async () => {
+  const s = await setupStockPanelWithQuota();
+  try {
+    tapStockOpen(s);
+    assert.equal(s.panel.isOpen(), true, "前置：面板已打开");
+    const seg = s.capsule.el.querySelector('[data-seg="quota"]');
+    assert.ok(seg, "额度段在胶囊内");
+    s.h.firePointer(seg, "pointerdown", { x: 60, y: 33 });
+    assert.equal(s.panel.isOpen(), false, "额度段按压 → 股票面板关闭（Q15=A：额度段不豁免）");
+  } finally {
+    disposeStockPanel(s);
   }
 });
 

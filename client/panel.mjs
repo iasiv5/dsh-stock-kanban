@@ -21,7 +21,8 @@ const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
 export function createPanel({ doc, win, store, views }) {
   let disposed = false;
   let open = false;
-  let anchorRect = null;
+  let segRect = null; // S8：分区矩形（水平推出的锚定依据）
+  let capsuleRect = null; // S8：胶囊矩形（顶边与垂直回退的锚定依据）
   let safeProbe = null;
   let snapshot = null;
 
@@ -96,11 +97,29 @@ export function createPanel({ doc, win, store, views }) {
     const insets = readInsets();
     const width = el.offsetWidth || WIDTH_FALLBACK;
     const height = el.offsetHeight || HEIGHT_FALLBACK;
-    const rect = anchorRect ?? { left: vw - width - MARGIN, top: MARGIN, width: 0, height: 0 };
-    let left = rect.left;
-    let top = rect.top + rect.height + 8; // 下方优先
-    if (top + height > vh - MARGIN) top = rect.top - height - 8; // 空间不足翻上方
-    left = clamp(left, MARGIN + insets.left, vw - width - MARGIN - insets.right);
+    const minLeft = MARGIN + insets.left;
+    const maxLeft = vw - width - MARGIN - insets.right;
+    const anchored = segRect != null;
+    const cap = capsuleRect ?? { left: vw - width - MARGIN, top: MARGIN, width: 0, height: 0 };
+    const seg = segRect ?? cap;
+    // 水平推出（S8）：优先右侧 segRect.right + 8；放不下则左侧 segRect.left − width − 8
+    let left = null;
+    if (anchored) {
+      const rightLeft = seg.left + seg.width + 8;
+      const leftLeft = seg.left - width - 8;
+      if (rightLeft <= maxLeft) left = rightLeft;
+      else if (leftLeft >= minLeft) left = leftLeft;
+    }
+    let top;
+    if (left !== null) {
+      top = cap.top; // 顶边与胶囊对齐（capsuleRect.top），再钳位
+    } else {
+      // 回退（S8）：两侧都放不下 → 沿用垂直逻辑（下方优先，翻上方），锚点取 capsuleRect
+      left = cap.left;
+      top = cap.top + cap.height + 8; // 下方优先
+      if (top + height > vh - MARGIN) top = cap.top - height - 8; // 空间不足翻上方
+    }
+    left = clamp(left, minLeft, maxLeft);
     top = clamp(top, MARGIN + insets.top, vh - height - MARGIN);
     el.style.left = `${Math.round(left)}px`;
     el.style.top = `${Math.round(top)}px`;
@@ -126,11 +145,17 @@ export function createPanel({ doc, win, store, views }) {
 
   const onDocPointerDown = (event) => {
     if (!open) return;
+    let path;
     try {
-      if (event.composedPath().includes(el)) return;
+      path = event.composedPath();
     } catch {
       return; // 无法判定路径时不误关
     }
+    if (path.includes(el)) return;
+    // S6b（Q14/Q15=A）：胶囊按压不算外点，由胶囊点击完成切换；额度段按压仍是外点（不豁免）
+    const onCapsule = path.some((n) => n?.dataset?.dshStockKanbanCapsule !== undefined);
+    const onQuotaSeg = path.some((n) => n?.dataset?.seg === "quota");
+    if (onCapsule && !onQuotaSeg) return;
     close();
   };
 
@@ -240,6 +265,7 @@ export function createPanel({ doc, win, store, views }) {
     const quoteMeta = snapshot?.quoteMeta ?? {};
 
     el.hidden = !open;
+    el.classList.toggle("skc-panel--slide", open); // S9：打开时带滑入类（动画位于减少动态效果守卫内），关闭时移除
     headerMeta.textContent = quoteMeta?.error
       ? t("app.meta.error")
       : t("app.meta", { n: business.symbols.length });
@@ -296,9 +322,11 @@ export function createPanel({ doc, win, store, views }) {
 
   /* ---------------- 对外接口 ---------------- */
 
-  const openFrom = (anchor) => {
+  /** 开启并锚定：seg 为所点分区（水平推出），cap 为胶囊（顶边与垂直回退）；单参时两者同一（S8） */
+  const openFrom = (seg, cap = seg) => {
     if (disposed) return;
-    anchorRect = anchor ?? null;
+    segRect = seg ?? null;
+    capsuleRect = cap ?? null;
     open = true;
     render();
   };
@@ -315,6 +343,8 @@ export function createPanel({ doc, win, store, views }) {
   const update = (next) => {
     if (disposed) return;
     snapshot = next;
+    // S6b（Q14）：面板可见性只由局部 open 决定；store 已收起（如胶囊切换）则同步收起
+    if (next?.ui?.panelOpen === false && open) open = false;
     views.list.update(next);
     views.detail.update(next);
     if (next?.ui?.showAdd) views.add.update(next);

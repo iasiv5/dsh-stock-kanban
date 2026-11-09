@@ -22,11 +22,11 @@ function appendTargetBadges(container, target, market, quoteTime) {
   if (!target || target.status === "no-targets") return;
   if (target.buyTriggered || target.sellTriggered) {
     if (target.buyTriggered) {
-      const b = appendText(container, "skc-badge skc-badge-buy", "Ⓑ");
+      const b = appendText(container, "skc-badge skc-badge-buy", "B");
       b.title = t("detail.buy-target", { ccy: "" });
     }
     if (target.sellTriggered) {
-      const s = appendText(container, "skc-badge skc-badge-sell", "Ⓢ");
+      const s = appendText(container, "skc-badge skc-badge-sell", "S");
       s.title = t("detail.sell-target", { ccy: "" });
     }
     return;

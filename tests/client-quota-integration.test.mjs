@@ -137,7 +137,7 @@ async function setupKanban({ seed = {}, guestBeforeMount = null } = {}) {
     events,
     intervals,
     hostEl,
-    pillOf: () => q(".skc-capsule--quota"),
+    pillOf: () => q('[data-seg="quota"]'),
     stockOf: () => q(".skc-capsule[data-dsh-stock-kanban-capsule]"),
     toggleBtnOf: () => q('.skc-footer [data-action="quota-merge"]'),
     disposeOnce,
@@ -308,6 +308,32 @@ test("S5 集成 · dispose 全清：宿主移除、心跳清除；dispose 后的
       new s.h.window.CustomEvent(EV("embed-capabilities"), { detail: { v: 1, capabilities: CAPS } }),
     );
     assert.equal(countOf(s.events, "embed-engage"), before, "dispose 后不再 engage");
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("合并：额度段为胶囊子节点（父为胶囊根）", async () => {
+  const s = await setupKanban();
+  try {
+    addGuest(s.h);
+    await tick();
+    const seg = s.hostEl().shadowRoot.querySelector('[data-seg="quota"]');
+    assert.ok(seg, "额度段节点存在（HEAD：pill 无 data-seg）");
+    assert.equal(seg.parentElement, s.stockOf(), "父节点为胶囊根");
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("合并：stack 上无独立额度节点", async () => {
+  const s = await setupKanban();
+  try {
+    addGuest(s.h);
+    await tick();
+    const stack = s.hostEl().shadowRoot.querySelector(".skc-stack");
+    assert.ok(stack, "stack 在位");
+    assert.equal(stack.querySelector(".skc-capsule--quota"), null, "stack 上无独立额度节点");
   } finally {
     s.cleanup();
   }

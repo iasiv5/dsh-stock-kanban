@@ -44,7 +44,7 @@ test("tErr：已知代码本地化、未知代码原样透出、detail 附加、
 });
 
 test("quota.* 文案（合并开关 / 过期）：zh 与 en 双侧均有译文，非键名回退", () => {
-  const keys = ["quota.merge", "quota.merge.on", "quota.merge.off", "quota.stale"];
+  const keys = ["quota.merge", "quota.merge.on", "quota.merge.off", "quota.stale", "quota.outcome"];
   for (const key of keys) {
     assert.ok(DICT_KEYS.zh.includes(key), `zh 字典含 ${key}`);
     assert.ok(DICT_KEYS.en.includes(key), `en 字典含 ${key}`);
@@ -54,6 +54,30 @@ test("quota.* 文案（合并开关 / 过期）：zh 与 en 双侧均有译文�
   setLang("en");
   for (const key of keys) assert.notEqual(t(key), key, `en 非键名回退：${key}`);
   setLang("zh");
+});
+
+test("字形：详情目标价文案为拉丁 B/S，zh/en 双侧（B26）", () => {
+  setLang("zh");
+  assert.equal(t("detail.buy-target"), "买入目标价（≤ 触发 B，{ccy}）", "zh 买入目标价");
+  assert.equal(t("detail.sell-target"), "卖出目标价（≥ 触发 S，{ccy}）", "zh 卖出目标价");
+  setLang("en");
+  assert.equal(t("detail.buy-target"), "Buy target (≤ fires B, {ccy})", "en 买入目标价");
+  assert.equal(t("detail.sell-target"), "Sell target (≥ fires S, {ccy})", "en 卖出目标价");
+  setLang("zh");
+});
+
+test("文案：合并开关的 quota.merge.on/off 使用「合并胶囊」，zh/en 双侧一致（B37）", () => {
+  try {
+    setLang("zh");
+    assert.equal(t("quota.merge.on"), "quota 已并入合并胶囊（点击拆分）", "zh 合并开");
+    assert.equal(t("quota.merge.off"), "quota 独立显示（点击并入合并胶囊）", "zh 合并关");
+    setLang("en");
+    assert.equal(t("quota.merge.on"), "quota merged into the capsule (click to split)", "en 合并开");
+    assert.ok(!t("quota.merge.off").includes("capsule group"), "en 合并关不再使用 capsule group");
+    assert.equal(t("quota.merge.off"), "quota shown separately (click to merge into the capsule)", "en 合并关（精确）");
+  } finally {
+    setLang("zh");
+  }
 });
 
 test("语言缝守卫：client 源码（除 i18n.mjs）字符串字面量零 CJK——面向用户的文案必须全部经 i18n 字典", () => {

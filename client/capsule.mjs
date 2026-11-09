@@ -45,6 +45,7 @@ export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets
   let lastPoint = null;
   let suppressNextClick = false;
   let disposedDrag = false;
+  let downTarget = null; // S6：分区分流依据，由 pointerdown 记录（pointerup 不读自身 target）
 
   let dragProbe = null;
   const readInsets =
@@ -89,6 +90,7 @@ export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets
 
   const onPointerDown = (event) => {
     if (event.button !== 0) return;
+    downTarget = event.target; // S6：pointerdown 记录按下处的目标，供未拖动的 pointerup 分流
     dragging = true;
     moved = false;
     originX = event.clientX;
@@ -136,7 +138,7 @@ export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets
     unbindGesture();
     doc.body.style.userSelect = "";
     if (!moved) {
-      onTap(); // 点击（未拖动的 pointerup）
+      onTap(downTarget); // 点击（未拖动的 pointerup）：分流依据是 pointerdown 的目标（S6），不读 pointerup 的 target
       return;
     }
     const point = clampFrame(
@@ -200,10 +202,15 @@ function titlebarInset(win, doc) {
   }
 }
 
-export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel }) {
+export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel, onQuotaTap }) {
   const host = shadow.host;
-  const toggle = () =>
-    typeof onTogglePanel === "function" ? onTogglePanel() : store?.togglePanel?.();
+  /** 股票面板切换：传股票段矩形与胶囊矩形（S6；S8 据此定位，本步 capsuleRect 原样透传） */
+  const toggle = (segRect) =>
+    typeof onTogglePanel === "function"
+      ? onTogglePanel(segRect, el.getBoundingClientRect())
+      : store?.togglePanel?.();
+  /** 股票段矩形（无股票段时回退胶囊根）：轻点分流与键盘路径共用（S6） */
+  const stockRect = () => (el.querySelector('[data-seg="stock"]') ?? el).getBoundingClientRect();
   let disposed = false;
 
   /* ------------------------------------------------ DOM 构建 */
@@ -217,19 +224,22 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
   el.setAttribute("aria-expanded", "false");
   const markBuy = doc.createElement("span");
   markBuy.className = "skc-capsule-mark skc-mark-buy";
-  markBuy.textContent = "Ⓑ";
+  markBuy.textContent = "B";
   const markSell = doc.createElement("span");
   markSell.className = "skc-capsule-mark skc-mark-sell";
-  markSell.textContent = "Ⓢ";
+  markSell.textContent = "S";
   const nameEl = doc.createElement("span");
-  nameEl.className = "skc-capsule-name";
+  nameEl.className = "skc-capsule-name skc-stock-name";
   const priceEl = doc.createElement("span");
   priceEl.className = "skc-capsule-price skc-flat";
   const pctEl = doc.createElement("span");
   pctEl.className = "skc-capsule-pct skc-flat";
   markBuy.hidden = true;
   markSell.hidden = true;
-  el.append(markBuy, markSell, nameEl, priceEl, pctEl);
+  const stockSeg = doc.createElement("div"); // S5：股票内容包进股票段（与额度段并列于胶囊根）
+  stockSeg.setAttribute("data-seg", "stock");
+  stockSeg.append(markBuy, markSell, nameEl, priceEl, pctEl);
+  el.append(stockSeg);
 
   /* ------------------------------------------------ insets 探针（safe-area + 标题栏带） */
 
@@ -306,17 +316,29 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
 
   /* ------------------------------------------------ 拖拽管线（S3 共享化：attachFloatDrag） */
 
-  const dragCtl = attachFloatDrag({ el, host, doc, win, storage, onTap: toggle, readInsets });
+  /** 轻点分流（S6，ADR 0003 第 4 条）：命中额度段 → 注入的 onQuotaTap；否则股票 toggle 并传股票段矩形 */
+  const routeTap = (target) => {
+    if (target?.closest?.('[data-seg="quota"]')) {
+      if (typeof onQuotaTap === "function") onQuotaTap();
+      return;
+    }
+    toggle(stockRect());
+  };
+  const dragCtl = attachFloatDrag({ el, host, doc, win, storage, onTap: routeTap, readInsets });
 
   const onKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      toggle();
+      toggle(stockRect());
     }
   };
 
-  /** 窗口变化：重测 insets 钳回可视区（仅视觉，不回写存储） */
+  /** 窄屏降级（B30，ADR 0003 第 6 条）：视口 ≤480 时胶囊带 skc-compact（隐藏股票名称，保留价格与涨跌） */
+  const syncCompact = () => el.classList.toggle("skc-compact", viewportOf().width <= 480);
+
+  /** 窗口变化：重测 insets 钳回可视区（仅视觉，不回写存储）；窄屏类随视口同步 */
   const onResize = () => {
+    syncCompact();
     const viewport = viewportOf();
     const size = measureSize();
     const insets = readInsets();
@@ -336,6 +358,7 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel 
   // .skc-stack 后 host 才有可测内容——空 host 的真实 rect 是 0，首挂定位
   // 会错误地走 38×26 回退。stack 缺席时（单元测试）落 shadow root。
   (shadow.querySelector(".skc-stack") ?? shadow).append(el);
+  syncCompact();
   applyPosition();
 
   /* ------------------------------------------------ 快照渲染 */

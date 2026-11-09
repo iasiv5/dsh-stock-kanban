@@ -16,8 +16,8 @@ const GUEST_SELECTOR = "[data-dsh-quota-watch-float]";
 const OVERVIEW_URL = "api/dsh-quota-watch/overview";
 const REQUIRED_CAPABILITIES = ["hide-pill", "anchored-panel"];
 
-import { attachFloatDrag } from "./capsule.mjs";
 import { t } from "./i18n.mjs";
+import { quotaSegmentModel } from "./quota-segment.mjs";
 
 function glmPercent(provider) {
   if (provider?.status === "missing" || provider?.status === "error") return undefined;
@@ -41,11 +41,52 @@ function formatPercent(value) {
   return `${rounded}%`;
 }
 
+/**
+ * open-panel 锚点矩形（S2）：tap 派发统一经此构造，含 right / bottom
+ * （ADR 0003 第 7 条：锚点补充字段，接收方忽略未知字段）。
+ */
+export function buildAnchorRect({ left, top, width, height }) {
+  return { left, top, width, height, right: left + width, bottom: top + height };
+}
+
+/**
+ * 段落地（S4，ADR 0003 第 3 条）：只把 quotaSegmentModel 的结果写入 DOM，不做判断。
+ * segEl 须含 .skc-qseg-divider / .skc-qseg-bars / .skc-qdot / .skc-qseg-tip（由 createQuotaEmbed 构造）。
+ */
+export function renderSegment(segEl, model) {
+  const doc = segEl.ownerDocument;
+  const divider = segEl.querySelector(".skc-qseg-divider");
+  const bars = segEl.querySelector(".skc-qseg-bars");
+  const dot = segEl.querySelector(".skc-qdot");
+  const tip = segEl.querySelector(".skc-qseg-tip");
+  segEl.hidden = !model.segment;
+  divider.hidden = !model.divider;
+  dot.hidden = !model.dot;
+  bars.classList.toggle("skc-qseg-single", model.bars.length === 1);
+  bars.replaceChildren(
+    ...model.bars.map((b) => {
+      const row = doc.createElement("div");
+      row.className = "skc-qbar";
+      if (b.stale) row.style.opacity = "0.5";
+      const fill = doc.createElement("i");
+      fill.className = "skc-qbar-fill";
+      fill.dataset.tone = b.tone;
+      fill.dataset.key = b.key;
+      fill.style.width = `${Math.max(0, Math.min(100, b.percent))}%`;
+      row.append(fill);
+      return row;
+    }),
+  );
+  tip.textContent = model.tooltip.map((x) => `${x.label} ${formatPercent(x.percent)}`).join(" · ");
+  segEl.classList.toggle("skc-qpulse", model.bars.some((b) => b.tone === "danger"));
+  return model;
+}
+
 export function createQuotaEmbed({
   doc,
   win,
   storage,
-  stack,
+  target,
   host,
   fetchImpl = fetch,
   probeTimeoutMs = 500,
@@ -64,27 +105,26 @@ export function createQuotaEmbed({
   let heartTimer = null;
   let pollTimer = null;
 
-  /* ---------------- pill（解剖继承：skc-capsule + --quota 覆写） ---------------- */
+  /* ---------------- 段（S5：段即根，直接并入胶囊） ---------------- */
 
-  const el = doc.createElement("div");
-  el.className = "skc-capsule skc-capsule--quota";
+  const el = doc.createElement("div"); // S5：段即根（pill 容器已拆除；承接原 pill 的 role/tabIndex/aria 属性）
+  el.className = "skc-qseg";
+  el.setAttribute("data-seg", "quota");
   el.setAttribute("data-dsh-stock-kanban-quota", "");
   el.setAttribute("role", "button");
   el.tabIndex = 0;
   el.setAttribute("aria-haspopup", "dialog");
   el.setAttribute("aria-expanded", "false");
   el.hidden = true;
-  const glmSpan = doc.createElement("span");
-  glmSpan.className = "skc-qval";
-  glmSpan.hidden = true;
-  const sepSpan = doc.createElement("span");
-  sepSpan.className = "skc-qsep";
-  sepSpan.textContent = "·";
-  sepSpan.hidden = true;
-  const copilotSpan = doc.createElement("span");
-  copilotSpan.className = "skc-qval";
-  copilotSpan.hidden = true;
-  el.append(glmSpan, sepSpan, copilotSpan);
+  const divider = doc.createElement("span");
+  divider.className = "skc-qseg-divider";
+  const bars = doc.createElement("div");
+  bars.className = "skc-qseg-bars";
+  const dot = doc.createElement("span");
+  dot.className = "skc-qdot";
+  const tip = doc.createElement("div");
+  tip.className = "skc-qseg-tip";
+  el.append(divider, bars, dot, tip);
 
   const dispatch = (type, detail) => {
     try {
@@ -102,28 +142,20 @@ export function createQuotaEmbed({
 
   /* ---------------- 渲染（warn >80≤95 / danger >95 / pulse >95） ---------------- */
 
-  const paintValue = (span, percent) => {
-    const visible = typeof percent === "number" && Number.isFinite(percent);
-    span.hidden = !visible;
-    if (!visible) return false;
-    span.textContent = `${span.dataset.label} ${formatPercent(percent)}`;
-    span.classList.toggle("skc-qwarn", percent > 80 && percent <= 95);
-    span.classList.toggle("skc-qdanger", percent > 95);
-    return true;
-  };
-
   const paintOverview = (data) => {
     const providers = Array.isArray(data?.providers) ? data.providers : [];
-    const glm = glmPercent(providers.find((p) => p?.key === "glm"));
-    const copilot = copilotPercent(providers.find((p) => p?.key === "copilot"));
-    glmSpan.dataset.label = "GLM";
-    copilotSpan.dataset.label = "Copilot";
-    const glmShown = paintValue(glmSpan, glm);
-    const copilotShown = paintValue(copilotSpan, copilot);
-    sepSpan.hidden = !(glmShown && copilotShown);
-    const anyDanger = [glm, copilot].some((p) => typeof p === "number" && p > 95);
-    el.classList.toggle("skc-qpulse", anyDanger);
-    el.hidden = !(glmShown || copilotShown);
+    const glmProv = providers.find((p) => p?.key === "glm");
+    const copilotProv = providers.find((p) => p?.key === "copilot");
+    const model = renderSegment(
+      el,
+      quotaSegmentModel({
+        glm: { percent: glmPercent(glmProv), stale: glmProv?.status === "stale" },
+        copilot: { percent: copilotPercent(copilotProv), stale: copilotProv?.status === "stale" },
+        outcomePending: data?.manualOutcome !== undefined || data?.manualOutcomeError !== undefined, // 待处理派生（与 qw client 同规则）
+      }),
+    );
+    el.removeAttribute("title");
+    if (model.bars.some((b) => b.stale)) el.title = t("quota.stale"); // 过期 title 落在段（S5）
   };
 
   /* ---------------- 拉取循环 ---------------- */
@@ -151,7 +183,6 @@ export function createQuotaEmbed({
       const data = await res.json();
       if (disposed || !engaged) return;
       paintOverview(data);
-      el.removeAttribute("title"); // 拉取恢复：清除过期提示
       schedulePoll(pollMs);
     } catch {
       // 传输错误：保留上次渲染，正常节奏重试（与访客自身语义一致）；pill 标注过期（quota.stale）
@@ -172,7 +203,7 @@ export function createQuotaEmbed({
   const startEngage = () => {
     if (engaged || !capable || !enabled || disposed || !guestEl) return;
     engaged = true;
-    stack.append(el);
+    target.append(el);
     el.setAttribute("aria-expanded", "false");
     dispatch("embed-engage", { v: 1 });
     armHeartbeat();
@@ -268,33 +299,30 @@ export function createQuotaEmbed({
     applyEnabled(next === true);
   };
 
-  const onTapOpen = () => {
+  const onQuotaTap = () => {
     if (!engaged) return;
     let rect = el.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) rect = host.getBoundingClientRect();
-    const anchor = {
+    const anchor = buildAnchorRect({
       left: rect.left ?? 0,
       top: rect.top ?? 0,
       width: rect.width ?? 0,
       height: rect.height ?? 0,
-    };
+    });
     dispatch("open-panel", { v: 1, anchor });
   };
 
-  // 组拖动（S3）：与 stock 胶囊共享 attachFloatDrag——拖 = 移动 host、落同一
-  // 位置记忆键；tap（非拖动）→ 派发 open-panel。
-  const dragCtl = attachFloatDrag({ el, host, doc, win, storage, onTap: onTapOpen });
+  // S5：组拖动与 tap 路由已移交胶囊控制器（onTap(downTarget)，S6 装配）；此处只暴露 onQuotaTap。
 
   const dispose = () => {
     if (disposed) return;
     disposed = true;
     observer.disconnect();
     if (probeTimer !== null) win.clearTimeout(probeTimer);
-    stopEngage(false);
-    dragCtl.dispose();
+    stopEngage(true); // 拆除补发 embed-disengage（S2，ADR 0003 第 7 条）
     win.removeEventListener(`${NS}:embed-capabilities`, onCapabilities);
     el.remove();
   };
 
-  return { el, update, setEnabled, dispose };
+  return { el, update, setEnabled, onQuotaTap, dispose };
 }
