@@ -223,7 +223,7 @@
   - Run: `set -o pipefail && node --test --test-name-pattern="合并：" tests/client-quota-integration.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
   - Expected: `ℹ tests 2`、`ℹ pass 0`、`ℹ fail 2`。
 - [ ] Step 2：实现与迁移
-  - Change: 按上面的修改清单执行。追加：基础样式（`client/styles.mjs`，append-only）：`.skc-capsule [data-seg="stock"]{display:inline-flex;align-items:center;gap:6px}`；段承接原 pill 的 `role="button"`、`tabIndex=0`、`aria-haspopup="dialog"`、`aria-expanded`（属性迁移，计数不变；键盘激活属 HEAD 既有缺口，记入 S13 已知缺口）。中间态（已知，不提交）：S5 之后、S6 之前，额度段点击走股票 toggle，由 S6 修复。
+  - Change: 按上面的修改清单执行。追加：基础样式（`client/styles.mjs`，append-only）：`.skc-capsule [data-seg="stock"]{display:inline-flex;align-items:center;gap:6px}`；段承接原 pill 的 `role="button"`、`tabIndex=0`、`aria-haspopup="dialog"`、`aria-expanded`（属性迁移，计数不变；键盘激活属 HEAD 既有缺口，记入 S13 已知缺口）。中间态（已知，不提交）：S5 之后、S6 之前，额度段点击走股票 toggle，由 S6 修复。光标规则（v5.7 追加，append-only，计数不变）：`[data-seg="quota"]{cursor:pointer}`，补偿 HEAD 的 `.skc-capsule--quota{cursor:pointer}` 随 pill 类消失造成的光标回归；旧规则保留未删（client-dom 既有断言依赖它，现为死规则）。
   - Run: `set -o pipefail && npm test 2>&1 | tee /home/ubuntu/workspace/.dsh-research/merged-capsule-impl/sk-s5-full.log | grep -E "^ℹ (pass|fail)"`
   - Expected: `ℹ fail 0`；`ℹ pass` 等于前一步全量（迁移不增减用例）。
 
@@ -235,12 +235,12 @@
 - 验证范围：六条精确命名用例。
 
 - [ ] Step 1：写用例（先红）
-  - Change: 六条，名字精确为：「分区：额度段轻点 → 股票 toggle 0 次、open-panel 1 次」、「分区：股票段轻点 → 股票 toggle 1 次且带股票段矩形、open-panel 0 次」、「分区：pointerdown 在额度段、pointerup 在胶囊根 → 仍按额度段处理」、「分区：拖拽释放 → 不触发任何 tap」、「分区：键盘 Enter 开股票面板时带股票段矩形」、「锚点：onQuotaTap 与 onTapOpen 同一构造函数（含 right/bottom）」。第 6 条与 S2 同属 tests/client-quota-embed.test.mjs，同样使用命名空间导入 `qe`，不得具名导入 `buildAnchorRect`。
+  - Change: 六条，名字精确为：「分区：额度段轻点 → 股票 toggle 0 次、open-panel 1 次」、「分区：股票段轻点 → 股票 toggle 1 次且带股票段矩形、open-panel 0 次」、「分区：pointerdown 在额度段、pointerup 在胶囊根 → 仍按额度段处理」、「分区：拖拽释放 → 不触发任何 tap」、「分区：键盘 Enter 开股票面板时带股票段矩形」、「锚点：onQuotaTap 的 open-panel 锚点含 right/bottom（与 buildAnchorRect 一致）」（v5.7 改名：onTapOpen 已由 S5 删除；该条在 S5 之后即绿，作为回归守卫）。第 6 条与 S2 同属 tests/client-quota-embed.test.mjs，同样使用命名空间导入 `qe`，不得具名导入 `buildAnchorRect`。
   - Run: `set -o pipefail && node --test --test-name-pattern="分区：|锚点：onQuotaTap" tests/client-dom.test.mjs tests/client-quota-embed.test.mjs 2>&1 | grep -E "^ℹ (tests|pass|fail)"`
-  - Expected: `ℹ tests 6`、`ℹ pass 1`、`ℹ fail 5`。红灯为第 1、2、3、5、6 条（第 2 条断言「带股票段矩形」：HEAD 上 onTogglePanel() 不带参数，必红）；绿灯仅第 4 条（拖拽释放不触发任何 tap）。若实测不符，停下报告。
+  - Expected（v5.7，以 S5 之后的基线为准）：focused `ℹ tests 6`、`ℹ pass 2`、`ℹ fail 4`；红灯为第 1、2、3、5 条（额度段轻点的股票 toggle 次数；股票段轻点带矩形；pointerdown 在段、pointerup 在根；键盘 Enter 带矩形）；绿灯为第 4 条（拖拽释放不触发任何 tap）与第 6 条（锚点守卫）；全量 `ℹ tests 177`、`ℹ pass 173`、`ℹ fail 4`。若实测不符，停下报告。
 - [ ] Step 2：实现并转绿
   - Run: 同 Step 1；再 `npm test` 全量。
-  - Expected: `ℹ tests 6`、`ℹ pass 6`、`ℹ fail 0`；全量 `ℹ fail 0`。
+  - Expected: `ℹ tests 6`、`ℹ pass 6`、`ℹ fail 0`；全量 `ℹ tests 177`、`ℹ pass 177`、`ℹ fail 0`。
 
 #### Task S6b：面板开着时再点胶囊 → 最终关闭（Q14，已由主人确认）
 
