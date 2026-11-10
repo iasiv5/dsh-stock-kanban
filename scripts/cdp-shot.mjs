@@ -112,13 +112,6 @@ const capturePng = async (params, tries = 3) => {
 };
 const stamp = new Date().toISOString().slice(0, 16).replaceAll(":", "").replace("-", "");
 mkdirSync(outDir, { recursive: true });
-const shot = async (name) => {
-  await sendRetry("Page.bringToFront").catch(() => {});
-  const data = await capturePng({ format: "png", fromSurface: true, captureBeyondViewport: false });
-  const path = `${outDir}/${stamp}-${name}.png`;
-  writeFileSync(path, Buffer.from(data, "base64"));
-  console.log("shot:", path);
-};
 // 元素裁剪截图（README/市场用图）：只拍插件面自己，不带出宿主工作区（2026-11-10 实拍教训：
 // 全屏截图把会话名/其他插件全拍进去了）。pad=元素外扩像素，scale=2 retina 采样。
 const shotEl = async (name, selector, pad = 12) => {

@@ -22,6 +22,12 @@ const result = await esbuild.build({
 
 const body = result.outputFiles[0].text;
 
+// 版本注入断言（2026-11-10 retro）：define 链路断了会静默回落 "dev"（设置页版本号错），
+// 在构建期就炸出来。
+if (!body.includes(`APP_VERSION = true ? "${version}"`)) {
+  throw new Error(`build: 版本注入断言失败（期望 ${version}）——esbuild define 链路异常`);
+}
+
 const output = "window.__ModuleLoader__.load({\n"
   + '\tid: "dsh-stock-kanban",\n'
   + "\tfactory: (require) => {\n"
