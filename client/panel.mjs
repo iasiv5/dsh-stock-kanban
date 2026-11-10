@@ -30,6 +30,7 @@ export function createPanel({ doc, win, store, views }) {
   let safeProbe = null;
   let snapshot = null;
   let addWasShown = false; // 添加对话框上升沿：交给 add 视图聚焦搜索框
+  let prevToast = null; // toast 轻路径参照（渲染切片广播 Task 4：引用比对，quotes-only tick 也能刷新）
 
   const el = doc.createElement("div");
   el.className = "skc-panel";
@@ -328,6 +329,15 @@ export function createPanel({ doc, win, store, views }) {
 
   /* ---------------- 渲染 ---------------- */
 
+  /** toast 轻路径：引用比对，变化才写节点（structural render 也复用它保持 prevToast 同步） */
+  const patchToast = () => {
+    const t = snapshot?.toast ?? null;
+    if (t === prevToast) return;
+    prevToast = t;
+    toast.hidden = !t;
+    if (t) toast.textContent = t.text;
+  };
+
   const render = () => {
     if (disposed) return;
     const ui = snapshot?.ui ?? {};
@@ -400,8 +410,7 @@ export function createPanel({ doc, win, store, views }) {
     if (ui.showAdd && !addWasShown) views.add.onOpen?.();
     addWasShown = Boolean(ui.showAdd);
 
-    toast.hidden = !snapshot?.toast;
-    if (snapshot?.toast) toast.textContent = snapshot.toast.text;
+    patchToast();
 
     if (open) placePanel();
     refreshScrollCues();
@@ -427,8 +436,12 @@ export function createPanel({ doc, win, store, views }) {
 
   const isOpen = () => open;
 
+  /** chrome 结构键（渲染切片广播 Task 4）：这些 ui 键 / business / quoteMetaError / 全量 才重建 chrome */
+  const STRUCTURAL_UI_KEYS = ["panelOpen", "view", "showAdd", "showSettings", "lastMarket", "capsuleSymbolId", "quotaCapable", "quotaMerge"];
+
   const update = (next) => {
     if (disposed) return;
+    const changed = next?.changed; // undefined = 全量（回放/语言切换/旧快照）
     snapshot = next;
     // S6b（Q14）：面板可见性只由局部 open 决定；store 已收起（如胶囊切换）则同步收起
     if (next?.ui?.panelOpen === false && open) open = false;
@@ -436,6 +449,12 @@ export function createPanel({ doc, win, store, views }) {
     views.detail.update(next);
     if (next?.ui?.showAdd) views.add.update(next);
     if (next?.ui?.showSettings) views.backup.update(next);
+    patchToast(); // toast 轻路径：不依赖 structural（空切片 emit 也能显示/清除）
+    const structural = changed === undefined
+      || changed.business === true
+      || changed.quoteMetaError === true
+      || (Array.isArray(changed.ui) ? changed.ui.some((k) => STRUCTURAL_UI_KEYS.includes(k)) : true);
+    if (!structural) return; // quotes-only tick：chrome 不重建、placePanel/refreshScrollCues 布局读链不跑
     render();
   };
 

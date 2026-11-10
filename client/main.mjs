@@ -100,13 +100,18 @@ export function mountKanban({ doc, win, storage }) {
   /* ---------------- renderAll 漏斗 ---------------- */
 
   let wasOpen = false;
+  let prevQuoteError; // errorGlobal 轻路径参照（渲染切片广播 Task 4：按 quoteMetaError 分片门控）
   const renderAll = (snapshot) => {
     capsule.update(snapshot);
     quotaEmbed.update(snapshot);
     panel.update(snapshot);
-    const quoteError = snapshot?.quoteMeta?.error;
-    errorGlobal.textContent = quoteError ? t("app.quote-failed", { e: quoteError }) : "";
-    errorGlobal.hidden = !quoteError;
+    // quotes-only tick 不重写全局错误条（undefined = 全量时照写：回放/语言切换路径）
+    const quoteError = snapshot?.quoteMeta?.error ?? null;
+    if (snapshot?.changed === undefined || quoteError !== prevQuoteError) {
+      errorGlobal.textContent = quoteError ? t("app.quote-failed", { e: quoteError }) : "";
+      errorGlobal.hidden = !quoteError;
+      prevQuoteError = quoteError;
+    }
     // 面板开启瞬间：以所点股票段矩形（水平推出）与胶囊矩形（顶边/回退）锚定；无记录时回退胶囊矩形
     const isOpenNow = snapshot?.ui?.panelOpen === true;
     if (isOpenNow && !wasOpen) {

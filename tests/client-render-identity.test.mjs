@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { createDomHarness } from "./helpers/dom-harness.mjs";
 import { createList } from "../client/list.mjs";
 import { createDetail } from "../client/detail.mjs";
+import { createPanel } from "../client/panel.mjs";
 
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -186,6 +187,110 @@ test("detail · list 视图 quotes tick → detail 层 DOM 不动（空转早退
     assert.equal(fixture.detail.el.firstChild, node0, "list 视图 tick 不触 detail DOM（不再白做空态重建）");
   } finally {
     fixture?.cleanup();
+    h.cleanup();
+  }
+});
+
+/* ---------------- panel（Task 4：chrome 门控 + toast 轻路径） ---------------- */
+
+const PANEL_SYMBOLS = [
+  { id: "c1", market: "cn", code: "c1", name: "标的c1", quantity: null, avgCost: null, buyTarget: null, sellTarget: null, addedAt: "2026-01-01T00:00:00.000Z", sort: 100 },
+  { id: "c2", market: "cn", code: "c2", name: "标的c2", quantity: null, avgCost: null, buyTarget: null, sellTarget: null, addedAt: "2026-01-01T00:00:00.000Z", sort: 200 },
+  { id: "h1", market: "hk", code: "h1", name: "标的h1", quantity: null, avgCost: null, buyTarget: null, sellTarget: null, addedAt: "2026-01-01T00:00:00.000Z", sort: 100 },
+  { id: "u1", market: "us", code: "u1", name: "标的u1", quantity: null, avgCost: null, buyTarget: null, sellTarget: null, addedAt: "2026-01-01T00:00:00.000Z", sort: 200 },
+  { id: "x1", market: "crypto", code: "x1", name: "标的x1", quantity: null, avgCost: null, buyTarget: null, sellTarget: null, addedAt: "2026-01-01T00:00:00.000Z", sort: 100 },
+];
+
+const PANEL_SNAP = (overrides = {}) => SNAPB({
+  business: { rev: 1, settings: { privacyMode: false }, symbols: PANEL_SYMBOLS, driverKind: null, loaded: true },
+  ui: { ...SNAPB().ui, capsuleSymbolId: "c1" },
+  ...overrides,
+});
+
+const panelChanged = (over = {}) => ({ quotes: new Set(), business: false, ui: [], quoteMetaError: false, ...over });
+
+function setupPanelFixture(h) {
+  h.setViewport(h.window, 1024, 768);
+  const host = h.document.createElement("div");
+  h.document.body.append(host);
+  const shadow = host.attachShadow({ mode: "open" });
+  const stubView = () => ({ el: h.document.createElement("div"), update() {}, dispose() {} });
+  const store = {
+    closePanel() {}, setCapsuleSymbol() {}, setPrivacy() {}, setShowAdd() {},
+    setShowSettings() {}, pollQuotes() {}, setQuotaMerge() {}, setHoldingsOnly() {},
+  };
+  const views = { list: stubView(), detail: stubView(), add: stubView(), backup: stubView() };
+  const panel = createPanel({ doc: h.document, win: h.window, store, views });
+  shadow.append(panel.el);
+  panel.openFrom({ left: 10, top: 10, width: 70, height: 26 });
+  return { panel, host };
+}
+
+const pickerOptions = (panel) => [...panel.el.querySelectorAll("select.skc-select option")];
+
+test("panel · quotes-only tick：picker option 节点身份不变（chrome 不随行情重建）", () => {
+  const h = createDomHarness();
+  let fx = null;
+  try {
+    fx = setupPanelFixture(h);
+    fx.panel.update(PANEL_SNAP());
+    const opts1 = pickerOptions(fx.panel);
+    assert.equal(opts1.length, 5, "前置：5 个 option（无数据市场不建组）");
+    fx.panel.update(PANEL_SNAP({
+      business: PANEL_SNAP().business, // 同引用：结构未变
+      quotes: { c1: { id: "c1", status: "ok", price: 1, changePercent: 0, name: "标的c1", quoteTime: "15:00:00", fetchedAt: 1 } },
+      changed: panelChanged({ quotes: new Set(["c1"]) }),
+    }));
+    const opts2 = pickerOptions(fx.panel);
+    assert.equal(opts2.length, opts1.length, "tick 后 option 数不变");
+    assert.equal(opts2.every((o, i) => o === opts1[i]), true, "option 节点身份不变（不随行情 tick 重建）");
+  } finally {
+    fx?.panel.dispose();
+    fx?.host.remove();
+    h.cleanup();
+  }
+});
+
+test("panel · business 变化 → picker 整段重建且序 = A-H-U-C + sort 升序", () => {
+  const h = createDomHarness();
+  let fx = null;
+  try {
+    fx = setupPanelFixture(h);
+    fx.panel.update(PANEL_SNAP());
+    const opts1 = pickerOptions(fx.panel);
+    const biz2 = { ...PANEL_SNAP().business, rev: 2 };
+    fx.panel.update(PANEL_SNAP({
+      business: biz2,
+      changed: panelChanged({ business: true }),
+    }));
+    const opts2 = pickerOptions(fx.panel);
+    assert.equal(opts2.every((o, i) => o !== opts1[i]), true, "rev 变化 → picker 重建");
+    assert.deepEqual(opts2.map((o) => o.value), ["c1", "c2", "h1", "u1", "x1"], "组间 A-H-U-C、组内 sort 升序");
+  } finally {
+    fx?.panel.dispose();
+    fx?.host.remove();
+    h.cleanup();
+  }
+});
+
+test("panel · toast 轻路径：显示/清除不改 picker 节点（不依赖全 render）", () => {
+  const h = createDomHarness();
+  let fx = null;
+  try {
+    fx = setupPanelFixture(h);
+    fx.panel.update(PANEL_SNAP());
+    const opts1 = pickerOptions(fx.panel);
+    fx.panel.update(PANEL_SNAP({ toast: { text: "已保存", at: 1 }, changed: panelChanged() }));
+    const toastEl = fx.panel.el.querySelector(".skc-toast");
+    assert.equal(toastEl.hidden, false, "toast 显示（空切片 emit 也刷新）");
+    assert.equal(toastEl.textContent, "已保存");
+    fx.panel.update(PANEL_SNAP({ toast: null, changed: panelChanged() }));
+    assert.equal(toastEl.hidden, true, "toast 清除（空切片 emit 也刷新）");
+    const opts2 = pickerOptions(fx.panel);
+    assert.equal(opts2.every((o, i) => o === opts1[i]), true, "toast 全程 picker 节点身份不变");
+  } finally {
+    fx?.panel.dispose();
+    fx?.host.remove();
     h.cleanup();
   }
 });
