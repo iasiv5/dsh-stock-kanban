@@ -301,18 +301,20 @@ export function createPanel({ doc, win, store, views }) {
   /* 设置体：备份行组 + 页尾脚注（第四轮 2026-11-10：合并显示额度开关已隐藏，默认合并，不再提供设置项） */
   const settingsBody = doc.createElement("div");
   settingsBody.className = "skc-settings-body";
-  // 页尾仅保留行情延迟说明（第 9 轮：弱化为 11px）；界面偏好与数据位置说明已移入 README「数据与隐私」
-  const noteDelay = doc.createElement("div");
-  noteDelay.className = "skc-setting-footnote skc-setting-footnote--weak";
-  noteDelay.textContent = t("app.note.delay");
-  // 版本号（2026-11-10）：最安静的页尾一行，构建期注入（client/version.mjs），不参与语言切换（产品名恒拉丁）
-  const noteVersion = doc.createElement("div");
-  noteVersion.className = "skc-setting-version";
-  noteVersion.textContent = VERSION_LABEL;
-  // 页尾说明收进一组（同一区块，行距紧凑）
+  // 页尾一行制（2026-11-10）：行情延迟说明 + 版本号（· 分隔，版本段弱一档）；数据位置说明在 README「数据与隐私」
   const notes = doc.createElement("div");
   notes.className = "skc-setting-notes";
-  notes.append(noteDelay, noteVersion);
+  const noteLine = doc.createElement("div");
+  noteLine.className = "skc-setting-footnote skc-setting-footnote--weak";
+  const noteDelay = doc.createElement("span"); // render 每次 t() 重套文案（语言实时跟随）
+  const noteSep = doc.createElement("span");
+  noteSep.className = "skc-setting-notesep";
+  noteSep.textContent = "·";
+  const noteVersion = doc.createElement("span");
+  noteVersion.className = "skc-setting-version";
+  noteVersion.textContent = VERSION_LABEL; // 构建期注入（client/version.mjs），产品名恒拉丁不参与语言切换
+  noteLine.append(noteDelay, noteSep, noteVersion);
+  notes.append(noteLine);
   settingsBody.append(views.backup.el, notes);
   settingsLayer.append(settingsHead, settingsBody);
 

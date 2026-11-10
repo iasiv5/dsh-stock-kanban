@@ -276,8 +276,9 @@ export const FLOAT_STYLE_TEXT = `
 .skc-setting-footnote{font-size:12px;line-height:18px;color:var(--skc-text-2);text-wrap:balance}
 /* 弱化脚注（第 9 轮）：11px 辅助字号，颜色仍用 text-2（tertiary 在浅色主题约 3.7:1，不用于说明文字） */
 .skc-setting-footnote--weak{font-size:11px;line-height:16px}
-/* 版本号（2026-11-10）：页尾最安静一行，同脚注字号、靠透明度弱化（字号阶梯无 10px） */
-.skc-setting-version{font-size:11px;line-height:16px;color:var(--skc-text-2);opacity:.6;font-variant-numeric:tabular-nums}
+/* 页尾脚注一行制（2026-11-10）：行情说明 + 版本号同线，· 分隔弱一档 */
+.skc-setting-notesep{margin:0 5px;opacity:.5}
+.skc-setting-version{opacity:.65;font-variant-numeric:tabular-nums}
 .skc-backup{display:flex;flex-direction:column;gap:8px}
 .skc-backup-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skc-backup-actions .skc-btn{justify-content:center;width:100%}

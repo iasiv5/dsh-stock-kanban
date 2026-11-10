@@ -430,3 +430,5 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 **§12.24 追记六（同日七轮，主人实测反馈 → 已修复）**：合并胶囊额度段与 qw 独立胶囊字体不一致——sk 段继承 `.skc-capsule` 12px/常规字重，qw 本体为 `.dqw-capsule` 11px/600 + tabular-nums；修复：`.skc-qval` 钉 11px/600/tabular-nums、分隔点 `.skc-qsep` 对齐 qw opacity .5；danger 琥珀色为 B26 拍板规格（守卫钉死），不随 qw 红色，维持原样。270/270/0 全绿；detect 0 发现；client-only，刷新即生效。
 
 **§12.24 追记七（同日八轮）**：设置页页尾加入版本号——`dsh-stock-kanban v0.2.0`，位于「行情来自免费源」脚注之后；构建期 esbuild define 注入 package.json 版本（client/version.mjs，typeof 守卫使 node --test 直跑源码回落 "dev"），与发版号永不错位；样式 11px/text-2/opacity .6（字号阶梯无 10px 契约守卫生效，10px 改 11px + 透明度弱化）。270/270/0 全绿；detect 0 发现；client-only + 构建脚本改动，刷新即生效。
+
+**§12.24 追记八（同日九轮，主人反馈 → 已修复）**：设置页脚注一行制——「行情来自免费源，可能有延迟。 · dsh-stock-kanban v0.2.0」同线，中点分隔（opacity .5）+ 版本段弱一档（opacity .65）；脚注 DOM 契约更新（restyle 测试改为断言同行包含延迟文案与版本号），语言实时跟随仅作用于说明段（版本恒拉丁）。270/270/0 全绿；detect 0 发现；刷新即生效。

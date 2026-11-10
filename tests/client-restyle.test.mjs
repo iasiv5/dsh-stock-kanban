@@ -368,8 +368,9 @@ test("panel · 骨架静态文案语言实时跟随（12.9 语义在骨架化后
       };
       assert.equal(texts.title, t("app.title"), `title 跟随 ${lang}`);
       assert.equal(texts.settingsTitle, t("app.settings"), `设置标题跟随 ${lang}`);
-      assert.equal(texts.delay, t("app.note.delay"), `脚注文案跟随 ${lang}`);
-      assert.equal(panel.el.querySelectorAll(".skc-setting-footnote").length, 1, "页尾只剩行情延迟脚注");
+      assert.ok(texts.delay.includes(t("app.note.delay")), `脚注文案跟随 ${lang}`);
+      assert.ok(texts.delay.includes("dsh-stock-kanban v"), "版本号同行（一行制脚注）");
+      assert.equal(panel.el.querySelectorAll(".skc-setting-footnote").length, 1, "页尾脚注一行制");
       assert.ok(panel.el.querySelector(".skc-setting-footnote--weak"), "脚注弱化样式在位");
     }
     setLang(prevLang);
