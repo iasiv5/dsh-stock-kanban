@@ -364,12 +364,11 @@ test("panel · 骨架静态文案语言实时跟随（12.9 语义在骨架化后
       const texts = {
         title: panel.el.querySelector(".skc-title").textContent,
         settingsTitle: panel.el.querySelector(".skc-dialog--settings .skc-dialog-head .skc-section-title").textContent,
-        boundary: panel.el.querySelector(".skc-setting-hint").textContent,
+        boundary: panel.el.querySelector(".skc-setting-footnote").textContent,
       };
       assert.equal(texts.title, t("app.title"), `title 跟随 ${lang}`);
       assert.equal(texts.settingsTitle, t("app.settings"), `设置标题跟随 ${lang}`);
-      assert.equal(texts.boundary, t("app.data-boundary"), `数据边界文案跟随 ${lang}`);
-    }
+      assert.equal(texts.boundary, t("app.data-boundary"), `数据边界文案跟随 ${lang}`);    }
     setLang(prevLang);
     panel.dispose();
   } finally {

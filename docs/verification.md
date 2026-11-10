@@ -385,3 +385,20 @@ qw 侧（竞态修复，2026-11-09）：
 2. `setPanelPos` 笔误（`setUi({ panelPos })` 简写引用未定义变量）→ 面板位置自初版起从未持久化（此前 E2E 只覆盖了胶囊位置）。修复并全量自查其余 setter 无同类问题；补 `setPointerCapture` 合成事件容错。
 
 修复后实测（CDP 视口仿真）：393×852 与 360×780 下面板完整（right ≤ vw）、收起/添加/隐私按钮全部可达、添加对话框 ✕ 可见、拖拽后位置正确持久化、宽屏 1280 回归正常；67 单测全绿；截图留证存档。已随 `7cd1954` 推送。
+
+## 12.23 设置页重排——方案 B 行式设置列表（2026-11-11，主人拍板 → 已实现并验证）
+
+主人反馈设置页编排混乱（「显示」区顶上放数据边界说明、开关 label accent 高亮像链接、备份区无覆盖警示），三方案（A 分区卡片 / B 行式列表 / C 最小改动）拍板选 **B**。
+
+结构（`.skc-settings-body` 行式列表，块间 dashed 分隔）：
+1. **合并显示 quota 行**：左标签右 **switch**（`skc-switch`：34×20、track checked=brand-primary、thumb=`switch-thumb` 令牌、纯 CSS 无依赖）；`data-action="quota-merge"` 契约保留，`skc-quota-merge-on` 钉死串改着色行标签（开态 accent）；
+2. **导出备份行**：整行 `<a href="/stock-kanban/export" download>`（契约保留），副行「下载 JSON 到本机」，行尾 chevron；
+3. **导入备份行**：整行 `<button>` → 文件选择，副行「覆盖模式：替换当前全部数据」**常显警示**（原仅在确认弹层）；
+4. **页尾脚注**：数据边界说明（app.data-boundary，caption 弱化）——自「显示」区顶部迁出（它不是显示设置）；
+5. 「显示」节标题与 `settings.display`/`backup.title` 键删除（行自描述，零死键）。
+
+i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆盖新行（render 重套 t() 清单已含 merge/hint/footnote）。
+
+实施实录（一次性验证脚本抓获）：备份行 helper 误用行类名造成标签嵌套重复渲染——已修正（内层=`skc-setting-main`）。CDP DOM 契约实拍：三行（合并显示 quota/导出备份/导入备份）+ 三副行 + switch checked + 脚注 + export href 全部在位；多恢复标签页抢占截图框位问题未影响 DOM 断言（视觉观感由主人设备复核）。
+
+验证：全量 `npm test` 213/213/0；HMR 下发确认。

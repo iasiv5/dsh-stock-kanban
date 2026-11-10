@@ -264,34 +264,33 @@ export function createPanel({ doc, win, store, views }) {
   settingsClose.addEventListener("click", () => store.setShowSettings(false));
   settingsHead.append(settingsTitle, settingsSpacer, settingsClose);
 
-  /* 设置体：显示区（合并 quota 开关 + 数据边界说明，2026-11-10 自 footer 迁入） + 备份迁移区 */
+  /* 设置体：行式设置列表（方案 B，2026-11-11 拍板）——合并开关行 + 备份行组 + 页尾脚注 */
   const settingsBody = doc.createElement("div");
   settingsBody.className = "skc-settings-body";
-  const displayTitle = doc.createElement("div");
-  displayTitle.className = "skc-section-title";
-  displayTitle.textContent = t("settings.display");
-  // 合并显示 quota：仅能力在线（ui.quotaCapable）时由 render() 挂载；缺省视为开（与 store 默认一致）
+  // 合并显示 quota 行：仅能力在线（ui.quotaCapable）时由 render() 挂载；缺省视为开（与 store 默认一致）
   const mergeWrap = doc.createElement("div");
   const mergeRow = doc.createElement("label");
   mergeRow.className = "skc-setting-row";
+  const mergeLabel = doc.createElement("span");
+  mergeLabel.className = "skc-setting-label";
+  mergeLabel.textContent = t("quota.merge");
   const mergeCheck = doc.createElement("input");
   mergeCheck.type = "checkbox";
+  mergeCheck.className = "skc-switch";
   mergeCheck.dataset.action = "quota-merge";
   mergeCheck.addEventListener("change", () => {
     const on = snapshot?.ui?.quotaMerge !== false;
     store.setQuotaMerge(!on);
   });
-  const mergeLabel = doc.createElement("span");
-  mergeLabel.textContent = t("quota.merge");
-  mergeRow.append(mergeCheck, mergeLabel);
+  mergeRow.append(mergeLabel, mergeCheck);
   const mergeHint = doc.createElement("div");
-  mergeHint.className = "skc-setting-hint";
+  mergeHint.className = "skc-setting-sub";
   mergeHint.textContent = t("quota.merge.hint");
   mergeWrap.append(mergeRow, mergeHint);
   const boundaryHint = doc.createElement("div");
-  boundaryHint.className = "skc-setting-hint";
+  boundaryHint.className = "skc-setting-footnote";
   boundaryHint.textContent = t("app.data-boundary");
-  settingsBody.append(displayTitle, mergeWrap, boundaryHint, views.backup.el);
+  settingsBody.append(mergeWrap, views.backup.el, boundaryHint);
   settingsLayer.append(settingsHead, settingsBody);
 
   const toast = doc.createElement("div");
@@ -319,7 +318,6 @@ export function createPanel({ doc, win, store, views }) {
     }
     settingsClose.setAttribute("aria-label", t("app.collapse"));
     settingsTitle.textContent = t("app.settings");
-    displayTitle.textContent = t("settings.display");
     mergeLabel.textContent = t("quota.merge");
     mergeHint.textContent = t("quota.merge.hint");
     boundaryHint.textContent = t("app.data-boundary");

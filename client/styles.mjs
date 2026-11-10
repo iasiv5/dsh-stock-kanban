@@ -212,12 +212,27 @@ export const FLOAT_STYLE_TEXT = `
 .skc-backup-row{display:flex;gap:8px;margin:6px 0}
 .skc-confirm{border:1px solid color-mix(in srgb,var(--skc-danger) 36%,transparent);background:color-mix(in srgb,var(--skc-danger) 7%,transparent);border-radius:10px;padding:9px;margin:6px 0}
 
-/* 设置体（显示偏好 + 数据边界 + 备份迁移；2026-11-10 footer 精简迁入） */
-.skc-settings-body{display:flex;flex-direction:column;min-height:0}
-.skc-setting-row{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:12px;color:var(--skc-text)}
-.skc-setting-row input[type="checkbox"]{accent-color:var(--skc-accent);margin:0;width:14px;height:14px;flex:none}
-.skc-setting-row input:focus-visible{outline:2px solid color-mix(in srgb,var(--skc-accent) 55%,transparent);outline-offset:1px}
-.skc-setting-hint{color:var(--skc-cap);font-size:10px;line-height:1.5;margin:2px 0 10px}
+/* 设置体（方案 B 行式设置列表，2026-11-11）：每条设置一行（左标签+副行说明，右控件/chevron），
+   块间 dashed 分隔；开关为 DSH switch 语言（track=brand、thumb=switch-thumb 令牌） */
+.skc-settings-body{display:flex;flex-direction:column;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
+.skc-settings-body > * + *{border-top:1px dashed var(--skc-hairline-strong);padding-top:8px;margin-top:8px}
+.skc-setting-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;cursor:pointer;font-size:12px;color:var(--skc-text);width:100%;background:transparent;border:none;text-align:left;font-family:inherit}
+a.skc-setting-row,button.skc-setting-row{border-radius:8px;padding:5px 8px;margin:0 -2px;transition:background .12s var(--skc-ease)}
+a.skc-setting-row:hover,button.skc-setting-row:hover{background:var(--skc-hover)}
+a.skc-setting-row,button.skc-setting-row{text-decoration:none;color:var(--skc-text)}
+a.skc-setting-row:hover,button.skc-setting-row:hover{color:var(--skc-text)}
+button.skc-setting-row:disabled{opacity:.5;cursor:default}
+button.skc-setting-row:disabled:hover{background:transparent}
+.skc-setting-main{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.skc-setting-label{font-weight:600}
+.skc-setting-sub{font-size:10px;color:var(--skc-cap);line-height:1.4}
+.skc-setting-chev{display:flex;color:var(--skc-cap);flex:none}
+.skc-setting-footnote{font-size:10px;color:var(--skc-cap);line-height:1.5}
+.skc-switch{appearance:none;-webkit-appearance:none;flex:none;width:34px;height:20px;border-radius:999px;background:var(--skc-hairline-strong);position:relative;cursor:pointer;margin:0;transition:background .15s var(--skc-ease)}
+.skc-switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:999px;background:var(--dsw-alias-switch-thumb,#fff);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s var(--skc-ease)}
+.skc-switch:checked{background:var(--dsw-alias-brand-primary,#5b8def)}
+.skc-switch:checked::after{transform:translateX(14px)}
+.skc-switch:focus-visible{outline:2px solid color-mix(in srgb,var(--skc-accent) 55%,transparent);outline-offset:2px}
 .skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def);font-weight:600}
 
 /* 对话框（覆盖层 = 令牌叠涂地板 + blur：玻璃皮肤令牌半透明也不破可读性） */
