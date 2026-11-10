@@ -217,16 +217,17 @@ export function createPanel({ doc, win, store, views }) {
     btn.addEventListener("click", onClick);
     return btn;
   };
-  const privacyBtn = makeFooterButton("privacy", t("privacy.off"), () => {
-    const next = !(snapshot?.business?.settings?.privacyMode === true);
-    store.setPrivacy(next);
-  }, "privacy");
+  /** 持仓开关（原隐私位，2026-11-10：隐私功能自 UI 退役）：与列表筛选同源 ui.holdingsOnly */
+  const holdingsBtn = makeFooterButton("holdings", t("list.holdings-only"), () => {
+    const on = snapshot?.ui?.holdingsOnly === true;
+    store.setHoldingsOnly(!on);
+  }, "wallet");
   const addBtn = makeFooterButton("add", t("add.title"), () => store.setShowAdd(true), "plus");
   const settingsBtn = makeFooterButton("settings", t("app.settings"), () => store.setShowSettings(true), "settings");
   const refreshBtn = makeFooterButton("refresh", t("list.refresh"), () => store.pollQuotes(), "refresh");
   const closeBtn = makeFooterButton("close", t("app.collapse"), () => close(), "close");
 
-  footerMain.append(pickerLabel, footerActions, privacyBtn, addBtn, settingsBtn, refreshBtn, closeBtn);
+  footerMain.append(pickerLabel, footerActions, holdingsBtn, addBtn, settingsBtn, refreshBtn, closeBtn);
   footer.append(footerMain);
 
   // 对话框层（面板内渲染）
@@ -342,12 +343,13 @@ export function createPanel({ doc, win, store, views }) {
     }
     pickerSelect.value = symbols.some((s) => s.id === current) ? current : "";
 
-    const privacy = business.settings?.privacyMode === true;
-    privacyBtn.replaceChildren(iconEl(doc, privacy ? "privacy-off" : "privacy"));
-    privacyBtn.title = privacy ? t("privacy.on") : t("privacy.off");
-    privacyBtn.setAttribute("aria-label", privacyBtn.title);
-    privacyBtn.setAttribute("aria-pressed", privacy ? "true" : "false");
-    privacyBtn.classList.toggle("skc-privacy-on", privacy);
+    // 持仓开关（footer 第一位）：与列表筛选同源 ui.holdingsOnly，开态 accent 着色
+    // （privacyMode 为服务端兼容字段：UI 已无入口，遮挡路径仅 API 可达时惰性生效）
+    const holdingsOnly = ui.holdingsOnly === true;
+    holdingsBtn.title = t("list.holdings-only");
+    holdingsBtn.setAttribute("aria-label", t("list.holdings-only"));
+    holdingsBtn.setAttribute("aria-pressed", holdingsOnly ? "true" : "false");
+    holdingsBtn.classList.toggle("skc-toggle-on", holdingsOnly);
 
     // 合并显示 quota（设置内）：能力在线才挂载、能力消失即移除；checked 随 ui.quotaMerge
     if (ui.quotaCapable === true) {

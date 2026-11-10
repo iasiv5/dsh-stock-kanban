@@ -295,6 +295,17 @@ qw 侧（竞态修复，2026-11-09）：
 
 验证：全量 `npm test` 212/212/0（重写 client-dom footer 合并开关用例、更新 quota-integration 选择器与 checked 断言、i18n data-boundary 断言、restyle +2）；CDP 实拍——footer 钮序 `privacy,add,settings,refresh,close`、零合并钮零说明文案，设置对话框合并开关（checked=true）+ 双说明文案 + 备份区在位，截图留证；HMR 下发确认。
 
+## 12.19 隐私开关退役 + footer 持仓开关（2026-11-10，主人反馈 → 已实现并验证）
+
+主人反馈：隐私开关（实例级金额遮挡）自用无价值；建议该位置改放「只看持仓」，开时列表才显持仓信息。
+
+变更（采纳主人方案并前进一步）：
+1. **footer 隐私按钮移除**：隐私遮挡自 UI 退役。实例 `privacyMode=false`（迁移前实证，无卡死风险）；服务端 `privacyMode` 字段与 routes/校验保留兼容（无 schema 变更），展示层遮挡路径（maskIf/MASK）代码保留但仅 API 可达时惰性生效——既有隐私遮蔽测试零改动全绿。
+2. **footer 第一位 → 持仓开关**（公文包图标 `wallet` 新增 icons.mjs）：`data-action="holdings"`，aria-pressed + `.skc-toggle-on` accent 着色，与列表筛选同源 `ui.holdingsOnly`（持久偏好不变）。开态即原「只看持仓」语义：行显示盈亏金额/比例，关态显目标价徽章。
+3. **筛选栏整个退役**：「只看持仓」迁 footer 后，筛选栏只剩刷新按钮——与 footer 刷新纯重复，一并移除（Tab 下直入行区，footer 单一刷新入口）。`.skc-filterbar`/`.skc-filter` CSS 与 i18n `privacy.on/off` 键同步删除；`backup.privacy-note` 去「隐私开关不加密」从句。
+
+验证：全量 `npm test` 212/212/0（restyle footer 钮清单 privacy→holdings、icons 契约清单更新，隐私遮蔽/组合/integration 用例零改动全绿）；CDP 实拍——footer 钮序 `holdings,add,settings,refresh,close`、筛选栏零残留、持仓开关 accent 开态着色正确（截图留证，浅色主题令牌同步验证）；当前实例无持仓数据（quantity 全 null）→ 只看持仓行区为空属正确行为，盈亏行显示由既有 jsdom 用例（quantity 夹具）覆盖；HMR 下发确认。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 125 单测（vanilla 化后，12.10）+ 23 数据源探针。

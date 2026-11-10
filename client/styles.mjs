@@ -117,11 +117,7 @@ export const FLOAT_STYLE_TEXT = `
 .skc-tab-count{opacity:.65;font-size:10px;margin-left:4px;font-weight:400;font-variant-numeric:tabular-nums}
 
 /* 筛选栏 + 列表（终端密度：紧行距 + hairline 分隔 + hover/active 反馈） */
-.skc-filterbar{display:flex;align-items:center;gap:8px;padding:2px 12px 7px;border-bottom:1px solid var(--skc-hairline-soft)}
-.skc-filter{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--skc-text-2)}
-.skc-filter:hover{color:var(--skc-text)}
-.skc-filter input{accent-color:var(--skc-accent);margin:0}
-.skc-filter input:focus-visible{outline:2px solid color-mix(in srgb,var(--skc-accent) 55%,transparent);outline-offset:1px}
+/* 列表（终端密度：分段 Tab + 紧行距 + hover/active 反馈；筛选栏已退役——只看持仓在 footer） */
 .skc-listwrap{display:flex;flex-direction:column;min-height:0;flex:1}
 .skc-rows{overflow-y:auto;flex:1;padding:4px 6px 8px;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
 .skc-rows::-webkit-scrollbar{width:8px}
@@ -205,7 +201,7 @@ export const FLOAT_STYLE_TEXT = `
 .skc-icon-btn:hover{color:var(--skc-text);background:var(--skc-hover)}
 .skc-icon-btn:active{transform:scale(.94)}
 .skc-icon-btn svg{display:block}
-.skc-privacy-on{color:var(--skc-accent)}
+.skc-toggle-on{color:var(--skc-accent)}
 .skc-btn:focus-visible,.skc-icon-btn:focus-visible,.skc-tab:focus-visible,.skc-ma-chip:focus-visible,.skc-add-row:focus-visible{outline:2px solid color-mix(in srgb,var(--skc-accent) 55%,transparent);outline-offset:1px}
 .skc-row:focus-visible{outline:2px solid color-mix(in srgb,var(--skc-accent) 55%,transparent);outline-offset:-1px}
 .skc-error{color:var(--skc-danger);font-size:11px;margin-top:4px}

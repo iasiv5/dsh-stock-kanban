@@ -66,32 +66,11 @@ export function createList({ store }) {
     tabButtons.set(m, { button, countSpan });
   }
 
-  const filterEl = document.createElement("div");
-  filterEl.className = "skc-filterbar";
-  const filterLabel = document.createElement("label");
-  filterLabel.className = "skc-filter";
-  const holdingsCheckbox = document.createElement("input");
-  holdingsCheckbox.type = "checkbox";
-  holdingsCheckbox.addEventListener("change", () => {
-    store.setHoldingsOnly(holdingsCheckbox.checked);
-  });
-  const filterText = document.createTextNode(t("list.holdings-only"));
-  filterLabel.append(holdingsCheckbox, filterText);
-  const spacer = document.createElement("span");
-  spacer.className = "skc-spacer";
-  const refreshButton = document.createElement("button");
-  refreshButton.className = "skc-icon-btn";
-  refreshButton.type = "button";
-  refreshButton.append(iconEl(document, "refresh"));
-  refreshButton.title = t("list.refresh");
-  refreshButton.setAttribute("aria-label", t("list.refresh"));
-  refreshButton.addEventListener("click", () => store.pollQuotes());
-  filterEl.append(filterLabel, spacer, refreshButton);
-
+  // 筛选栏已退役（2026-11-10）：「只看持仓」迁 footer 持仓开关；刷新仅保留 footer 一处
   const rowsEl = document.createElement("div");
   rowsEl.className = "skc-rows";
 
-  el.append(tabsEl, filterEl, rowsEl);
+  el.append(tabsEl, rowsEl);
 
   const buildRow = (s, ui, quotes, privacy) => {
     const q = quotes[s.id];
@@ -181,13 +160,6 @@ export function createList({ store }) {
       countSpan.textContent = String(count);
       countSpan.hidden = count === 0;
     }
-    holdingsCheckbox.checked = ui.holdingsOnly === true;
-    if (filterText.nodeValue !== t("list.holdings-only")) filterText.nodeValue = t("list.holdings-only");
-    const refreshTitle = t("list.refresh");
-    if (refreshButton.title !== refreshTitle) {
-      refreshButton.title = refreshTitle;
-      refreshButton.setAttribute("aria-label", refreshTitle);
-    }
 
     if (market !== prevMarket && !ui.panelOpen) rowsEl.scrollTop = 0;
     prevMarket = market;
@@ -217,8 +189,6 @@ export function createList({ store }) {
     for (const { button } of tabButtons.values()) {
       button.replaceWith(button.cloneNode(true)); // 丢弃监听器
     }
-    holdingsCheckbox.replaceWith(holdingsCheckbox.cloneNode(true));
-    refreshButton.replaceWith(refreshButton.cloneNode(true));
     rowsEl.replaceChildren();
     el.remove();
   };
