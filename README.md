@@ -37,7 +37,13 @@ sudo systemctl restart deepseek-harness.service
 ```
 
 - 从源码构建客户端（如改动 client/ 后）：`npm install && npm run build`
-- 运行测试：`npm test`（148 用例，全部离线 mock，不依赖外网）
+- 运行测试：`npm test`（全离线 mock，不依赖外网；用例总数以命令输出为准）
+- 推送门禁：`git config core.hooksPath .githooks`（clone 后一次性配置；pre-push 跑全套 `npm test`）
+
+**界面设计**：客户端按「克制金融终端 × DSH 表面阶梯」设计——全部取 `--dsw-alias-*`
+主题令牌（真实存在的 border-l1..l3 / bg-layer-2..3 / interactive-bg-* / state-* 阶梯，
+随 DSH 主题与皮肤实时切换），线性 SVG 图标系统，tabular 数字；功能清单与设计契约见
+`docs/ui-redesign.md`。
 
 **验证插件已激活**：浏览器打开 DSH → 应看到右下角"盯盘"胶囊；或 `curl http://<dsh>/stock-kanban/health` 返回 `{"driver":...}`。
 

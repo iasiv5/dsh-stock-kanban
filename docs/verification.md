@@ -2,7 +2,7 @@
 
 ## 12.1 核心逻辑（自动化，全部通过）
 
-`npm test` → node --test 93 用例 / 93 通过 / 0 失败（Node v24.20.0，2026-11-09；含类名缝守卫与设置态渲染新增 4 用例，见 12.6/12.7）。
+`npm test`（node --test，全离线 mock）的**实时用例总数以命令输出为准，本文件不缓存数字**——README/此处曾三次过期（148→207→208 一日内，2026-11-10 retro 立规）。本节覆盖面清单为 2026-11-09 时点；其后新增的覆盖面见 12.11/12.13/12.16。
 
 | 覆盖点 | 用例位置 |
 |---|---|
@@ -59,6 +59,8 @@
 | 1. Windows 本机 desktop profile | **未验证** | 本机无 Windows 环境。插件已声明 `dsh.engines.dsh >=0.2.2-rc.1`，不依赖 webRuntime（0.2.1-rc.2 起移除项）；存储优先走 DSH storage hub，desktop 若无该服务自动回退文件驱动（health.driver 可查）。复现步骤：desktop 安装包后 `dsh plugin --profile desktop add <tarball>`，重启 desktop，确认胶囊与健康路由。 |
 
 ## 12.5 客户端契约测试（2026-11-08）
+
+> **⚠ 已退役（2026-11-09，随 §12.10 vanilla 化）**：本节所述 `tests/client-contract.test.mjs`（React 浅渲染契约面）已删除，类名缝守卫未重建（缺口见 §12.11「已知缺口」）。本节仅作历史记录，勿当现行守卫引用。
 
 插槽契约（GLOSSARY「插槽契约」：bundle 挂载并完整渲染零未解析引用、转发 props 与快照形状一致）由 `tests/client-contract.test.mjs` 执有，9 用例全绿（全量 93/93）。机制：fake-slots 走真实 `apply()` 接缝取渲染函数，react 经 node:module resolve 钩子映射假实现（零新依赖、零 DOM harness），四态 UI 经 localStorage 种子走生产 `loadUi` 真实路径。
 
@@ -249,6 +251,20 @@ qw 侧（竞态修复，2026-11-09）：
 4. **先 sk 后 qw**（启用 qw）：qw 到场即隐藏、合并胶囊原位不动（宽 146→283 重钳左移 5px，右缘距视口 8px）✓
 拖动镜像：拖合并胶囊后双键逐字节相等 ✓；全程 console error 0 ✓。
 探针实录教训：SIGKILL 会输掉 localStorage 异步落盘——探针改 `Browser.close` 优雅退出（首跑场景 1 坐标因此丢失重跑）。
+
+## 12.16 UI 优雅化重构 + impeccable polish + 实拍守卫工具（2026-11-10）
+
+全案与决策记录：`docs/ui-redesign.md`（功能清单/设计现状/令牌修正/钉死契约串/Round 2 记录）。要点：
+
+- **样式层重写**（保留 client-dom.test.mjs 钉死的全部 CSS 契约串）：修正 4 个失效令牌（`border-secondary`/`bg-elevated`/`bg-hover`/`label-warning` 不存在于 DSH 主题，恒走硬编码回退），换真实 alias 阶梯；footer emoji 字形（👁⚙⟳⊞✕）全换 `client/icons.mjs` 线性 SVG；分段 Tab、ghost/soft-primary/danger 按钮体系、品牌点头部（行情异常转警示红）。
+- **impeccable polish**（craft-floor/operate 清单）：`::selection`/`caret-color` 主题化、`.skc-btn:disabled` 补齐、图表加载改 shimmer 骨架（reduced-motion 守卫内）、教学式空态、列表行键盘可达（tabIndex + Enter/Space）、toast `role="status"`、图标钮 `aria-label`。
+- **图表主题跟随**：轴文字/昨收线走 `style` 属性 + `var(--dsw-alias-label-tertiary)`（SVG 表现属性吃不到 var()）；MA5 `#e8e8e8`（深底遗产、浅色不可读）改 `#94a3b8`。
+
+**实拍抓获的存在性 bug（hidden 击穿）**：`.skc-layer{display:flex}` 作者优先级压过 UA `[hidden]{display:none}`——列表视图下详情覆盖层恒渲染、详情视图下列表层不隐藏（双层叠渲染）。vanilla 重写（12.10）引入、jsdom 不做 CSS 级联故全量绿也测不出，存活 1 天后由 CDP 截图人眼复核抓获。修复：`:host [hidden]{display:none !important}` 全局守卫（唯一 important；样式串已入 client-restyle.test.mjs 回归钉）。**教训：hidden 属性存在 ≠ 实际渲染；渲染层改动必须实拍。**
+
+**实拍守卫工具（retro 收编，取代 /tmp 即兴重写）**：`scripts/cdp-shot.mjs`——指纹探针（新串在/死串不在）+ 键盘路径开面板 + 三视口截图（桌面面板/窄屏 sheet/详情）+ 双层叠渲染哨兵（列表视图下详情层 computed display 必须 none，即 hidden 击穿类的直接观测面）+ console error 计数 + `--down` 括号 trick 杀 chrome。运维纪律：起 chrome 一律 run_in_background（行内 `&` 吊挂输出管道）、build/test 前 chrome 进程数必须为 0（headless chrome 曾把整机 load 顶到 45、npm test 22s→700s、esbuild 卡 D 态）、`pkill` 必加 `[c]` 括号 trick（忘加曾 SIGTERM 自杀，012）。
+
+验证：全量 `npm test` 绿（新增 `tests/client-restyle.test.mjs` 终态 11 用例：图标契约/footer 图标化/quote-error 状态类/令牌卫生/原生面与状态面/行键盘可达/hidden 守卫/emoji 零回潮；用例总数以命令输出为准）；构建指纹探针两轮（rev `5087049fc711` → `c6a83a293ae9`，下发字节与 `lib/client.js` 逐字前缀相等，client-only HMR 免重启）；CDP 三轮截图修复前后对照（双层叠渲染 → 单层干净），人眼复核通过。
 
 ## 未验证与降级汇总（13 章交付口径）
 

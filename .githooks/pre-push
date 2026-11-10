@@ -1,0 +1,6 @@
+#!/bin/sh
+# 推送门（2026-11-10 retro #3）：全套离线测试。本仓 npm test 即规格书
+# （钉 CSS 契约串/DOM 契约/i18n 对齐），红灯不得落进远端历史。
+# 启用（clone 后一次性）：git config core.hooksPath .githooks
+cd "$(git rev-parse --show-toplevel)" || exit 1
+npm test --silent
