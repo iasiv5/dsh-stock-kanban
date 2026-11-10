@@ -139,7 +139,7 @@ async function setupKanban({ seed = {}, guestBeforeMount = null } = {}) {
     hostEl,
     pillOf: () => q('[data-seg="quota"]'),
     stockOf: () => q(".skc-capsule[data-dsh-stock-kanban-capsule]"),
-    toggleBtnOf: () => q('.skc-footer [data-action="quota-merge"]'),
+    toggleBtnOf: () => q('.skc-dialog--settings [data-action="quota-merge"]'),
     disposeOnce,
     cleanup,
   };
@@ -155,8 +155,8 @@ test("S5 集成 · 挂载后 guest 握手：quota pill 与合并开关出现，e
     assert.ok(pill, "能力回复后 stack 内出现 quota pill");
     assert.equal(countOf(s.events, "embed-engage"), 1, "engage 派发一次");
     const btn = s.toggleBtnOf();
-    assert.ok(btn, "能力在线 → footer 合并开关出现");
-    assert.equal(btn.getAttribute("aria-pressed"), "true", "默认开");
+    assert.ok(btn, "能力在线 → 设置内合并开关出现");
+    assert.equal(btn.checked, true, "默认开");
     await tick();
     assert.ok(pill.textContent.includes("GLM"), "overview 渲染进 pill（GLM 段）");
     assert.equal(s.intervals.size, 1, "注册一个心跳 interval");
@@ -173,7 +173,7 @@ test("S5 集成 · 挂载前即有 guest（同步握手路径）+ 默认开：�
     await tick();
     assert.ok(s.pillOf(), "挂载即合并（同步回复路径）");
     assert.ok(s.toggleBtnOf(), "开关随首帧呈现");
-    assert.equal(s.toggleBtnOf().getAttribute("aria-pressed"), "true", "默认开");
+    assert.equal(s.toggleBtnOf().checked, true, "默认开");
     assert.equal(countOf(s.events, "embed-engage"), 1, "engage 一次");
   } finally {
     s.cleanup();
@@ -206,7 +206,7 @@ test("S5 集成 · legacy 态（guest 在、不应答 = qw 0.1.37 真实态）�
     addGuest(s.h, { capabilities: null });
     await sleep(600); // 跨过 probeTimeoutMs（500）：超时后也不得补出任何段
     assert.equal(s.pillOf(), null, "无 quota pill");
-    assert.equal(s.toggleBtnOf(), null, "无 footer 合并开关");
+    assert.equal(s.toggleBtnOf(), null, "无设置内合并开关");
     assert.equal(countOf(s.events, "embed-engage"), 0, "零 engage");
     assert.equal(s.intervals.size, 0, "无心跳");
     assert.equal(overviewFetches(s.fetchLog), 0, "无 overview 拉取");
@@ -235,12 +235,12 @@ test("S5 集成 · quotaMerge off（seed ui:v1）：有能力也不 engage；开
     assert.equal(overviewFetches(s.fetchLog), 0, "不拉 overview");
     const btn = s.toggleBtnOf();
     assert.ok(btn, "能力在线 → 开关呈现（关态，可再开）");
-    assert.equal(btn.getAttribute("aria-pressed"), "false", "关态");
+    assert.equal(btn.checked, false, "关态");
     click(s.h, btn);
     await tick();
     assert.ok(s.pillOf(), "点击开 → 立即合并");
     assert.equal(countOf(s.events, "embed-engage"), 1, "engage 一次");
-    assert.equal(s.toggleBtnOf().getAttribute("aria-pressed"), "true", "开关转开态");
+    assert.equal(s.toggleBtnOf().checked, true, "开关转开态");
   } finally {
     s.cleanup();
   }

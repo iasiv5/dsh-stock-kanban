@@ -280,6 +280,21 @@ qw 侧（竞态修复，2026-11-09）：
 
 验证：全量 `npm test` 211/211/0；`npm run build` 幂等重建下发（HMR）。真机复测（Android 键盘不再消失）待主人手机确认。
 
+## 12.18 footer 精简：合并开关与说明文案迁入设置（2026-11-10，主人反馈 → 已实现并验证）
+
+主人截图反馈：footer 的「合并/拆分胶囊」切换钮与底层说明文案（免费行情延迟/数据边界）碍事。
+
+变更：
+1. **footer 只留一行五钮**（胶囊标的 picker + 隐私/添加/设置/刷新/关闭），合并切换钮与说明文案移除；
+2. **设置对话框重排**：标题从「设置（备份与迁移）」改「设置」，新增「显示」区承载——「合并显示 quota」checkbox（仅 quota-watch 能力在线渲染，语义沿用 quotaMerge 持久偏好）+ quota.merge.hint 说明 + app.data-boundary 数据边界说明（自 footer 迁入的静态版）；备份与迁移区原样保留（自带节标题）；
+3. i18n：删 `app.footer`/`app.footer.privacy`（footer 文案退役），新增 `settings.display`/`quota.merge.hint`/`app.data-boundary`；`app.settings` 值改「设置」。
+
+**连带修复（主人截图暴露）——骨架静态文案语言实时跟随**：主人截图即中英混排（"Watchlist" + “6 个自选”）：挂载时语言 en、locale 特性后置 zh → 骨架化后 construction 时定格的文案不随 `onLangChange` 刷新（12.9 的实时切换语义被骨架化打破）。修复：panel/list/add 的 render/update 重套 `t()`（title/picker/按钮 title/设置区/市场 Tab/直连区/筛选文案——纯属性写，零重建，软键盘保活不受影响）。回归钉：三语言轮换断言（client-restyle.test.mjs）。
+
+迁移说明：quota-merge 的 DOM 契约自 `.skc-footer` 迁至 `.skc-dialog--settings`（data-action 保留、aria-pressed → checkbox checked）；`.skc-quota-merge-on` 钉死串保留（现在着色设置行 label）。
+
+验证：全量 `npm test` 212/212/0（重写 client-dom footer 合并开关用例、更新 quota-integration 选择器与 checked 断言、i18n data-boundary 断言、restyle +2）；CDP 实拍——footer 钮序 `privacy,add,settings,refresh,close`、零合并钮零说明文案，设置对话框合并开关（checked=true）+ 双说明文案 + 备份区在位，截图留证；HMR 下发确认。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 125 单测（vanilla 化后，12.10）+ 23 数据源探针。

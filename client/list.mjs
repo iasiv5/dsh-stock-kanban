@@ -75,7 +75,8 @@ export function createList({ store }) {
   holdingsCheckbox.addEventListener("change", () => {
     store.setHoldingsOnly(holdingsCheckbox.checked);
   });
-  filterLabel.append(holdingsCheckbox, document.createTextNode(t("list.holdings-only")));
+  const filterText = document.createTextNode(t("list.holdings-only"));
+  filterLabel.append(holdingsCheckbox, filterText);
   const spacer = document.createElement("span");
   spacer.className = "skc-spacer";
   const refreshButton = document.createElement("button");
@@ -175,11 +176,18 @@ export function createList({ store }) {
 
     for (const [m, { button, countSpan }] of tabButtons) {
       const count = business.symbols.filter((s) => s.market === m).length;
+      if (button.firstChild) button.firstChild.nodeValue = t(`market.${m}`); // 语言实时跟随（骨架静态文案重套 t()）
       button.className = `skc-tab${m === market ? " skc-tab-active" : ""}`;
       countSpan.textContent = String(count);
       countSpan.hidden = count === 0;
     }
     holdingsCheckbox.checked = ui.holdingsOnly === true;
+    if (filterText.nodeValue !== t("list.holdings-only")) filterText.nodeValue = t("list.holdings-only");
+    const refreshTitle = t("list.refresh");
+    if (refreshButton.title !== refreshTitle) {
+      refreshButton.title = refreshTitle;
+      refreshButton.setAttribute("aria-label", refreshTitle);
+    }
 
     if (market !== prevMarket && !ui.panelOpen) rowsEl.scrollTop = 0;
     prevMarket = market;

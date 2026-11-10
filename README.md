@@ -20,7 +20,7 @@ DSH 0.2.2-rc1 轻量多市场盯盘与持仓查看插件：悬浮胶囊 + A股/�
 本插件与 `@iasiv5/dsh-quota-watch`（GLM Coding Plan / GitHub Copilot 额度悬浮胶囊）通过窗口内 CustomEvent 协议联动（规格：`docs/interop/capsule-embed-protocol.md`；宿主侧决策：`docs/adr/0002-quota-embed-host-side-capsule-group.md`）。
 
 - **合并行为**：检测到 quota-watch 在线且回复能力（`embed-capabilities`，含 `hide-pill` 与 `anchored-panel`）时，额度胶囊并入本插件浮动壳，并入本插件的合并胶囊（单枚胶囊两段：股票段 | 分隔线 | 额度段）：整枚一次拖动，共享同一套位置记忆。额度段与 quota-watch 胶囊同款文案（GLM 5 小时窗口、Copilot 已用比例，全名 + 百分比，数字常驻）；超过 80% 为警示色，超过 95% 为危险色（琥珀色，脉冲遵循 `prefers-reduced-motion`）。待处理兑换时额度段保留一枚琥珀小点，即使没有数字。点击额度段由 quota-watch 打开其原生面板，水平推出于分区旁（视口不超过 480px 时为底部 sheet）；窄屏下股票名称隐藏，额度段热区不小于 44px。
-- **设置**：面板页脚的「合并显示 quota」开关（默认开）仅在协议可用时出现。关闭后额度胶囊恢复为 quota-watch 独立显示，组内额度段移除；该偏好按访问端浏览器保存。
+- **设置**：设置对话框「显示」区的「合并显示 quota」开关（默认开）仅在协议可用时出现。关闭后额度胶囊恢复为 quota-watch 独立显示，组内额度段移除；该偏好按访问端浏览器保存。数据边界说明（免费行情延迟、偏好/数据存放位置）同在此区。
 - **降级**：未安装 quota-watch、旧版（不回复协议），或握手 500ms 内无回复 → 两插件共存、互不隐藏（接受重叠，不做避让）；quota-watch 被停用或热更新（访客元素消失）→ 本插件立即拆分并移除额度段；额度接口返回 404 → 藏额度段并慢速重试；额度接口传输错误 → 保留上次数据，额度胶囊以提示（title）标注「额度数据已过期」。
 - **兼容性**：需要 `@iasiv5/dsh-quota-watch` ≥ 0.1.38（CEP v1 访客侧）。更低版本一律按共存降级，stock 胶囊与其它功能不受影响。quota-watch 的侧栏卡片不在合并范围内。
 - 端到端活体验证（真实额度数据、双向点击与开关往返、停用消失）尚未完成，见 `docs/verification.md` §12.11。

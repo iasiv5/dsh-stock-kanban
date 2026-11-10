@@ -215,6 +215,14 @@ export const FLOAT_STYLE_TEXT = `
 .skc-backup-row{display:flex;gap:8px;margin:6px 0}
 .skc-confirm{border:1px solid color-mix(in srgb,var(--skc-danger) 36%,transparent);background:color-mix(in srgb,var(--skc-danger) 7%,transparent);border-radius:10px;padding:9px;margin:6px 0}
 
+/* 设置体（显示偏好 + 数据边界 + 备份迁移；2026-11-10 footer 精简迁入） */
+.skc-settings-body{display:flex;flex-direction:column;min-height:0}
+.skc-setting-row{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:12px;color:var(--skc-text)}
+.skc-setting-row input[type="checkbox"]{accent-color:var(--skc-accent);margin:0;width:14px;height:14px;flex:none}
+.skc-setting-row input:focus-visible{outline:2px solid color-mix(in srgb,var(--skc-accent) 55%,transparent);outline-offset:1px}
+.skc-setting-hint{color:var(--skc-cap);font-size:10px;line-height:1.5;margin:2px 0 10px}
+.skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def);font-weight:600}
+
 /* 对话框（覆盖层 = 令牌叠涂地板 + blur：玻璃皮肤令牌半透明也不破可读性） */
 .skc-dialog{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;gap:10px;padding:12px;overflow-y:auto;background:color-mix(in srgb,var(--skc-surface) 97%,transparent);background:linear-gradient(var(--skc-surface),var(--skc-surface)),rgb(from var(--skc-base) r g b / 1);-webkit-backdrop-filter:blur(20px) saturate(1.2);backdrop-filter:blur(20px) saturate(1.2);box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 10%,transparent);scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
 .skc-dialog[hidden]{display:none}

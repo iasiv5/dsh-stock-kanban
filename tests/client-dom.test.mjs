@@ -93,7 +93,7 @@ test("FLOAT_STYLE_TEXT · quota pill 样式：--quota cursor、tabular-nums、wa
   assert.ok(s.includes(".skc-qval{font-variant-numeric:tabular-nums}"), "数值段 tabular-nums（spec §9）");
   assert.ok(s.includes(".skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}"), "warn 色（与 qw 同名回退值）");
   assert.ok(s.includes(".skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}"), "danger 色已改琥珀（B26，与 qw 警告色同名回退值）");
-  assert.ok(s.includes(".skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def)}"), "footer 开关 active 态样式");
+  assert.ok(s.includes(".skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def)}"), "合并开关 active 态样式（2026-11-10 迁入设置）");
   const guardAt = s.indexOf("@media (prefers-reduced-motion: no-preference)");
   assert.ok(guardAt >= 0, "reduced-motion 守卫块存在");
   const guard = balancedBlock(s, guardAt);
@@ -797,7 +797,7 @@ test("panel · footer 含关闭按钮且点击关闭", () => {
   }
 });
 
-test("panel · footer 合并开关：仅 quotaCapable 时渲染；随 quotaMerge 切换 label/active；点击取反；能力消失即移除", () => {
+test("panel · 设置内合并开关：仅 quotaCapable 时渲染；checked 随 quotaMerge；点击取反；能力消失即移除（2026-11-10 自 footer 迁入设置）", () => {
   const { h, panel, actions } = setupPanel();
   const base = {
     panelOpen: true, view: "list", detailId: null, showAdd: false, showSettings: false,
@@ -811,7 +811,7 @@ test("panel · footer 合并开关：仅 quotaCapable 时渲染；随 quotaMerge
     providers: null,
     ui: { ...base, quotaMerge: true, quotaCapable: false, ...ui },
   });
-  const btnOf = () => panel.el.querySelector('.skc-footer [data-action="quota-merge"]');
+  const btnOf = () => panel.el.querySelector('.skc-dialog--settings [data-action="quota-merge"]');
   const lastMergeCall = () => actions.filter((a) => Array.isArray(a) && a[0] === "setQuotaMerge").pop();
   try {
     panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
@@ -819,24 +819,22 @@ test("panel · footer 合并开关：仅 quotaCapable 时渲染；随 quotaMerge
     assert.equal(btnOf(), null, "能力未检测到 → 不渲染开关");
 
     panel.update(snap({ quotaCapable: true, quotaMerge: true }));
-    let btn = btnOf();
-    assert.ok(btn, "quotaCapable → 渲染开关");
-    assert.equal(btn.getAttribute("aria-pressed"), "true", "开态 aria-pressed");
-    assert.ok(btn.classList.contains("skc-quota-merge-on"), "开态 active 样式类");
-    assert.equal(btn.title, t("quota.merge.on"), "开态 label 取 quota.merge.on");
-    btn.dispatchEvent(new h.window.MouseEvent("click", { bubbles: true }));
+    let check = btnOf();
+    assert.ok(check, "quotaCapable → 渲染开关（设置对话框内）");
+    assert.equal(check.checked, true, "默认开");
+    assert.ok(check.closest(".skc-setting-row").querySelector(".skc-quota-merge-on"), "开态 active 样式类");
+    check.dispatchEvent(new h.window.Event("change", { bubbles: true }));
     assert.deepEqual(lastMergeCall(), ["setQuotaMerge", false], "开 → 点击 → setQuotaMerge(false)");
 
     panel.update(snap({ quotaCapable: true, quotaMerge: false }));
-    btn = btnOf();
-    assert.equal(btn.getAttribute("aria-pressed"), "false", "关态 aria-pressed");
-    assert.equal(btn.classList.contains("skc-quota-merge-on"), false, "关态无 active 类");
-    assert.equal(btn.title, t("quota.merge.off"), "关态 label 取 quota.merge.off");
-    btn.dispatchEvent(new h.window.MouseEvent("click", { bubbles: true }));
+    check = btnOf();
+    assert.equal(check.checked, false, "关态 checked");
+    assert.equal(check.closest(".skc-setting-row").querySelector(".skc-quota-merge-on"), null, "关态无 active 类");
+    check.dispatchEvent(new h.window.Event("change", { bubbles: true }));
     assert.deepEqual(lastMergeCall(), ["setQuotaMerge", true], "关 → 点击 → setQuotaMerge(true)");
 
     panel.update(snap({ quotaCapable: false, quotaMerge: true }));
-    assert.equal(btnOf(), null, "能力消失 → 按钮移除");
+    assert.equal(btnOf(), null, "能力消失 → 开关移除");
   } finally {
     panel.dispose();
     h.cleanup();

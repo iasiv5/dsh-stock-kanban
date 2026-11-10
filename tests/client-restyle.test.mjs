@@ -16,6 +16,7 @@ import { createPanel } from "../client/panel.mjs";
 import { createList } from "../client/list.mjs";
 import { createAdd } from "../client/add.mjs";
 import { createDetail } from "../client/detail.mjs";
+import { t, setLang } from "../client/i18n.mjs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -321,5 +322,50 @@ test("detail · 编辑中轮询不重绘（软键盘保活），失焦后恢复�
     detail.dispose();
   } finally {
     t.restore();
+  }
+});
+
+test("panel · 骨架静态文案语言实时跟随（12.9 语义在骨架化后保持；主人截图混排回归）", () => {
+  const h = createDomHarness();
+  h.setViewport(h.window, 1024, 768);
+  const prevLang = t("app.title") === "Watchlist" ? "en" : "zh";
+  try {
+    const host = h.document.createElement("div");
+    h.document.body.append(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const stubView = () => ({ el: h.document.createElement("div"), update() {}, dispose() {} });
+    const panel = createPanel({
+      doc: h.document,
+      win: h.window,
+      store: { closePanel() {}, setCapsuleSymbol() {}, setPrivacy() {}, setShowAdd() {}, setShowSettings() {}, pollQuotes() {}, setQuotaMerge() {} },
+      views: { list: stubView(), detail: stubView(), add: stubView(), backup: stubView() },
+    });
+    shadow.append(panel.el);
+    panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
+    const snap = {
+      business: { rev: 1, settings: { privacyMode: false }, symbols: [] },
+      quotes: {},
+      quoteMeta: { fetchedAt: 1, error: null },
+      ui: { panelOpen: true, view: "list", detailId: null, showAdd: false, showSettings: true, lastMarket: "cn", holdingsOnly: false, maVisible: { 5: true }, capsuleSymbolId: null, quotaCapable: true, quotaMerge: true },
+      toast: null,
+      providers: null,
+    };
+    for (const lang of ["en", "zh", "en"]) {
+      setLang(lang);
+      panel.update(snap);
+      const texts = {
+        title: panel.el.querySelector(".skc-title").textContent,
+        settingsTitle: panel.el.querySelector(".skc-dialog--settings .skc-dialog-head .skc-section-title").textContent,
+        boundary: panel.el.querySelector(".skc-setting-hint").textContent,
+      };
+      assert.equal(texts.title, t("app.title"), `title 跟随 ${lang}`);
+      assert.equal(texts.settingsTitle, t("app.settings"), `设置标题跟随 ${lang}`);
+      assert.equal(texts.boundary, t("app.data-boundary"), `数据边界文案跟随 ${lang}`);
+    }
+    setLang(prevLang);
+    panel.dispose();
+  } finally {
+    setLang(prevLang);
+    h.cleanup();
   }
 });

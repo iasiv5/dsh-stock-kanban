@@ -21,7 +21,8 @@ test("t：zh 文案与参数插值", () => {
   assert.equal(t("badge.stale"), "旧");
   assert.equal(t("badge.closed"), "休");
   assert.ok(t("toast.added", { name: "贵州茅台" }).includes("贵州茅台"));
-  assert.ok(t("app.footer", { privacy: "" }).includes("免费行情"));
+  assert.ok(t("app.data-boundary").includes("免费"));
+  assert.ok(t("app.data-boundary").includes("DSH 实例"));
 });
 
 test("t：en 文案", () => {

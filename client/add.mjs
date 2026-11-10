@@ -188,10 +188,17 @@ export function createAdd({ store }) {
     }
     const known = new Set(business.symbols.map((s) => s.id));
 
-    // 静态区：只改类名/placeholder/disabled，不重建结构、不碰 value
+    // 静态区：只改类名/placeholder/disabled/文案，不重建结构、不碰 value
+    // 语言实时跟随：骨架静态文案重套 t()（保持 12.9 实时切换语义）
     for (const [m, tab] of tabButtons) {
+      if (tab.firstChild) tab.firstChild.nodeValue = t(`market.${m}`);
       tab.className = `skc-tab${m === market ? " skc-tab-active" : ""}`;
     }
+    title.textContent = t("add.title");
+    closeBtn.setAttribute("aria-label", t("app.collapse"));
+    directTitle.textContent = t("add.direct");
+    directHint.textContent = t("add.hint");
+    validateBtn.textContent = t("add.validate");
     const placeholder = t(`add.search.${market}`);
     if (queryInput.placeholder !== placeholder) queryInput.placeholder = placeholder;
     const directPlaceholder = t(`add.direct.${market}`);
