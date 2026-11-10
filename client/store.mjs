@@ -13,6 +13,7 @@
 
 import { api } from "./api.mjs";
 import { t, tErr } from "./i18n.mjs";
+import { compareBySort } from "../src/model.mjs";
 
 const UI_KEY = "stock-kanban:ui:v1";
 /** 落盘字段集（会话态 panelOpen/view/detailId/showAdd/showSettings/quotaCapable 不落盘；quotaMerge 第四轮起不落盘：设置开关已隐藏，每次加载默认合并） */
@@ -87,12 +88,13 @@ export function createStore(storage = window.localStorage) {
   async function refreshState() {
     const data = await api.state();
     set({ business: { ...data, loaded: true } });
-    // 胶囊标的若已被删除 → 回落第一个
+    // 胶囊标的若已被删除 → 回落排序后的第一个（A-H-U-C 组序 + sort 升序，即面板首行）
     const ui = state.ui;
+    const ordered = [...data.symbols].sort(compareBySort);
     if (ui.capsuleSymbolId && !data.symbols.some((s) => s.id === ui.capsuleSymbolId)) {
-      setUi({ capsuleSymbolId: data.symbols[0]?.id ?? null });
+      setUi({ capsuleSymbolId: ordered[0]?.id ?? null });
     } else if (!ui.capsuleSymbolId && data.symbols.length > 0) {
-      setUi({ capsuleSymbolId: data.symbols[0].id });
+      setUi({ capsuleSymbolId: ordered[0].id });
     }
     return data;
   }
@@ -119,6 +121,7 @@ export function createStore(storage = window.localStorage) {
   // 添加失败由 add.mjs 呈现（重复/校验失败/通用错误各有内联或 toast 出口），此处静默
   const addSymbol = (market, code, patch) => mutate((rev) => api.add(market, code, patch, rev), { quiet: true });
   const updateSymbol = (id, patch) => mutate((rev) => api.update(id, patch, rev));
+  const reorderSymbols = (market, orderedIds) => mutate((rev) => api.reorder(market, orderedIds, rev));
   const removeSymbol = (id) => mutate((rev) => api.remove(id, rev));
   const setPrivacy = (privacyMode) => mutate((rev) => api.setSettings({ privacyMode }, rev));
   const importBackup = (payload) => mutate((rev) => api.importBackup(payload, rev));
@@ -236,7 +239,7 @@ export function createStore(storage = window.localStorage) {
 
   return {
     subscribe, getState, dispose,
-    refreshState, mutate, addSymbol, updateSymbol, removeSymbol, setPrivacy, importBackup,
+    refreshState, mutate, addSymbol, updateSymbol, reorderSymbols, removeSymbol, setPrivacy, importBackup,
     pollQuotes, restartPolling, openPanel, closePanel, togglePanel, openDetail, backToList,
     setLastMarket, setHoldingsOnly, setMaVisible, setCapsuleSymbol,
     setQuotaMerge, setQuotaCapable,

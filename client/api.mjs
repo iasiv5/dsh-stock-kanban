@@ -36,6 +36,7 @@ export const api = {
   minute: (id) => getJSON(`/stock-kanban/minute?id=${encodeURIComponent(id)}`),
   add: (market, code, patch, ifRev) => postJSON("/stock-kanban/symbols/add", { market, code, patch, ifRev }),
   update: (id, patch, ifRev) => postJSON("/stock-kanban/symbols/update", { id, patch, ifRev }),
+  reorder: (market, orderedIds, ifRev) => postJSON("/stock-kanban/symbols/reorder", { market, orderedIds, ifRev }),
   remove: (id, ifRev) => postJSON("/stock-kanban/symbols/remove", { id, ifRev }),
   setSettings: (patch, ifRev) => postJSON("/stock-kanban/settings", { ...patch, ifRev }),
   importBackup: (payload, ifRev) => postJSON("/stock-kanban/import", { payload, ifRev }),

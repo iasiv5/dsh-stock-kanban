@@ -1,7 +1,10 @@
 // 客户端构建：esbuild 打包 client/main.mjs → lib/client.js（window.__ModuleLoader__ 包装）。
 // vanilla 重写后客户端零 react 引用：不再需要构建期 react external。
-import { mkdir, writeFile } from "node:fs/promises";
+// __APP_VERSION__：package.json 版本注入（设置页页尾版本号；2026-11-10）。
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import esbuild from "esbuild";
+
+const { version } = JSON.parse(await readFile("package.json", "utf8"));
 
 const result = await esbuild.build({
   entryPoints: ["client/main.mjs"],
@@ -14,6 +17,7 @@ const result = await esbuild.build({
   legalComments: "none",
   loader: { ".mjs": "js" },
   resolveExtensions: [".mjs", ".js"],
+  define: { __APP_VERSION__: JSON.stringify(version) },
 });
 
 const body = result.outputFiles[0].text;

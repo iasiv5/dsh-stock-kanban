@@ -143,6 +143,46 @@ export function patchSymbolRecord(record, patch) {
   return { ok: true, record: checked };
 }
 
+/**
+ * 展示排序比较器：sort 升序 → addedAt 升序 → id 升序（确定性兜底）。
+ * 列表渲染与「全序合并」统一走它；sort 重编号后的组内天然 0..n-1 有序，
+ * 未重排过的组以添加时间为序（sort 初值 = 添加时刻），新添加的标的排在组尾。
+ */
+export function compareBySort(a, b) {
+  if (a.sort !== b.sort) return a.sort < b.sort ? -1 : 1;
+  const ta = Date.parse(a.addedAt) || 0;
+  const tb = Date.parse(b.addedAt) || 0;
+  if (ta !== tb) return ta < tb ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * 校验 orderedIds 是 group（同市场分组记录数组）全量 id 的一个排列，并按新顺序
+ * 把 sort 重编号为 0..n-1。返回 {ok, records, changed} 或 {ok:false, error}。
+ * - changed 按「排列是否变化」判定（对照 compareBySort 的当前展示序）：排列未变 →
+ *   原记录原样返回，调用方跳过落盘与 rev 推进（幂等，拖回原位零副作用）；
+ * - 排列变化 → 全组新记录（sort 重编号），整组一次写。
+ * 纯函数，无 IO；持久化语义见 store.reorderSymbols。
+ */
+export function reorderSorts(group, orderedIds) {
+  if (!Array.isArray(orderedIds) || orderedIds.some((id) => typeof id !== "string")) {
+    return { ok: false, error: "invalid-order" };
+  }
+  const byId = new Map(group.map((s) => [s.id, s]));
+  if (
+    orderedIds.length !== group.length ||
+    new Set(orderedIds).size !== orderedIds.length ||
+    orderedIds.some((id) => !byId.has(id))
+  ) {
+    return { ok: false, error: "invalid-order" };
+  }
+  const currentOrder = [...group].sort(compareBySort).map((s) => s.id);
+  const changed = orderedIds.some((id, index) => id !== currentOrder[index]);
+  if (!changed) return { ok: true, records: [...group], changed: false };
+  const records = orderedIds.map((id, index) => ({ ...byId.get(id), sort: index }));
+  return { ok: true, records, changed: true };
+}
+
 /* ------------------------------------------------------------------ 备份 */
 
 export const BACKUP_KIND = "stock-kanban-backup";

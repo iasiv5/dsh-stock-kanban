@@ -123,13 +123,21 @@ export const FLOAT_STYLE_TEXT = `
 
 /* 列表（终端密度：紧行距 + hairline 分隔 + hover/active 反馈；行内容与 Tab 同列对齐） */
 .skc-listwrap{display:flex;flex-direction:column;min-height:0;flex:1}
-.skc-rows{overflow-y:auto;flex:1;padding:0 4px 6px;scrollbar-width:thin;scrollbar-color:var(--skc-text-3) transparent}
+.skc-rows{overflow-y:auto;flex:1;padding:0 4px 6px;scrollbar-width:thin;scrollbar-color:var(--skc-text-3) transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .skc-rows::-webkit-scrollbar{width:8px}
 .skc-rows::-webkit-scrollbar-thumb{background:var(--skc-hairline-strong);border-radius:999px;border:2px solid transparent;background-clip:content-box}
 .skc-rows::-webkit-scrollbar-track{background:transparent}
-.skc-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;cursor:pointer;transition:background .1s var(--skc-ease)}
+.skc-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;cursor:pointer;transition:background .1s var(--skc-ease);touch-action:pan-y}
 .skc-row:hover{background:var(--skc-hover)}
 .skc-row:active{background:var(--skc-pressed)}
+/* 拖拽排序（shape 定稿 2026-11-10）：把手悬停浮现 + 被拖行 1:1 跟随指针（transform 直写）+ 兄弟行 FLIP 让位（单一动效时刻） */
+.skc-row-grip{display:inline-flex;flex:none;width:12px;color:var(--skc-text-2);opacity:0;transition:opacity .12s var(--skc-ease);pointer-events:none}
+.skc-row:hover .skc-row-grip,.skc-row:focus-visible .skc-row-grip{opacity:.6}
+.skc-row:active .skc-row-grip{opacity:1}
+.skc-row-dragging{position:relative;z-index:1;background:var(--skc-hover);box-shadow:0 3px 12px rgba(0,0,0,.2);cursor:grabbing;will-change:transform}
+.skc-rows-flipping .skc-row:not(.skc-row-dragging){transition:transform 150ms var(--skc-ease)}
+.skc-row-settle{transition:transform 150ms var(--skc-ease)}
+@media (prefers-reduced-motion: reduce){.skc-row-settle{transition:none}}
 .skc-row-name{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;gap:2px}
 .skc-name-text{font-size:13px;line-height:18px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .skc-code{color:var(--skc-text-2);font-size:12px;line-height:16px;letter-spacing:.02em;font-variant-numeric:tabular-nums}
@@ -151,7 +159,7 @@ export const FLOAT_STYLE_TEXT = `
 .skc-empty-icon{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;border:1px dashed var(--skc-hairline-strong);color:var(--skc-text-2)}
 
 /* 图表加载骨架（operate.md：skeleton 而非内容区 spinner；shimmer 在 reduced-motion 守卫内） */
-.skc-chart-loading{width:100%;padding:8px 2px 2px;display:flex;flex-direction:column;gap:8px;align-items:center}
+.skc-chart-loading{width:100%;height:100%;padding:8px 2px 2px;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center}
 .skc-skeleton{width:100%;border-radius:6px;background:linear-gradient(100deg,var(--skc-hover) 40%,color-mix(in srgb,var(--skc-hover) 35%,transparent) 50%,var(--skc-hover) 60%);background-size:220% 100%;background-position:120% 0}
 .skc-skeleton-price{height:86px}
 .skc-skeleton-vol{height:22px;width:58%}
@@ -162,16 +170,19 @@ export const FLOAT_STYLE_TEXT = `
 /* 滚动提示（第 10 轮，2026-11-10）：可滚区域内容未到底时，底部 28px 渐隐；到底或无溢出即撤掉（class 由 panel 维护） */
 .skc-scroll-more{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 28px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 28px),transparent 100%)}
 /* 详情头部（第五轮 2026-11-10）：返回 | 标题区（名称单行省略 + 代码行）| 删除；单行 flex 不换行，长名称只省略标题本身 */
-.skc-detail-head{display:flex;align-items:flex-start;gap:8px;flex-wrap:nowrap}
-.skc-btn.skc-detail-back{flex:none;min-height:26px;padding:0 8px;margin-top:-3px}
-.skc-detail-titlecol{display:flex;flex-direction:column;gap:2px;flex:1 1 auto;min-width:0}
+.skc-detail-head{display:flex;align-items:stretch;gap:8px;flex-wrap:nowrap}
+/* 头部按钮（第六轮 2026-11-10）：两行字高——stretch 撑满标题区（名称行+代码行 ≈38px），
+   返回/删除同构 chip：同边框、同字号、同内距、同高，功能标签常显一眼可辨 */
+.skc-btn.skc-detail-back{flex:none;min-height:0;padding:0 10px;border-color:var(--skc-hairline-strong);color:var(--skc-text-2);font-size:12px;font-weight:500}
+.skc-btn.skc-detail-back:hover{color:var(--skc-text)}
+.skc-detail-titlecol{display:flex;flex-direction:column;gap:2px;flex:1 1 auto;min-width:0;text-align:center} /* 居中：标题卡在返回/删除两钮正中（三栏对称头部，第 12 轮 2026-11-10） */
 .skc-detail-title{font-weight:700;font-size:15px;line-height:20px;letter-spacing:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .skc-detail-meta{font-size:12px;line-height:16px;color:var(--skc-text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
-/* 删除：中性幽灵钮（不抢主操作的视觉焦点）；仅悬停/聚焦时转危险色 */
-.skc-btn.skc-detail-delete{flex:none;min-height:26px;margin-top:-3px;padding:0 6px;border-color:transparent;background:transparent;color:var(--skc-text-2);font-size:12px;font-weight:500}
-.skc-btn.skc-detail-delete:hover{color:var(--skc-danger);background:color-mix(in srgb,var(--skc-danger) 9%,transparent)}
+/* 删除：同构 chip 中性态不抢焦点；悬停/聚焦整组转危险色（描边同染，破坏性意图更明确） */
+.skc-btn.skc-detail-delete{flex:none;min-height:0;padding:0 10px;color:var(--skc-text-2);font-size:12px;font-weight:500}
+.skc-btn.skc-detail-delete:hover{color:var(--skc-danger);border-color:color-mix(in srgb,var(--skc-danger) 38%,transparent);background:color-mix(in srgb,var(--skc-danger) 9%,transparent)}
 
-.skc-quote-line{display:flex;align-items:baseline;gap:10px;margin:10px 0 12px;flex-wrap:wrap}
+.skc-quote-line{display:flex;align-items:baseline;justify-content:center;gap:10px;margin:10px 0 12px;flex-wrap:wrap} /* 居中：与居中标题同轴，hero 行情行对称（第 12 轮 2026-11-10） */
 .skc-quote-price{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15;letter-spacing:-.01em}
 .skc-quote-pct{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
 .skc-quote-meta{color:var(--skc-text-2);font-size:12px;line-height:16px;display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;font-variant-numeric:tabular-nums}
@@ -179,11 +190,11 @@ export const FLOAT_STYLE_TEXT = `
 .skc-period-tabs{display:flex;gap:2px;padding:2px;border-radius:9px;background:var(--skc-hover);margin-bottom:8px}
 .skc-period{font-size:12px}
 /* K 线指标行（MA 图例 + 复权标注）另起一行：不挤占周期分段的宽度，分时模式下隐藏 */
-.skc-period-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin:0 0 8px}
-.skc-adjust{color:var(--skc-text-2);font-size:12px}
+.skc-period-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin:0 0 8px;min-height:20px} /* min-height = MA chip 高：图例行四档周期常驻等高，切周期卡片零位移（第 12 轮 2026-11-10） */
+.skc-adjust,.skc-meta-note{color:var(--skc-text-2);font-size:12px;line-height:16px;font-variant-numeric:tabular-nums}
 .skc-chartbox{border:1px solid var(--skc-hairline);border-radius:8px;padding:6px;min-height:140px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--skc-surface-deep) 45%,transparent)}
 .skc-chart{display:block;max-width:100%;height:auto}
-.skc-chart-empty{color:var(--skc-text-2);padding:20px;text-align:center}
+.skc-chart-empty{color:var(--skc-text-2);padding:20px;text-align:center;height:100%;display:flex;align-items:center;justify-content:center}
 .skc-chart-error{color:var(--skc-danger)}
 .skc-ma-legend{display:flex;gap:4px;flex-wrap:wrap}
 .skc-ma-chip{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--skc-hairline);background:transparent;border-radius:999px;font-size:11px;line-height:16px;padding:1px 8px;cursor:pointer;color:var(--skc-text-2);font-variant-numeric:tabular-nums}
@@ -265,6 +276,8 @@ export const FLOAT_STYLE_TEXT = `
 .skc-setting-footnote{font-size:12px;line-height:18px;color:var(--skc-text-2);text-wrap:balance}
 /* 弱化脚注（第 9 轮）：11px 辅助字号，颜色仍用 text-2（tertiary 在浅色主题约 3.7:1，不用于说明文字） */
 .skc-setting-footnote--weak{font-size:11px;line-height:16px}
+/* 版本号（2026-11-10）：页尾最安静一行，同脚注字号、靠透明度弱化（字号阶梯无 10px） */
+.skc-setting-version{font-size:11px;line-height:16px;color:var(--skc-text-2);opacity:.6;font-variant-numeric:tabular-nums}
 .skc-backup{display:flex;flex-direction:column;gap:8px}
 .skc-backup-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skc-backup-actions .skc-btn{justify-content:center;width:100%}
@@ -336,12 +349,14 @@ export const FLOAT_STYLE_TEXT = `
 
 /* 额度嵌入（CEP v1 宿主侧，ADR 0002）：quota pill 继承胶囊解剖并覆写 cursor；数值段 tabular-nums；阈值色与 qw 同名回退值一致；pulse 见动效守卫块 */
 .skc-capsule--quota{cursor:pointer}
-.skc-qval{font-variant-numeric:tabular-nums}
+/* 额度段文字规格对齐 qw 独立胶囊（.dqw-capsule：11px/600 + tabular-nums，第 12 轮 2026-11-10——
+   原继承 sk 胶囊 12px/常规字重，合并前后观感不一致；danger 琥珀为 B26 拍板规格，不随 qw 红色） */
+.skc-qval{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
 .skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}
-.skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}
+.skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)} /* B26：额度危险态为琥珀 */
 .skc-qseg{display:inline-flex;align-items:center;gap:6px}
 .skc-qseg[hidden]{display:none}
-.skc-qsep{color:var(--skc-text-2)}
+.skc-qsep{opacity:.5} /* 分隔点对齐 qw .dqw-capsule-sep */
 .skc-qseg-divider{display:inline-block;width:1px;height:14px;background:var(--skc-hairline-strong);border-radius:1px}
 .skc-qdot{display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--skc-warn)}
 .skc-capsule [data-seg="stock"]{display:inline-flex;align-items:center;gap:6px}

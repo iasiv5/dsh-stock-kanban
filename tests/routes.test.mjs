@@ -170,3 +170,44 @@ test("路由：/health 不含业务数据", async () => {
     assert.ok(res.body.providers.tencent !== undefined);
   } finally { t.close(); }
 });
+
+/* ---------------- 拖拽排序路由（symbols/reorder，2026-11-10） ---------------- */
+
+test("路由：reorder 200 重编号 / 422 非排列与非法市场 / ifRev 冲突 409", async () => {
+  const t = await startServer();
+  try {
+    await t.store.addSymbol({ ...SYM, id: "cn:sz000001", code: "sz000001", sort: 200 });
+    const ok = await t.j("/stock-kanban/symbols/reorder", {
+      method: "POST",
+      headers: H(t.base),
+      body: JSON.stringify({ market: "cn", orderedIds: ["cn:sz000001", "cn:sh600519"], ifRev: t.store.rev }),
+    });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.changed, true);
+    assert.ok(Number.isInteger(ok.body.rev));
+    assert.equal(t.store.getSymbol("cn:sz000001").sort, 0);
+
+    const bad = await t.j("/stock-kanban/symbols/reorder", {
+      method: "POST",
+      headers: H(t.base),
+      body: JSON.stringify({ market: "cn", orderedIds: ["cn:sh600519"] }), // 缺员
+    });
+    assert.equal(bad.status, 422);
+    assert.equal(bad.body.error, "invalid-order");
+
+    const badMarket = await t.j("/stock-kanban/symbols/reorder", {
+      method: "POST",
+      headers: H(t.base),
+      body: JSON.stringify({ market: "nope", orderedIds: [] }),
+    });
+    assert.equal(badMarket.status, 422);
+
+    const conflict = await t.j("/stock-kanban/symbols/reorder", {
+      method: "POST",
+      headers: H(t.base),
+      body: JSON.stringify({ market: "cn", orderedIds: ["cn:sh600519", "cn:sz000001"], ifRev: 999999 }),
+    });
+    assert.equal(conflict.status, 409);
+    assert.equal(conflict.body.error, "rev-conflict");
+  } finally { t.close(); }
+});

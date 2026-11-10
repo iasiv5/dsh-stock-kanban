@@ -402,3 +402,31 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 实施实录（一次性验证脚本抓获）：备份行 helper 误用行类名造成标签嵌套重复渲染——已修正（内层=`skc-setting-main`）。CDP DOM 契约实拍：三行（合并显示 quota/导出备份/导入备份）+ 三副行 + switch checked + 脚注 + export href 全部在位；多恢复标签页抢占截图框位问题未影响 DOM 断言（视觉观感由主人设备复核）。
 
 验证：全量 `npm test` 213/213/0；HMR 下发确认。CDP DOM 契约实拍（真实挂载实例）：三行（合并显示 quota/导出备份/导入备份）+ 三副行 + switch checked + 脚注 + export href 全部在位；像素截图受 headless 多恢复标签页抢占限制未框中面板（工具层噪声，非产品问题）——视觉观感由主人设备复核（HMR 刷新即见）。
+
+## 12.24 分组内拖拽排序（2026-11-10，/impeccable shape 定稿 → 已实现并验证）
+
+主人需求：盯盘列表标的手动切换顺序。此前数据层 `sort` 字段已预埋（添加时 = 添加时间戳）但全链路无消费（patch 不收 sort、无路由、无 UI、列表按 KV key 序渲染）——本次补齐全链路。
+
+**shape 定稿（主人三项拍板）**：① 整行拖拽 + 行尾 ⠿ 把手悬停浮现（静默可供性，零引导文案）；② 触屏长按 300ms 起拖，未满长按的位移交还原生滚动；③ 拖拽行浮起（偏移阴影 + 1.5% 缩放）+ FLIP 平移 150ms 让位，`prefers-reduced-motion` 全降级。
+
+**实施**：
+- 模型：`compareBySort`（sort → addedAt → id 确定性兜底）+ `reorderSorts`（排列校验 + 组内 sort 重编号 0..n-1；changed 按「排列是否变化」判定，拖回原位零副作用）；
+- 服务端：`POST /stock-kanban/symbols/reorder`（market + 全量 id 排列），store 整组一次串行写 + 单次 rev 推进，任一记录落盘失败整组回滚；
+- 客户端：`client/reorder.mjs` DOM-free 决策核心（liftIntent/moveId/dropIndexFromY/mergeVisibleIntoFull/flipOffsets，模式对齐 drag.mjs）；list.mjs 手势粘合（指针委托 + setPointerCapture + 非被动 touchmove 压制起拖后滚动 + 拖拽中冻结轮询重绘 + 拖后 click 压制）；键盘 `Alt+↑/↓` 焦点跟随 + `aria-keyshortcuts`；「只看持仓」视图下拖拽可用，可见子序并入全序（只有被拖项换槽，隐藏项不位移）；
+- 把手图标入 icons.mjs 线性图标系统（fill 点阵），无 Unicode 字符。
+
+**验证**：268/268/0 全量单测（新增 reorder-model 11 例 + store 2 例 + routes 契约 1 例 + client-dom 列表排序/键盘 1 例）；`impeccable detect` 对 4 个改动 UI 文件 0 发现。HMR 下发即见；实机拖拽/长按/键盘三路径观感由主人设备复核（视觉契约以 DOM 断言 + 主人复核为准，同 §12.23 口径）。
+
+**§12.24 追记（同日二轮，主人实测反馈 → 已修复）**：① 拖拽触发浏览器文字全选（行是可选中文本，按点成选择锚点）→ `.skc-rows` 容器 `user-select:none` + `-webkit-touch-callout:none`（列表是控件面，标准做法，顺带压制 iOS 长呼出菜单）；② 拖拽不流畅（每次 pointermove 全行双读 rect 布局抖动 + 被拖行离散跳槽）→ 重写为指针跟随模型：起拖一次性快照行几何（拖拽期间零布局读），被拖行 transform 直写 1:1 跟随（`will-change:transform`），过半行换槽、兄弟行 FLIP 滑移，松手 settle 过渡滑回槽位；`dropIndexFromY` 退役换 `slotIndexFromY`（半行阈值换槽）。268/268/0 全绿；detect 0 发现；client-only 改动，刷新页面即生效。
+
+**§12.24 追记二（同日三轮）**：胶囊显示下拉与面板列表同序——picker 选项由 KV 原序平铺改为 A-H-U-C 四组（optgroup 标签 = 市场 Tab 名）+ 组内 sort 升序（compareBySort），拖拽排序后两端即时同步；同名跨市场的「· 市场后缀」随分组语境退役；store 胶囊默认标的回退改为排序后首行（=面板首行）。269/269/0 全绿；detect 0 发现；client-only，刷新即生效。
+
+**§12.24 追记三（同日四轮）**：详情页返回/删除按钮两行字高化——`.skc-detail-head` 由 flex-start+(-3px 补丁) 改 align-items:stretch，两钮撑满标题区高度（≈38px，≥触达标准），返回/删除同构 chip（同边框/同 12px 字号/同内距/同高），标签常显保证功能一眼可辨；删除悬停/聚焦整组转危险色（描边同染）。CSS-only 无 DOM 契约变化；269/269/0 全绿；detect 0 发现；刷新即生效。
+
+**§12.24 追记四（同日五轮，主人实测反馈 → 已修复）**：详情页分时↔日K 切换卡片「弹跳」——根因是卡片总高随周期变化（minute 图表钳位 [120,190] vs candle [140,230]，且 MA 指标行分时隐藏/K线显示，合计 ~68px 突变触发面板重新定位）。修复：CHART_H 统一为单套钳位 [140,230] + 单套固定区（zh 494/en 511），指标行四档周期常驻且行高地板 20px（=MA chip 高）——分时档显示「昨收 {v}」图例（真实标注图内虚线参考线，非占位空行，新增 i18n detail.prev-close）；切任意周期卡片几何恒定、零位移。270/270/0 全绿（detail-fit 4 例按新契约更新 + 新增「切周期几何恒定」契约例）；client-only，刷新即生效。
+
+**§12.24 追记五（同日六轮，主人实测反馈 → 已修复）**：① 切周期残余弹跳「先变短再涨回去」——根因是加载骨架屏内容高 ~140px 低于成图（最高 230px），loading 期卡片塌陷、数据到达再回弹；修复：`.skc-chartbox` 三态（加载/错误/成图）钉同一高度 = chartHeight(vh)，骨架/错误占位 height:100% 垂直居中——任何状态切换卡片几何零变化（detail-fit 新增「骨架占位与成图同高」契约断言）。② 详情头部居中化：标题区 text-align:center 卡在返回/删除两钮正中（三栏对称构图），行情行 justify-content:center 与标题同轴。270/270/0 全绿；detect 0 发现；client-only，刷新即生效。
+
+**§12.24 追记六（同日七轮，主人实测反馈 → 已修复）**：合并胶囊额度段与 qw 独立胶囊字体不一致——sk 段继承 `.skc-capsule` 12px/常规字重，qw 本体为 `.dqw-capsule` 11px/600 + tabular-nums；修复：`.skc-qval` 钉 11px/600/tabular-nums、分隔点 `.skc-qsep` 对齐 qw opacity .5；danger 琥珀色为 B26 拍板规格（守卫钉死），不随 qw 红色，维持原样。270/270/0 全绿；detect 0 发现；client-only，刷新即生效。
+
+**§12.24 追记七（同日八轮）**：设置页页尾加入版本号——`dsh-stock-kanban v0.2.0`，位于「行情来自免费源」脚注之后；构建期 esbuild define 注入 package.json 版本（client/version.mjs，typeof 守卫使 node --test 直跑源码回落 "dev"），与发版号永不错位；样式 11px/text-2/opacity .6（字号阶梯无 10px 契约守卫生效，10px 改 11px + 透明度弱化）。270/270/0 全绿；detect 0 发现；client-only + 构建脚本改动，刷新即生效。

@@ -253,6 +253,41 @@ export class Store {
     });
   }
 
+  /**
+   * 批量重排某市场分组的标的（拖拽排序持久化）。orderedIds 须为该组全量 id 的一个排列，
+   * 组内 sort 按新顺序重编号 0..n-1。整组一次串行写 + 单次 rev 推进（多页面一致性 CAS 一次生效）；
+   * 任一记录落盘失败 → 整组回滚（含 rev），不留半套顺序。
+   */
+  reorderSymbols(market, orderedIds) {
+    return this.#enqueue(async () => {
+      const group = [...this.#symbols.values()].filter((s) => s.market === market);
+      const { reorderSorts } = await import("./model.mjs");
+      const applied = reorderSorts(group, orderedIds);
+      if (!applied.ok) {
+        const e = new Error(applied.error);
+        e.code = "invalid-order";
+        throw e;
+      }
+      if (!applied.changed) {
+        return { global: this.#global, changed: false, count: 0 };
+      }
+      const prevById = new Map(applied.records.map((rec) => [rec.id, this.#symbols.get(rec.id)]));
+      for (const rec of applied.records) this.#symbols.set(rec.id, rec);
+      this.#bumpRev();
+      try {
+        for (const rec of applied.records) {
+          if (rec !== prevById.get(rec.id)) await this.#driver.putRecord(TABLE, rec.id, rec);
+        }
+        await this.#persistGlobalLocked();
+      } catch (e) {
+        for (const [id, prev] of prevById) this.#symbols.set(id, prev);
+        this.#rollbackRev();
+        throw e;
+      }
+      return { global: this.#global, changed: true, count: applied.records.length };
+    });
+  }
+
   /** 删除标的。不存在报错。 */
   removeSymbol(id) {
     return this.#enqueue(async () => {

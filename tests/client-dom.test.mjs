@@ -90,7 +90,7 @@ function balancedBlock(text, headerIdx) {
 test("FLOAT_STYLE_TEXT · quota pill 样式：--quota cursor、tabular-nums、warn/danger 阈值色、pulse 仅在 reduced-motion 守卫块内", () => {
   const s = FLOAT_STYLE_TEXT;
   assert.ok(s.includes(".skc-capsule--quota{cursor:pointer}"), "--quota 覆写 cursor:pointer");
-  assert.ok(s.includes(".skc-qval{font-variant-numeric:tabular-nums}"), "数值段 tabular-nums（spec §9）");
+  assert.ok(s.includes(".skc-qval{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}"), "数值段对齐 qw 独立胶囊文字规格（11px/600 + tabular-nums，spec §9）");
   assert.ok(s.includes(".skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}"), "warn 色（与 qw 同名回退值）");
   assert.ok(s.includes(".skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}"), "danger 色已改琥珀（B26，与 qw 警告色同名回退值）");
   assert.ok(!s.includes(".skc-switch") && !s.includes(".skc-quota-merge-on"), "合并开关样式随隐藏退役（第四轮 2026-11-10）");
@@ -406,6 +406,87 @@ test("list · holdingsOnly 过滤 + 隐私遮蔽 pnl", () => {
   } finally {
     list.dispose();
     restoreGlobals();
+    h.cleanup();
+  }
+});
+
+test("list · 展示序 = sort 升序（服务端乱序下发也重排）+ 把手/aria-keyshortcuts + Alt+↑ 走 reorderSymbols", () => {
+  const h = createDomHarness();
+  const prevGlobals = { document: globalThis.document, window: globalThis.window, localStorage: globalThis.localStorage };
+  globalThis.document = h.document;
+  globalThis.window = h.window;
+  globalThis.localStorage = h.localStorage;
+  const calls = [];
+  const mkSym = (id, sort) => ({
+    id, market: "cn", code: id, name: `名称${id}`, quantity: null, avgCost: null,
+    addedAt: "2026-01-01T00:00:00.000Z", sort,
+  });
+  // getState 供拖拽排序的 marketState() 读权威全序（market: cn 三标的）
+  const store = {
+    getState: () => ({
+      business: { rev: 1, settings: { privacyMode: false }, loaded: true, symbols: [mkSym("a", 1), mkSym("b", 2), mkSym("c", 3)] },
+      ui: { panelOpen: true, view: "list", lastMarket: "cn", holdingsOnly: false },
+    }),
+    reorderSymbols: (market, ids) => calls.push(["reorder", market, ids]),
+    openDetail: () => {},
+    setLastMarket: () => {},
+    pollQuotes: () => {},
+    setHoldingsOnly: () => {},
+  };
+  const list = createList({ store });
+  try {
+    const snap = {
+      business: { rev: 1, settings: { privacyMode: false }, loaded: true, symbols: [mkSym("c", 3), mkSym("a", 1), mkSym("b", 2)] },
+      quotes: {},
+      ui: { panelOpen: true, view: "list", detailId: null, showAdd: false, showSettings: false, lastMarket: "cn", holdingsOnly: false, maVisible: { 5: true }, capsuleSymbolId: null },
+    };
+    list.update(snap);
+    const rows = [...list.el.querySelectorAll(".skc-row")];
+    assert.deepEqual(rows.map((r) => r.dataset.id), ["a", "b", "c"], "乱序下发仍按 sort 升序渲染");
+    assert.ok(rows[0].querySelector(".skc-row-grip svg"), "行尾把手在位");
+    assert.equal(rows[0].getAttribute("aria-keyshortcuts"), "Alt+ArrowUp Alt+ArrowDown", "键盘等价路径声明");
+    rows[2].dispatchEvent(new h.window.KeyboardEvent("keydown", { key: "ArrowUp", altKey: true, bubbles: true, cancelable: true }));
+    assert.deepEqual(calls, [["reorder", "cn", ["a", "c", "b"]]], "Alt+↑ → c 上移一位的可见序提交");
+    // 无 Alt 修饰的方向键不触发排序；Enter 仍走详情
+    rows[0].dispatchEvent(new h.window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }));
+    assert.equal(calls.length, 1, "裸方向键不触发排序");
+  } finally {
+    list.dispose();
+    for (const [k, v] of Object.entries(prevGlobals)) {
+      if (v !== undefined) globalThis[k] = v;
+    }
+    h.cleanup();
+  }
+});
+
+/* ---------------- panel · 胶囊显示下拉与列表同序（2026-11-10） ---------------- */
+
+test("panel · 胶囊显示下拉：A-H-U-C 分组（optgroup=Tab 名）+ 组内 sort 升序，与面板列表对齐", () => {
+  const { h, panel } = setupPanel();
+  try {
+    const mk = (id, market, sort) => ({
+      id, market, code: id, name: `标的${id}`, quantity: null, avgCost: null,
+      buyTarget: null, sellTarget: null, addedAt: "2026-01-01T00:00:00.000Z", sort,
+    });
+    const snap = LIST_SNAPSHOT({
+      business: {
+        rev: 1, settings: { privacyMode: false }, driverKind: null, loaded: true,
+        // 乱序下发：证明下拉按组序 + sort 序重建，而非 KV 原序
+        symbols: [mk("u1", "us", 200), mk("c2", "cn", 200), mk("x1", "crypto", 100), mk("c1", "cn", 100), mk("h1", "hk", 100)],
+      },
+    });
+    snap.ui.capsuleSymbolId = "c1";
+    panel.openFrom({ left: 10, top: 10, width: 70, height: 26 }, { left: 10, top: 10, width: 150, height: 26 });
+    panel.update(snap);
+    const select = panel.el.querySelector("select");
+    assert.ok(select, "胶囊显示 picker 在位");
+    const order = [...select.querySelectorAll("option")].map((o) => o.value);
+    assert.deepEqual(order, ["c1", "c2", "h1", "u1", "x1"], "组间 A-H-U-C、组内 sort 升序");
+    const groups = [...select.querySelectorAll("optgroup")].map((g) => g.label);
+    assert.deepEqual(groups, [t("market.cn"), t("market.hk"), t("market.us"), t("market.crypto")], "组标签 = 市场 Tab 名");
+    assert.equal(select.value, "c1", "capsuleSymbolId 选中保持");
+  } finally {
+    panel.dispose();
     h.cleanup();
   }
 });

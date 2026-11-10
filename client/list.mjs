@@ -9,6 +9,14 @@ import { t } from "./i18n.mjs";
 import { iconEl } from "./icons.mjs";
 import { targetBadgeKind } from "../src/sessions.mjs";
 import { MARKETS } from "../src/identity.mjs";
+import { compareBySort } from "../src/model.mjs";
+import {
+  liftIntent,
+  moveId,
+  slotIndexFromY,
+  mergeVisibleIntoFull,
+  LONG_PRESS_MS,
+} from "./reorder.mjs";
 
 function appendText(parent, className, text) {
   const span = document.createElement("span");
@@ -72,6 +80,202 @@ export function createList({ store }) {
 
   el.append(tabsEl, rowsEl);
 
+  /* ---------------- 拖拽排序（手势粘合层；决策数学在 reorder.mjs，shape 定稿 2026-11-10） ----------------
+   * 桌面：整行拖拽，位移 ≥ slop 起拖；触屏：长按起拖，未满长按的位移交还原生滚动。
+   * 平滑模型：起拖一次性快照行几何（拖拽期间零布局读）→ 被拖行 transform 直写 1:1 跟随指针，
+   * 过半行阈值换槽、兄弟行 FLIP 滑移让位；松手 settle 过渡滑回槽位。落点后可见序并入全序
+   * 一次 reorderSymbols 持久化（失败由 mutate 刷新回权威顺序）。拖拽期间冻结轮询重绘。 */
+  let dragPending = null; // { id, pointerId, type, x0, y0, t0, timer }
+  let dragActive = false; // 已起拖：冻结重绘 + 压制行点击
+  let dragPointerId = -1;
+  let dragId = null;
+  let dragIndex = -1; // 被拖行当前逻辑槽位
+  let dragCache = null; // { listTop, rowH, orderIds, grabOffsetY } —— 起拖时的行几何快照
+  let suppressClick = false;
+  let flipTimer = null;
+
+  /** 当前市场分组的权威全序（渲染序 = sort 升序，与列表一致） */
+  const marketState = () => {
+    const { business, ui } = store.getState();
+    const market = MARKETS.includes(ui.lastMarket) ? ui.lastMarket : "cn";
+    const rows = business.symbols.filter((s) => s.market === market).sort(compareBySort);
+    return { market, rows };
+  };
+
+  const rowById = (id) => rowsEl.querySelector(`.skc-row[data-id="${id}"]`);
+
+  /** 依据可见序提交持久化：无过滤时可见序即全序；「只看持仓」下并入全序（未可见项保持原位） */
+  const commitVisibleOrder = (visibleOrder) => {
+    const { market, rows } = marketState();
+    const full = rows.map((s) => s.id);
+    const merged = mergeVisibleIntoFull(full, visibleOrder);
+    if (merged.some((id, i) => id !== full[i])) store.reorderSymbols(market, merged);
+  };
+
+  const cancelPending = () => {
+    if (dragPending) {
+      clearTimeout(dragPending.timer);
+      dragPending = null;
+    }
+  };
+
+  const reducedMotion = () => document.defaultView?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+
+  const beginDrag = (pending, y = pending.y0) => {
+    clearTimeout(pending.timer);
+    dragPending = null;
+    const rows = [...rowsEl.querySelectorAll(".skc-row")];
+    const index = rows.findIndex((r) => r.dataset.id === pending.id);
+    if (index === -1 || rows.length < 2) return;
+    // 一次性几何快照（行高结构齐整：行距即行高）；此后拖拽期间不再读布局
+    const rects = rows.map((r) => r.getBoundingClientRect());
+    const rowH = index < rows.length - 1
+      ? Math.max(1, rects[index + 1].top - rects[index].top)
+      : Math.max(1, rects[index].bottom - rects[index].top);
+    dragActive = true;
+    dragPointerId = pending.pointerId;
+    dragId = pending.id;
+    dragIndex = index;
+    suppressClick = true;
+    dragCache = {
+      listTop: rects[0].top,
+      rowH,
+      orderIds: rows.map((r) => r.dataset.id),
+      grabOffsetY: y - rects[index].top,
+    };
+    rowById(pending.id)?.classList.add("skc-row-dragging");
+    try {
+      rowsEl.setPointerCapture(pending.pointerId);
+    } catch {
+      /* 合成事件/无捕获环境：委托监听仍收得到冒泡 */
+    }
+  };
+
+  const endDrag = () => {
+    const row = dragId != null ? rowById(dragId) : null;
+    const cache = dragCache;
+    const wasActive = dragActive;
+    const order = cache ? [...cache.orderIds] : null;
+    if (row) {
+      if (!reducedMotion() && row.style.transform) {
+        // 指针跟随位置 → 最终槽位：settle 过渡滑回（基准已是槽位，清 transform 即归位）
+        row.classList.add("skc-row-settle");
+        row.style.transform = "";
+        clearTimeout(flipTimer);
+        flipTimer = setTimeout(() => row.classList.remove("skc-row-settle"), 200);
+      } else {
+        row.style.transform = "";
+      }
+      row.classList.remove("skc-row-dragging");
+    }
+    rowsEl.classList.remove("skc-rows-flipping");
+    dragActive = false;
+    dragId = null;
+    dragPointerId = -1;
+    dragIndex = -1;
+    dragCache = null;
+    if (wasActive && order) commitVisibleOrder(order); // 失败路径：mutate 内 refreshState 回权威顺序
+  };
+
+  /** 兄弟行 FLIP：逻辑位差反演 → 瞬时位移 → 回流后释放过渡归零；被拖行不参与（其 1:1 跟随指针） */
+  const playFlipVirtual = (beforeTops, cache, excludeId) => {
+    if (reducedMotion()) return;
+    const moved = [];
+    for (const child of rowsEl.children) {
+      if (child.dataset.id === excludeId) continue;
+      const before = beforeTops[child.dataset.id];
+      const now = cache.listTop + cache.orderIds.indexOf(child.dataset.id) * cache.rowH;
+      const dy = before - now;
+      if (dy) {
+        child.style.transform = `translateY(${dy}px)`;
+        moved.push(child);
+      }
+    }
+    if (moved.length === 0) return;
+    rowsEl.classList.add("skc-rows-flipping");
+    void rowsEl.offsetHeight; // 强制回流：起始位移先生效
+    for (const node of moved) node.style.transform = "";
+    clearTimeout(flipTimer);
+    flipTimer = setTimeout(() => rowsEl.classList.remove("skc-rows-flipping"), 200);
+  };
+
+  /** 指针跟随：被拖行 transform 直写（无过渡、零布局读），过半行换槽时兄弟行滑移 */
+  const onDragMove = (y) => {
+    const cache = dragCache;
+    const dragged = dragId != null ? rowById(dragId) : null;
+    if (!cache || !dragged) return;
+    const visualTop = y - cache.grabOffsetY;
+    const target = slotIndexFromY(visualTop, cache.listTop, cache.rowH, cache.orderIds.length);
+    if (target !== dragIndex) {
+      const beforeTops = {};
+      cache.orderIds.forEach((id, i) => { beforeTops[id] = cache.listTop + i * cache.rowH; });
+      cache.orderIds = moveId(cache.orderIds, dragId, target);
+      dragIndex = target;
+      for (const id of cache.orderIds) rowsEl.append(rowById(id));
+      playFlipVirtual(beforeTops, cache, dragId);
+    }
+    dragged.style.transform = `translateY(${visualTop - (cache.listTop + dragIndex * cache.rowH)}px)`;
+  };
+
+  const moveByKeyboard = (id, delta) => {
+    const shown = [...rowsEl.querySelectorAll(".skc-row")].map((r) => r.dataset.id);
+    const from = shown.indexOf(id);
+    if (from === -1 || shown.length < 2) return;
+    const to = Math.max(0, Math.min(shown.length - 1, from + delta));
+    if (to === from) return;
+    commitVisibleOrder(moveId(shown, id, to));
+  };
+
+  const onRowsPointerDown = (e) => {
+    suppressClick = false; // 新手势开启：上一手势的点击压制窗口关闭
+    if (dragActive || dragPending || e.button !== 0) return;
+    const row = e.target.closest?.(".skc-row");
+    if (!row || !rowsEl.contains(row)) return;
+    if (marketState().rows.length < 2) return;
+    const pending = {
+      id: row.dataset.id,
+      pointerId: e.pointerId,
+      type: e.pointerType ?? "mouse",
+      x0: e.clientX,
+      y0: e.clientY,
+      t0: performance.now(),
+      timer: null,
+    };
+    if (pending.type === "touch" || pending.type === "pen") {
+      pending.timer = setTimeout(() => beginDrag(pending), LONG_PRESS_MS);
+    }
+    dragPending = pending;
+  };
+
+  const onRowsPointerMove = (e) => {
+    const pending = dragPending;
+    if (pending && e.pointerId === pending.pointerId) {
+      const intent = liftIntent({
+        pointerType: pending.type,
+        movedPx: Math.hypot(e.clientX - pending.x0, e.clientY - pending.y0),
+        heldMs: performance.now() - pending.t0,
+      });
+      if (intent === "reject") cancelPending();
+      else if (intent === "lift" && pending.type !== "touch" && pending.type !== "pen") beginDrag(pending, e.clientY);
+      return;
+    }
+    if (dragActive && e.pointerId === dragPointerId) onDragMove(e.clientY);
+  };
+
+  const onRowsPointerEnd = (e) => {
+    if (dragPending && e.pointerId === dragPending.pointerId) cancelPending();
+    else if (dragActive && e.pointerId === dragPointerId) endDrag();
+  };
+
+  // 起拖后压制原生滚动：touch-action 在手势起点采样，长按起拖必须显式拦截（非被动）
+  rowsEl.addEventListener("pointerdown", onRowsPointerDown);
+  rowsEl.addEventListener("pointermove", onRowsPointerMove);
+  rowsEl.addEventListener("pointerup", onRowsPointerEnd);
+  rowsEl.addEventListener("pointercancel", onRowsPointerEnd);
+  rowsEl.addEventListener("touchmove", (e) => {
+    if (dragActive) e.preventDefault();
+  }, { passive: false });
+
   const buildRow = (s, ui, quotes, privacy) => {
     const q = quotes[s.id];
     const price = q?.status === "ok" ? q.price : null;
@@ -85,11 +289,23 @@ export function createList({ store }) {
     row.dataset.id = s.id; // 轮询重绘后按 id 归还键盘焦点（第三轮 2026-11-10）
     row.tabIndex = 0; // 键盘可达：Tab 进入行，Enter/Space 打开详情（polish：焦点 + 激活路径）
     row.setAttribute("role", "button");
-    row.addEventListener("click", () => store.openDetail(s.id));
+    row.setAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown"); // 拖拽排序的键盘等价路径
+    row.addEventListener("click", () => {
+      if (suppressClick) {
+        suppressClick = false; // 刚结束的拖拽释放出的 click：吞掉，不开详情
+        return;
+      }
+      store.openDetail(s.id);
+    });
     row.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         store.openDetail(s.id);
+        return;
+      }
+      if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        e.preventDefault();
+        moveByKeyboard(s.id, e.key === "ArrowUp" ? -1 : 1);
       }
     });
 
@@ -141,18 +357,23 @@ export function createList({ store }) {
       appendTargetBadges(tailCol, q?.target, s.market, q?.quoteTime);
     }
 
-    row.append(nameCol, priceCol, tailCol);
+    const gripEl = document.createElement("span");
+    gripEl.className = "skc-row-grip"; // 悬停浮现的排序可供性；装饰件，行整体是拖拽面
+    gripEl.append(iconEl(document, "grip"));
+
+    row.append(nameCol, priceCol, tailCol, gripEl);
     return row;
   };
 
   const update = (snapshot) => {
-    if (disposed) return;
+    if (disposed || dragActive) return; // 拖拽中冻结重绘：replaceChildren 会打断手势（结束后由 endDrag 路径重绘）
     const ui = snapshot?.ui ?? {};
     const business = snapshot?.business ?? { symbols: [] };
     const quotes = snapshot?.quotes ?? {};
     const privacy = business.settings?.privacyMode === true;
     const market = MARKETS.includes(ui.lastMarket) ? ui.lastMarket : "cn";
-    const rows = business.symbols.filter((s) => s.market === market);
+    // 展示序 = sort 升序（compareBySort：sort → addedAt → id 兜底）；过滤保持相对序
+    const rows = business.symbols.filter((s) => s.market === market).sort(compareBySort);
     const shown = ui.holdingsOnly ? rows.filter((s) => s.quantity != null && s.quantity > 0) : rows;
 
     for (const [m, { button, countSpan }] of tabButtons) {
@@ -194,6 +415,8 @@ export function createList({ store }) {
 
   const dispose = () => {
     disposed = true;
+    cancelPending();
+    clearTimeout(flipTimer);
     for (const { button } of tabButtons.values()) {
       button.replaceWith(button.cloneNode(true)); // 丢弃监听器
     }

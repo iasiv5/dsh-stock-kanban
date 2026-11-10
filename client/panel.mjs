@@ -12,6 +12,9 @@ import { t } from "./i18n.mjs";
 import { iconEl } from "./icons.mjs";
 import { MARGIN, titlebarTopInset } from "./float-prefs.mjs";
 import { parseInset } from "./drag.mjs";
+import { MARKETS } from "../src/identity.mjs";
+import { compareBySort } from "../src/model.mjs";
+import { VERSION_LABEL } from "./version.mjs";
 
 const ZERO_INSETS = { left: 0, right: 0, top: 0, bottom: 0 };
 const WIDTH_FALLBACK = 360; // 与 styles.mjs 的面板宽度一致（offsetWidth 为 0 时的回退；第四轮 2026-11-10 由 320 调宽）
@@ -302,10 +305,14 @@ export function createPanel({ doc, win, store, views }) {
   const noteDelay = doc.createElement("div");
   noteDelay.className = "skc-setting-footnote skc-setting-footnote--weak";
   noteDelay.textContent = t("app.note.delay");
+  // 版本号（2026-11-10）：最安静的页尾一行，构建期注入（client/version.mjs），不参与语言切换（产品名恒拉丁）
+  const noteVersion = doc.createElement("div");
+  noteVersion.className = "skc-setting-version";
+  noteVersion.textContent = VERSION_LABEL;
   // 页尾说明收进一组（同一区块，行距紧凑）
   const notes = doc.createElement("div");
   notes.className = "skc-setting-notes";
-  notes.append(noteDelay);
+  notes.append(noteDelay, noteVersion);
   settingsBody.append(views.backup.el, notes);
   settingsLayer.append(settingsHead, settingsBody);
 
@@ -348,7 +355,9 @@ export function createPanel({ doc, win, store, views }) {
     listLayer.hidden = ui.view === "detail";
     detailLayer.hidden = ui.view !== "detail";
 
-    // picker 选项（symbols 变化时重建；DOM 直建防注入）
+    // picker 选项（symbols 变化时重建；DOM 直建防注入）。
+    // 顺序与列表对齐（2026-11-10）：A-H-U-C 四组 = 四个市场 Tab，组内 sort 升序（compareBySort），
+    // optgroup 标签即 Tab 名——下拉顺序与面板顺序可一一对照，拖拽排序后两端同步。
     const symbols = business.symbols ?? [];
     const current = ui.capsuleSymbolId ?? "";
     pickerSelect.replaceChildren();
@@ -358,14 +367,18 @@ export function createPanel({ doc, win, store, views }) {
       opt.textContent = t("picker.empty");
       pickerSelect.append(opt);
     } else {
-      // 选项只放名称（选择器窄，市场标签会被截断）；同名跨市场时才补市场后缀以便区分
-      const nameCount = new Map();
-      for (const s of symbols) nameCount.set(s.name, (nameCount.get(s.name) ?? 0) + 1);
-      for (const s of symbols) {
-        const opt = doc.createElement("option");
-        opt.value = s.id;
-        opt.textContent = nameCount.get(s.name) > 1 ? `${s.name} · ${t("market." + s.market)}` : s.name;
-        pickerSelect.append(opt);
+      for (const market of MARKETS) {
+        const group = symbols.filter((s) => s.market === market).sort(compareBySort);
+        if (group.length === 0) continue;
+        const optgroup = doc.createElement("optgroup");
+        optgroup.label = t(`market.${market}`);
+        for (const s of group) {
+          const opt = doc.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.name; // 组标签已给市场语境，同名跨市场不再需要后缀
+          optgroup.append(opt);
+        }
+        pickerSelect.append(optgroup);
       }
     }
     pickerSelect.value = symbols.some((s) => s.id === current) ? current : "";

@@ -5,7 +5,7 @@
  */
 
 import { isSameOriginRequest } from "./access.mjs";
-import { identityConsistent } from "./identity.mjs";
+import { identityConsistent, MARKETS } from "./identity.mjs";
 import { buildExportPayload, parseImportPayload } from "./model.mjs";
 import { targetState, validateTargets } from "./targets.mjs";
 import { positionMetrics } from "./portfolio.mjs";
@@ -91,6 +91,7 @@ export function createRoutes({ store, quotes, logger }) {
     { path: `${PREFIX}/state`, handler: stateRoute },
     { path: `${PREFIX}/symbols/add`, handler: mutation(addSymbolRoute) },
     { path: `${PREFIX}/symbols/update`, handler: mutation(updateSymbolRoute) },
+    { path: `${PREFIX}/symbols/reorder`, handler: mutation(reorderSymbolRoute) },
     { path: `${PREFIX}/symbols/remove`, handler: mutation(removeSymbolRoute) },
     { path: `${PREFIX}/settings`, handler: mutation(settingsRoute) },
     { path: `${PREFIX}/search`, handler: searchRoute },
@@ -187,6 +188,24 @@ async function removeSymbolRoute(body, res) {
   const result = await deps.store.removeSymbol(String(body.id ?? ""));
   deps.logger?.info?.(`stock-kanban: symbol removed ${body.id}`);
   sendJson(res, 200, { rev: result.global.rev });
+}
+
+/** 拖拽排序持久化：market 分组内全量 id 排列 → 组内 sort 重编号（单次 rev 推进） */
+async function reorderSymbolRoute(body, res) {
+  const market = String(body.market ?? "");
+  const orderedIds = body.orderedIds;
+  if (!MARKETS.includes(market) || !Array.isArray(orderedIds)) {
+    sendJson(res, 422, { error: "invalid-order" });
+    return;
+  }
+  try {
+    const result = await deps.store.reorderSymbols(market, orderedIds);
+    if (result.changed) deps.logger?.info?.(`stock-kanban: symbols reordered ${market} n=${result.count}`);
+    sendJson(res, 200, { rev: result.global.rev, changed: result.changed });
+  } catch (e) {
+    if (e.code === "invalid-order") sendJson(res, 422, { error: "invalid-order" });
+    else sendJson(res, 500, { error: "save-failed" });
+  }
 }
 
 async function settingsRoute(body, res) {

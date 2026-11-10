@@ -49,6 +49,15 @@ const ICONS = {
     { d: "M2.2 7.3h3.6" },
     { d: "M9.2 7.3h2.6" },
   ],
+  /* 拖拽排序把手：双列圆点（fill 点阵，与线性描边语言并用；aria-hidden 装饰，行整体是拖拽面） */
+  grip: [
+    { tag: "circle", cx: 5.2, cy: 3.4, r: 1.15, fill: "currentColor", stroke: "none" },
+    { tag: "circle", cx: 8.8, cy: 3.4, r: 1.15, fill: "currentColor", stroke: "none" },
+    { tag: "circle", cx: 5.2, cy: 7, r: 1.15, fill: "currentColor", stroke: "none" },
+    { tag: "circle", cx: 8.8, cy: 7, r: 1.15, fill: "currentColor", stroke: "none" },
+    { tag: "circle", cx: 5.2, cy: 10.6, r: 1.15, fill: "currentColor", stroke: "none" },
+    { tag: "circle", cx: 8.8, cy: 10.6, r: 1.15, fill: "currentColor", stroke: "none" },
+  ],
   /* 删除 */
   trash: [
     { d: "M2.8 4.2h8.4" },

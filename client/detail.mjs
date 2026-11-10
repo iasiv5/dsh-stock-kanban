@@ -21,15 +21,13 @@ const PERIODS = [
 ];
 
 /* 图表高度随视口收缩（第 10 轮，2026-11-10）：卡片 max-height = 100dvh − 24，图表取「视口 − 24 − 固定区高度」，
-   夹在 [min, max] 内。固定区 = 卡片头尾 + 详情中除图表外的内容；按界面语言取值（英文文案更长，固定区高 17px，实测）。 */
-const CHART_H = {
-  minute: { max: 190, min: 120, fixed: { zh: 466, en: 483 } },
-  candle: { max: 230, min: 140, fixed: { zh: 494, en: 511 } },
-};
-const chartHeight = (kind, vh) => {
-  const c = CHART_H[kind];
-  const fixed = c.fixed[getLang()] ?? c.fixed.zh;
-  return Math.round(Math.min(c.max, Math.max(c.min, vh - 24 - fixed)));
+   夹在 [min, max] 内。固定区 = 卡片头尾 + 详情中除图表外的内容；按界面语言取值（英文文案更长，固定区高 17px，实测）。
+   分时/K线统一钳位与固定区（第 12 轮，2026-11-10）：指标行四档周期常驻（分时档显示昨收图例，行高恒定），
+   卡片总高与周期无关——切分时/日K/周K/月K 不再触发卡片变高与重新定位（弹跳根除）。 */
+const CHART_H = { max: 230, min: 140, fixed: { zh: 494, en: 511 } };
+const chartHeight = (vh) => {
+  const fixed = CHART_H.fixed[getLang()] ?? CHART_H.fixed.zh;
+  return Math.round(Math.min(CHART_H.max, Math.max(CHART_H.min, vh - 24 - fixed)));
 };
 
 function textSpan(className, text) {
@@ -301,6 +299,9 @@ export function createDetail({ store, win }) {
   const buildChartBox = (symbol, ui) => {
     const box = document.createElement("div");
     box.className = "skc-chartbox";
+    // 三态同高（第 12 轮追补）：加载/错误占位与成图等高——骨架屏内容高 ~140px 低于图高（最高 230px），
+    // 不钉高则切周期时卡片先塌后涨（「先变短再涨回去」的残余弹跳根因）
+    box.style.height = `${chartHeight(viewportHeight())}px`;
     const chartErrorText = chart.error ? tErr(chart.error, chart.errorDetail) || chart.error : null;
     if (chart.loading) {
       // 骨架态（operate.md：内容区用 skeleton，不用文字 spinner）+ 保留文案供读屏
@@ -323,10 +324,10 @@ export function createDetail({ store, win }) {
     } else if (period === "minute") {
       box.append(buildMinuteChart(
         { points: chart.data?.points ?? [], prevClose: chart.data?.prevClose ?? chart.prevClose ?? null },
-        { dark: false, width: chartWidth(), height: chartHeight("minute", viewportHeight()) },
+        { dark: false, width: chartWidth(), height: chartHeight(viewportHeight()) },
       ));
     } else {
-      box.append(buildCandleChart(chart.data ?? [], { maVisible: ui.maVisible, dark: false, width: chartWidth(), height: chartHeight("candle", viewportHeight()) }));
+      box.append(buildCandleChart(chart.data ?? [], { maVisible: ui.maVisible, dark: false, width: chartWidth(), height: chartHeight(viewportHeight()) }));
     }
     return box;
   };
@@ -642,11 +643,14 @@ export function createDetail({ store, win }) {
       });
       periodTabs.append(btn);
     }
-    // K 线指标行（MA 图例 + 复权标注）另起一行：分时模式下整行隐藏
+    // 指标行四档周期常驻（第 12 轮，2026-11-10）：行高恒定，卡片总高与周期无关。
+    // K线档 = MA 图例 + 复权标注；分时档 = 昨收图例（标注图内的虚线参考线，非占位空行）。
     const periodMeta = document.createElement("div");
     periodMeta.className = "skc-period-meta";
-    periodMeta.hidden = period === "minute";
-    if (period !== "minute") {
+    if (period === "minute") {
+      const prevClose = chart.data?.prevClose ?? chart.prevClose ?? null;
+      periodMeta.append(textSpan("skc-meta-note", t("detail.prev-close", { v: prevClose != null ? fmtPrice(prevClose) : "—" })));
+    } else {
       periodMeta.append(buildMaLegend(ui.maVisible, (p) =>
         store.setMaVisible({ ...ui.maVisible, [p]: ui.maVisible[p] === false })));
       if (chart.adjust) {

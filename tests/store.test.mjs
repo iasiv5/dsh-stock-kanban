@@ -121,3 +121,39 @@ test("文件驱动：原子结构（symbols + global 双字段文档）", async 
   assert.deepEqual(doc.symbols["cn:sh600519"], { hello: "world" });
   assert.equal(doc.global.rev, 1);
 });
+
+/* ---------------- 拖拽排序持久化（reorderSymbols，2026-11-10） ---------------- */
+
+test("存储：reorderSymbols 组内重编号 sort，整组一次 rev 推进 + 落盘持久化", async () => {
+  const { store } = tempStore();
+  await store.init();
+  await store.addSymbol(SYM);
+  await store.addSymbol({ ...SYM, id: "cn:sz000001", code: "sz000001", sort: 200 });
+  await store.addSymbol({ ...SYM, id: "cn:sh510300", code: "sh510300", kind: "etf", sort: 300 });
+  const revBefore = store.rev;
+  const result = await store.reorderSymbols("cn", ["cn:sh510300", "cn:sh600519", "cn:sz000001"]);
+  assert.equal(result.changed, true);
+  assert.equal(store.rev, revBefore + 1); // 整组一次推进，多页面 CAS 一次生效
+  const sorts = Object.fromEntries(store.symbols.map((s) => [s.id, s.sort]));
+  assert.deepEqual(sorts, { "cn:sh510300": 0, "cn:sh600519": 1, "cn:sz000001": 2 });
+  // 重启后顺序仍在
+  const again = new Store({}, { info() {}, warn() {} });
+  await again.init();
+  assert.equal(again.getSymbol("cn:sh510300").sort, 0);
+});
+
+test("存储：reorderSymbols 非排列拒绝不推进 rev；顺序未变幂等不推进 rev", async () => {
+  const { store } = tempStore();
+  await store.init();
+  await store.addSymbol(SYM);
+  await store.addSymbol({ ...SYM, id: "cn:sz000001", code: "sz000001", sort: 200 });
+  const revBefore = store.rev;
+  await assert.rejects(() => store.reorderSymbols("cn", ["cn:sh600519"]), /invalid-order/); // 缺员
+  await assert.rejects(() => store.reorderSymbols("cn", ["cn:sh600519", "cn:sh600519"]), /invalid-order/); // 重复
+  await assert.rejects(() => store.reorderSymbols("hk", ["cn:sh600519", "cn:sz000001"]), /invalid-order/); // 组不匹配
+  await assert.rejects(() => store.reorderSymbols("cn", "cn:sh600519,cn:sz000001"), /invalid-order/); // 非数组
+  assert.equal(store.rev, revBefore);
+  const same = await store.reorderSymbols("cn", ["cn:sh600519", "cn:sz000001"]);
+  assert.equal(same.changed, false);
+  assert.equal(store.rev, revBefore); // 幂等：不推进 rev、不落盘
+});
