@@ -54,7 +54,7 @@ const zh = {  "market.cn": "A 股",
   "list.empty.holdings": "该市场暂无持仓",
   "list.quote-failed": "获取失败",
 
-  "detail.back": "← 返回",
+  "detail.back": "返回",
   "detail.delete": "删除",
   "detail.missing": "标的不存在或已被删除",
   "detail.quote-time": "行情 {t} · 拉取 {f}",
@@ -199,7 +199,7 @@ const en = {
   "list.empty.holdings": "No holdings in this market",
   "list.quote-failed": "Failed",
 
-  "detail.back": "← Back",
+  "detail.back": "Back",
   "detail.delete": "Delete",
   "detail.missing": "Symbol missing or removed",
   "detail.quote-time": "Quote {t} · Fetched {f}",

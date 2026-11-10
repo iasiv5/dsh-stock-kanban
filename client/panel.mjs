@@ -9,6 +9,7 @@
  */
 
 import { t } from "./i18n.mjs";
+import { iconEl } from "./icons.mjs";
 import { MARGIN, titlebarTopInset } from "./float-prefs.mjs";
 import { parseInset } from "./drag.mjs";
 
@@ -188,6 +189,8 @@ export function createPanel({ doc, win, store, views }) {
 
   const footer = doc.createElement("div");
   footer.className = "skc-footer";
+  const footerMain = doc.createElement("div");
+  footerMain.className = "skc-footer-main";
   const pickerLabel = doc.createElement("label");
   pickerLabel.className = "skc-capsule-picker";
   pickerLabel.append(doc.createTextNode(t("picker.label")));
@@ -198,33 +201,38 @@ export function createPanel({ doc, win, store, views }) {
 
   const footerActions = doc.createElement("span");
   footerActions.className = "skc-spacer";
-  const makeFooterButton = (action, label, titleText, onClick) => {
+  /** 图标钮（icons.mjs 线性 SVG；aria-label 承载可读名，label 形参已随 emoji 字形一并退役） */
+  const makeFooterButton = (action, titleText, onClick, iconName) => {
     const btn = doc.createElement("button");
     btn.type = "button";
     btn.className = "skc-icon-btn";
     btn.dataset.action = action;
-    btn.textContent = label;
-    btn.title = titleText;
+    btn.append(iconEl(doc, iconName));
+    if (titleText) {
+      btn.title = titleText;
+      btn.setAttribute("aria-label", titleText);
+    }
     btn.addEventListener("click", onClick);
     return btn;
   };
-  const privacyBtn = makeFooterButton("privacy", "👁", "", () => {
+  const privacyBtn = makeFooterButton("privacy", t("privacy.off"), () => {
     const next = !(snapshot?.business?.settings?.privacyMode === true);
     store.setPrivacy(next);
-  });
-  const addBtn = makeFooterButton("add", "＋", t("add.title"), () => store.setShowAdd(true));
-  const settingsBtn = makeFooterButton("settings", "⚙", t("app.settings"), () => store.setShowSettings(true));
-  const refreshBtn = makeFooterButton("refresh", "⟳", t("list.refresh"), () => store.pollQuotes());
+  }, "privacy");
+  const addBtn = makeFooterButton("add", t("add.title"), () => store.setShowAdd(true), "plus");
+  const settingsBtn = makeFooterButton("settings", t("app.settings"), () => store.setShowSettings(true), "settings");
+  const refreshBtn = makeFooterButton("refresh", t("list.refresh"), () => store.pollQuotes(), "refresh");
   // 合并显示 quota 开关：仅能力在线（ui.quotaCapable）时由 render() 挂载；缺省视为开（与 store 默认一致）
-  const quotaMergeBtn = makeFooterButton("quota-merge", "⊞", t("quota.merge"), () => {
+  const quotaMergeBtn = makeFooterButton("quota-merge", t("quota.merge"), () => {
     const on = snapshot?.ui?.quotaMerge !== false;
     store.setQuotaMerge(!on);
-  });
-  const closeBtn = makeFooterButton("close", "✕", t("app.collapse"), () => close());
+  }, "quota-on");
+  const closeBtn = makeFooterButton("close", t("app.collapse"), () => close(), "close");
 
   const footerHint = doc.createElement("span");
   footerHint.className = "skc-hint";
-  footer.append(pickerLabel, footerActions, privacyBtn, addBtn, settingsBtn, refreshBtn, closeBtn, footerHint);
+  footerMain.append(pickerLabel, footerActions, privacyBtn, addBtn, settingsBtn, refreshBtn, closeBtn);
+  footer.append(footerMain, footerHint);
 
   // 对话框层（面板内渲染）
   const addLayer = doc.createElement("div");
@@ -245,13 +253,16 @@ export function createPanel({ doc, win, store, views }) {
   const settingsClose = doc.createElement("button");
   settingsClose.className = "skc-icon-btn";
   settingsClose.type = "button";
-  settingsClose.textContent = "✕";
+  settingsClose.append(iconEl(doc, "close"));
+  settingsClose.setAttribute("aria-label", t("app.collapse"));
   settingsClose.addEventListener("click", () => store.setShowSettings(false));
   settingsHead.append(settingsTitle, settingsSpacer, settingsClose);
   settingsLayer.append(settingsHead, views.backup.el);
 
   const toast = doc.createElement("div");
   toast.className = "skc-toast";
+  toast.setAttribute("role", "status"); // 读屏礼貌播报（a11y polish）
+  toast.setAttribute("aria-live", "polite");
   toast.hidden = true;
 
   el.append(header, body, footer, addLayer, settingsLayer, toast);
@@ -266,6 +277,7 @@ export function createPanel({ doc, win, store, views }) {
 
     el.hidden = !open;
     el.classList.toggle("skc-panel--slide", open); // S9：打开时带滑入类（动画位于减少动态效果守卫内），关闭时移除
+    el.classList.toggle("skc-quote-error", Boolean(quoteMeta?.error)); // 行情异常：头部品牌点转警示红
     headerMeta.textContent = quoteMeta?.error
       ? t("app.meta.error")
       : t("app.meta", { n: business.symbols.length });
@@ -293,20 +305,22 @@ export function createPanel({ doc, win, store, views }) {
     pickerSelect.value = symbols.some((s) => s.id === current) ? current : "";
 
     const privacy = business.settings?.privacyMode === true;
-    privacyBtn.textContent = privacy ? "🙈" : "👁";
+    privacyBtn.replaceChildren(iconEl(doc, privacy ? "privacy-off" : "privacy"));
     privacyBtn.title = privacy ? t("privacy.on") : t("privacy.off");
+    privacyBtn.setAttribute("aria-label", privacyBtn.title);
+    privacyBtn.setAttribute("aria-pressed", privacy ? "true" : "false");
     privacyBtn.classList.toggle("skc-privacy-on", privacy);
     footerHint.textContent = t("app.footer", { privacy: privacy ? t("app.footer.privacy") : "" });
 
-    // 合并显示 quota 开关：能力在线才挂载、能力消失即移除；label/active 随 ui.quotaMerge 切换
+    // 合并显示 quota 开关：能力在线才挂载、能力消失即移除；图标/active 随 ui.quotaMerge 切换
     if (ui.quotaCapable === true) {
       const quotaOn = ui.quotaMerge !== false;
-      quotaMergeBtn.textContent = quotaOn ? "⊞" : "⊟";
+      quotaMergeBtn.replaceChildren(iconEl(doc, quotaOn ? "quota-on" : "quota-off"));
       quotaMergeBtn.title = quotaOn ? t("quota.merge.on") : t("quota.merge.off");
       quotaMergeBtn.setAttribute("aria-label", t("quota.merge"));
       quotaMergeBtn.setAttribute("aria-pressed", quotaOn ? "true" : "false");
       quotaMergeBtn.classList.toggle("skc-quota-merge-on", quotaOn);
-      if (quotaMergeBtn.parentNode !== footer) footer.insertBefore(quotaMergeBtn, closeBtn);
+      if (quotaMergeBtn.parentNode !== footerMain) footerMain.insertBefore(quotaMergeBtn, closeBtn);
     } else {
       quotaMergeBtn.remove();
     }

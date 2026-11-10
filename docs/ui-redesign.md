@@ -1,0 +1,200 @@
+# UI 重构：功能清单 · 设计现状 · 重构方案（2026-11-10）
+
+> 本文是「优雅界面重设计」的基准文档：先逐项盘点**实际功能面**（以代码为准，非 README
+> 转述），再列设计现状问题，最后给重构方案与执行记录。
+
+## 1. 实际功能清单（以 client/*.mjs + tests/ 为准）
+
+### A. 悬浮胶囊（capsule.mjs + float-prefs.mjs + drag.mjs）
+
+| # | 功能 | 实现要点 |
+|---|---|---|
+| A1 | 展示自选标的 | 名称 + 现价 + 涨跌幅（红涨绿跌、tabular-nums） |
+| A2 | 触价标记 | 买入触发红 `B`、卖出触发绿 `S`（拉丁字母，B26） |
+| A3 | 行情过期诚实降级 | stale/no-data → 显示「行情旧」，title 说明，不伪装实时 |
+| A4 | 自由拖动 + 位置记忆 | grab/slop(6/10)/rAF 管线；落盘 `dsh-stock-kanban:float-position`；视口钳位（safe-area + Windows 标题栏带） |
+| A5 | quota-watch 合并胶囊（CEP v1） | 股票段｜分隔线｜额度段（G/C 百分比、>80 琥珀 >95 危险、待处理兑换小点）；整枚同拖、位置双键互认；点额度段唤起 qw 面板 |
+| A6 | 键盘可达 | Enter/Space toggle；focus-visible ring |
+| A7 | 开关面板 | 点股票段开/关（再点关闭）；Esc 关；面板外点关（胶囊按压豁免、额度段不豁免） |
+| A8 | 窄屏降级 | ≤480px 带 `skc-compact`（隐藏名称留价格）；≤520 防溢出 |
+
+### B. 面板框架（panel.mjs）
+
+| # | 功能 | 实现要点 |
+|---|---|---|
+| B1 | 头部 | 标题「盯盘」+ meta（N 个自选 · 实例共享 / 行情服务异常） |
+| B2 | 锚定弹出几何 | 股票段矩形水平推出优先（右→左）→ 两侧放不下垂直回退（下→上翻）→ 钳位；≤480px 底部 sheet |
+| B3 | 列表常驻 | 详情是覆盖层；返回保市场 Tab/筛选/滚动 |
+| B4 | footer 动作区 | 胶囊标的 picker（select）+ 隐私/添加/设置/刷新/关闭 图标钮 + quota 合并开关（仅能力在线渲染）+ hint（延迟提示、隐私态） |
+| B5 | 对话框层 | 添加、设置（备份）覆盖在面板内渲染 |
+| B6 | toast | 3.8s 自动消失；全局行情错误条另列 |
+
+### C. 列表视图（list.mjs）
+
+| # | 功能 | 实现要点 |
+|---|---|---|
+| C1 | 四市场 Tab | A股/港股/美股/加密货币 固定分组 + 计数徽章 |
+| C2 | 只看持仓 | checkbox 筛选；持仓行加 ★ |
+| C3 | 行内容 | 名称+代码（去 sh/sz/bj/hk 前缀）· 现价 · 涨跌幅 |
+| C4 | 持仓模式 | 只看持仓时行尾显示盈亏金额/比例（隐私态 `••••` 遮挡） |
+| C5 | 目标价徽章 | 未触发时显示 B/S 触发徽章或 休/旧/无 状态徽章（带 title 说明） |
+| C6 | 空态 | 「暂无自选，点＋添加」/「该市场暂无持仓」 |
+
+### D. 详情视图（detail.mjs + charts.mjs）
+
+| # | 功能 | 实现要点 |
+|---|---|---|
+| D1 | 头部 | 返回、名称、代码·市场·ETF·报价币、删除（confirm） |
+| D2 | 行情头 | 大字价格 + 涨跌幅；**行情时间与拉取时间分开标注**；过期徽章 |
+| D3 | 图表 | 分时/日K/周K/月K；SVG 自绘无 CDN；分时含均价线+昨收虚线+量柱；K线含 MA5/10/20/60+量柱；MA 图例 chip 显隐；复权标注（前复权/不复权，如实） |
+| D4 | 持仓编辑 | 数量（股/币语境）+ 平均成本 → 市值/浮动盈亏/比例；存/清持仓 |
+| D5 | 目标价编辑 | 买目标（≤触发B）/卖目标（≥触发S）；阈值重叠显式确认 |
+| D6 | fetchKey 守卫 | 快速切标的/周期无串数据 |
+
+### E. 添加对话框（add.mjs）
+
+| # | 功能 | 实现要点 |
+|---|---|---|
+| E1 | 市场 Tab | 默认当前市场 |
+| E2 | 搜索 | 300ms 防抖；本地池+smartbox/OKX；结果行（已添加禁用+徽章）；失败/无匹配明确提示，不展示虚构结果 |
+| E3 | 直连代码 | 输入 + 校验并添加（须过行情校验）；重复 409 提示 |
+
+### F. 设置对话框（backup.mjs）
+
+| # | 功能 | 实现要点 |
+|---|---|---|
+| F1 | 导出 | 下载 JSON（schemaVersion 1） |
+| F2 | 导入 | 文件选择 → 预读校验 → 覆盖确认（数量+明文警示）→ 服务端全量校验 |
+
+### G. 横切能力
+
+| # | 功能 | 实现要点 |
+|---|---|---|
+| G1 | 双语 i18n | 跟随 `<html lang>` 实时切换 |
+| G2 | 隐私模式 | 实例级；展示层遮挡（非加密） |
+| G3 | 轮询 | 收起 30s / 展开 15s；页面隐藏暂停；服务端 TTL 合并 |
+| G4 | rev 乐观锁 | 409 → 刷新+明确提示，不静默覆盖 |
+| G5 | 数据边界 | 业务数据存 DSH 实例；界面偏好按浏览器 |
+
+## 2. 设计现状问题（重构动机）
+
+1. **四个失效令牌**：样式引用 `--dsw-alias-border-secondary` / `bg-elevated` / `bg-hover` /
+   `label-warning`——DSH 主题（dsh-client-ui-theme 0.2.2-rc.1，114 个 alias）中**不存在**，
+   恒走硬编码 fallback → 边线、悬停面、警示色从不跟随 DSH 主题/皮肤。
+2. **图标系统混乱**：footer 用 emoji 字形（👁 🙈 ＋ ⚙ ⟳ ⊞ ✕），跨平台渲染不一致、
+   线条粗细与 DSH 图标语言脱节。
+3. **层级语言未对齐 DSH**：面板是单一 `bg-elevated` 叠涂，未用 DSH 的
+   `layer-1/2/3 → overlay` 表面阶梯与 `border-l1..l3` hairline 体系；选中态、悬停态
+   与 DSH 菜单/设置页的交互反馈（interactive-bg-hover）不一致。
+4. **排版细节**：标题/节标题/徽章字重与字距不成系统；Tab 是纯文字 pill，
+   计数弱；对话框头部与正文节奏松散。
+5. **图表色板为深底设计**：MA5 白线 `#e8e8e8` 在浅色面板不可读；轴文字/昨收线
+   颜色写死浅色 rgba，不随主题。
+6. 测试契约：`client-dom.test.mjs` 钉死一批 CSS 连续段与 DOM 类名（见 §4），
+   重构必须在其上做加法。
+
+## 3. 重构方案（设计方向：克制金融终端 × DSH 表面阶梯）
+
+- **令牌对齐**：全面切换到真实存在的 alias——`border-l1/l2/l3`、`bg-layer-1/2/3`、
+  `bg-overlay`、`interactive-bg-hover/active`、`label-primary/secondary/tertiary/caption`、
+  `button-primary-fill`、`state-error-*`、`state-warn-label`、`toast-bg/label`、
+  `tooltip-bg`、`switch-thumb`；每处保留可用 fallback。被测试钉死的三处字符串
+  （`--dsw-alias-label-warning` / `--dsw-alias-brand-primary` 回退串）原样保留。
+- **表面阶梯**：胶囊 = layer-2 86% + blur(10px)；面板 = layer-2 94% + blur(14px)
+  + 顶部 hairline 高光 + 双层阴影；对话框 = overlay 面 + blur(20px)。
+- **图标**：footer/筛选栏全部换 inline SVG（currentColor、14px、stroke 1.6、圆帽），
+  与 DSH 线性图标语言一致。
+- **控件**：Tab 改分段控件（active = layer-3 面 + hairline + 主文本色）；按钮统一
+  ghost/soft-primary/danger 三态；输入框 focus ring 用 brand 22% 双层。
+- **图表**：轴文字/昨收虚线改 `style` 属性 + `var(--dsw-alias-label-tertiary)` /
+  `var(--dsw-alias-border-l3)`（跟随主题）；MA5 换中性灰蓝 `#94a3b8`（浅深皆可读），
+  其余 MA 色保留金融惯例。
+- **运动**：保留 pinned 的 150ms slide 与 qpulse；入场曲线统一 cubic-bezier(0.2, 0.8, 0.2, 1)；
+  数据行不做动画原则不变。
+
+## 4. 测试钉住的样式契约（重构时必须原样保留的字符串）
+
+- `:host { position: fixed; z-index: 2147483000; }`
+- `.skc-capsule {` 与连续段 `height:26px; padding:0 10px; border-radius:999px; touch-action:none; cursor:grab;`
+- `.skc-capsule::before { content:""; position:absolute; inset:-9px; }`
+- `.skc-capsule:focus-visible{…outline…}`
+- `.skc-panel { position:fixed; z-index:2147483000; }`
+- `@media print { :host { display:none !important } }`
+- `@media (prefers-reduced-motion: no-preference)` 存在；`.skc-panel--slide` 与
+  `.skc-qpulse`、`@keyframes skc-qpulse` 须在守卫块内；`150ms` 必须出现
+- `.skc-stack { display:flex; flex-direction:column; gap:6px; }`、`.skc-stack{align-items:flex-start}`
+- `.skc-capsule [data-seg]{flex-shrink:0}`、`.skc-capsule{width:max-content}`
+- `.skc-capsule--quota{cursor:pointer}`、`.skc-qval{font-variant-numeric:tabular-nums}`
+- `.skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}`、`.skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}`
+- `.skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def)}`
+- `.skc-capsule-mark{font-weight:500}`
+- `[data-seg="quota"]::before{…inset:-10px…}`、`[data-seg="quota"]{…align-self:stretch…}`
+
+DOM 契约：`.skc-footer [data-action="close"]`、`[data-action="quota-merge"]`
+（aria-pressed/title/`skc-quota-merge-on`）、列表 `.skc-row/.skc-tab-active/.skc-badge-buy/.skc-badge-sell/.skc-pnl-amt`、
+胶囊 `B`/`S` 字面、添加 `input[data-field="query"|"direct"]`、备份 `a[href="/stock-kanban/export"]`、
+面板锚定数学（MARGIN=8、宽回退 400、高回退 160、间隙 8）。
+
+## 5. 执行记录（2026-11-10）
+
+- `styles.mjs` 全量重写（保留 §4 全部钉住串）；
+- `panel.mjs`：footer/设置对话框头部换 SVG 图标、header 加品牌点与状态点；
+- `list.mjs`：筛选栏刷新按钮图标化；
+- `detail.mjs`：返回/删除按钮统一新按钮体系；
+- `charts.mjs`：轴文字/昨收线走主题令牌，MA5 色修正；
+- `npm test` 198/198 全绿；`npm run build` 产出 lib/client.js（client-only，HMR 免重启）。
+
+## 6. Round 2 — impeccable polish（2026-11-10，按 pbakaus/impeccable 审美体系）
+
+本面为 **Operate**（工具面板）：scanability、一致性、原生预期优先于表达，品牌感收敛在
+精确细节里。以 craft-floor 的 Verify/Refuse 清单 + operate.md 的组件状态矩阵 +
+polish.md 的分诊顺序（功能缺陷 → 缺失状态 → 层级漂移 → 视觉一致性）过了一遍，落地：
+
+1. **浏览器原生面随主题**（craft-floor 点名最易被跳过的一项）：
+   `::selection` 用 accent 24% 染色、输入框 `caret-color: var(--skc-accent)`。
+2. **组件状态矩阵补齐**（operate.md：每个交互件应有 default/hover/focus/active/disabled…）：
+   `.skc-btn:disabled`（透明底 + 基线边 + 45% 不透明）、`.skc-select:hover`、
+   筛选 checkbox `:focus-visible`。
+3. **加载态骨架化**（operate.md「skeleton, not spinners」）：图表加载从文字改为
+   双段 shimmer 骨架（价格区 + 量区 + 读屏文案），shimmer 在 reduced-motion 守卫内。
+4. **空态教学化**（operate.md「empty states teach」）：自选空态加虚线圆座 plus 图形，
+   持仓空态保持纯文案。
+5. **键盘可达**（polish.md「preserve visible keyboard focus」）：列表行 `tabIndex=0`
+   + Enter/Space 激活详情 + `:focus-visible` 内描边 ring。
+6. **读屏语义**：toast 加 `role="status"` + `aria-live="polite"`；图标钮补 `aria-label`。
+7. **运动一致性**：对话入场统一 150ms + 同族 ease-out；骨架 shimmer 1.4s 限守卫块。
+   （面板 150ms 滑入为唯一 authored moment，数据行零动画原则不变。）
+
+Refuse 清单自查：无 eyebrow/kicker、无彩色粗左边线、无渐变文字、无 emoji 图标
+（Round 1 已换 SVG）、blur/玻璃为功能性地板（浮层可读性）而非装饰；Operate 密度下
+的小节标题保留（结构必需，非营销 kicker）。
+
+**测试与部署**：新增 `tests/client-restyle.test.mjs` 9 例（图标契约、footer 图标化、
+quote-error 状态类、令牌卫生、原生面/状态面、行键盘可达），全套 207/207 绿；
+构建指纹探针（know-how 037 §7）：`plugins/??dsh-stock-kanban/client.js&rev=5087049fc711`
+下发字节与 `lib/client.js` 逐字前缀相等（+73B sourceMappingURL 尾注），`skc-footer-main`
+/`skc-shimmer` 标记在场——client-only 变更经 HMR 生效，免重启。
+
+## 7. 实拍验证与 hidden 击穿修复（2026-11-10，headless Chrome CDP）
+
+按 impeccable「verify by looking at the rendered result」跑了真实浏览器截图三轮
+（列表 / 窄屏 sheet / 详情，CDP `Page.captureScreenshot`，构建指纹探针先确认页面
+跑的是新构建）。实拍**抓获一个存在性 bug 并已修复**：
+
+- **`[hidden]` 被作者规则击穿**：`.skc-layer{display:flex}` 的作者优先级压过 UA 的
+  `[hidden]{display:none}`，列表视图下详情覆盖层（「标的不存在或已被删除」）恒
+  渲染在列表之下、详情视图下列表层又不隐藏——vanilla 重写（11-09）引入、此前
+  jsdom 断言测不出（hidden 属性存在与否 ≠ 实际渲染）的渲染层 bug。
+- **修复**：`:host [hidden]{display:none !important}` 全局守卫（唯一一处 important，
+  只作用于带 hidden 属性的元素），列表/详情互斥恢复，面板高度回落（339→303px）。
+- **顺手修**：footer「胶囊标的」label 窄面板下换行（picker `white-space:nowrap` +
+  select 限宽 150px）。
+- **回归钉**：restyle 契约 +1（hidden 守卫串），全套 208 用例（`node --test`
+  全绿；其中 restyle 10/10）。
+- **复拍确认**：列表视图单层干净、详情视图独占、footer 单行、图表/分段控件/
+  图标钮在深色主题下全部按新设计语言渲染；合并胶囊（股票段+GLM/Copilot 额度段）
+  正常。
+
+运维侧记：本轮 headless Chrome 实拍把整机负载顶到 45（esbuild 卡 D 态、npm test
+从 22s 拖到 700s）——Chrome 用完即杀；`pkill` 自匹配坑（012）再踩一次（忘加括号
+trick 被 SIGTERM），`&` 内联起 Chrome 导致输出管道吊挂（037 同类教训）均复录在案。

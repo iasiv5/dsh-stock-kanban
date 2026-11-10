@@ -6,6 +6,7 @@
 
 import { fmtPrice, fmtPct, fmtAmount, trendClass, MASK } from "./fmt.mjs";
 import { t } from "./i18n.mjs";
+import { iconEl } from "./icons.mjs";
 import { targetBadgeKind } from "../src/sessions.mjs";
 import { MARKETS } from "../src/identity.mjs";
 
@@ -78,9 +79,11 @@ export function createList({ store }) {
   const spacer = document.createElement("span");
   spacer.className = "skc-spacer";
   const refreshButton = document.createElement("button");
-  refreshButton.className = "skc-btn skc-btn-ghost";
+  refreshButton.className = "skc-icon-btn";
   refreshButton.type = "button";
-  refreshButton.textContent = t("list.refresh");
+  refreshButton.append(iconEl(document, "refresh"));
+  refreshButton.title = t("list.refresh");
+  refreshButton.setAttribute("aria-label", t("list.refresh"));
   refreshButton.addEventListener("click", () => store.pollQuotes());
   filterEl.append(filterLabel, spacer, refreshButton);
 
@@ -99,7 +102,14 @@ export function createList({ store }) {
 
     const row = document.createElement("div");
     row.className = "skc-row";
+    row.tabIndex = 0; // 键盘可达：Tab 进入行，Enter/Space 打开详情（polish：焦点 + 激活路径）
     row.addEventListener("click", () => store.openDetail(s.id));
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        store.openDetail(s.id);
+      }
+    });
 
     const nameCol = document.createElement("div");
     nameCol.className = "skc-row-name";
@@ -176,9 +186,18 @@ export function createList({ store }) {
 
     rowsEl.replaceChildren();
     if (shown.length === 0) {
+      // 教学式空态：自选空给「添加」图形引导；持仓空纯文案
       const empty = document.createElement("div");
       empty.className = "skc-empty";
-      empty.textContent = t(ui.holdingsOnly ? "list.empty.holdings" : "list.empty.watch");
+      if (!ui.holdingsOnly) {
+        const iconWrap = document.createElement("span");
+        iconWrap.className = "skc-empty-icon";
+        iconWrap.append(iconEl(document, "plus"));
+        empty.append(iconWrap);
+      }
+      const text = document.createElement("span");
+      text.textContent = t(ui.holdingsOnly ? "list.empty.holdings" : "list.empty.watch");
+      empty.append(text);
       rowsEl.append(empty);
       return;
     }

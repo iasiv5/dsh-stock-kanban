@@ -8,6 +8,7 @@
 import { api } from "./api.mjs";
 import { fmtPrice, fmtPct, fmtAmount, maskIf, trendClass, parsePositiveInput, fmtClock, fmtClockSec } from "./fmt.mjs";
 import { buildMinuteChart, buildCandleChart, buildMaLegend } from "./charts.mjs";
+import { iconEl } from "./icons.mjs";
 import { t, tErr } from "./i18n.mjs";
 import { checkTargetRelation } from "../src/identity.mjs";
 
@@ -145,9 +146,17 @@ export function createDetail({ store }) {
     box.className = "skc-chartbox";
     const chartErrorText = chart.error ? tErr(chart.error, chart.errorDetail) || chart.error : null;
     if (chart.loading) {
+      // 骨架态（operate.md：内容区用 skeleton，不用文字 spinner）+ 保留文案供读屏
       const loading = document.createElement("div");
-      loading.className = "skc-chart-empty";
-      loading.textContent = t("detail.chart.loading");
+      loading.className = "skc-chart-loading";
+      const price = document.createElement("div");
+      price.className = "skc-skeleton skc-skeleton-price";
+      const vol = document.createElement("div");
+      vol.className = "skc-skeleton skc-skeleton-vol";
+      const caption = document.createElement("span");
+      caption.className = "skc-skeleton-caption";
+      caption.textContent = t("detail.chart.loading");
+      loading.append(price, vol, caption);
       box.append(loading);
     } else if (chartErrorText) {
       const err = document.createElement("div");
@@ -212,7 +221,7 @@ export function createDetail({ store }) {
     const back = document.createElement("button");
     back.className = "skc-btn skc-btn-ghost";
     back.type = "button";
-    back.textContent = t("detail.back");
+    back.append(iconEl(document, "back"), document.createTextNode(t("detail.back")));
     back.addEventListener("click", () => store.backToList());
     head.append(back, textSpan("skc-detail-title", symbol.name));
     head.append(textSpan("skc-code", `${symbol.code} · ${t(`market.${symbol.market}`)}${symbol.kind === "etf" ? " · ETF" : ""} · ${symbol.quoteCurrency}`));
@@ -220,7 +229,7 @@ export function createDetail({ store }) {
     const del = document.createElement("button");
     del.className = "skc-btn skc-btn-danger";
     del.type = "button";
-    del.textContent = t("detail.delete");
+    del.append(iconEl(document, "trash", { strokeWidth: 1.4 }), document.createTextNode(t("detail.delete")));
     del.addEventListener("click", () => removeSymbol(symbol));
     head.append(del);
 
