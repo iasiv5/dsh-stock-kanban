@@ -8,6 +8,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createDomHarness } from "./helpers/dom-harness.mjs";
 import { createList } from "../client/list.mjs";
+import { createDetail } from "../client/detail.mjs";
+
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const SNAPB = (overrides = {}) => ({
   business: { rev: 1, settings: { privacyMode: false }, symbols: [], driverKind: null, loaded: true },
@@ -67,6 +70,122 @@ test("list · 拖拽中行情 tick：零节点增删、价格原位更新（§12
   } finally {
     list?.dispose();
     globalThis.document = prevDoc;
+    h.cleanup();
+  }
+});
+
+/* ---------------- detail（Task 3：骨架静态化 + 活区 patch + 图表按数据引用替换） ---------------- */
+
+const DETAIL_SYMBOLS = [
+  { id: "s1", market: "us", code: "AAPL", name: "Apple", quoteCurrency: "USD" },
+  { id: "s2", market: "us", code: "MSFT", name: "Microsoft", quoteCurrency: "USD" },
+];
+
+const detailSnap = (overrides = {}) => SNAPB({
+  business: { rev: 1, settings: { privacyMode: false }, symbols: DETAIL_SYMBOLS, driverKind: null, loaded: true },
+  ui: { ...SNAPB().ui, view: "detail", detailId: "s1" },
+  quotes: { s1: { id: "s1", status: "ok", price: 120, changePercent: 1, name: "Apple", quoteTime: "15:00:00", fetchedAt: 1 } },
+  ...overrides,
+});
+
+const detailTick = (base, price) => SNAPB({
+  business: base.business,
+  ui: base.ui,
+  quotes: { s1: { ...base.quotes.s1, price } },
+  changed: { quotes: new Set(["s1"]), business: false, ui: [], quoteMetaError: false },
+});
+
+/** detail 公共夹具：fetch stub（分时图）+ 入文档树 + 首帧 */
+async function setupDetail(h) {
+  const prevDoc = globalThis.document;
+  globalThis.document = h.document;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (path) => {
+    if (String(path).startsWith("/stock-kanban/minute")) {
+      return { ok: true, json: async () => ({ points: [{ t: 1, p: 10, v: 1 }, { t: 2, p: 10.5, v: 2 }], prevClose: 10 }) };
+    }
+    throw new Error(`stub-fetch: ${String(path)}`);
+  };
+  const store = {
+    backToList() {}, updateSymbol: async () => ({ ok: true }), removeSymbol: async () => ({ ok: true }),
+    setToast() {}, setMaVisible() {},
+  };
+  const detail = createDetail({ store, win: h.window });
+  h.document.body.append(detail.el); // jsdom focus() 仅对已入文档树的元素生效
+  return {
+    detail,
+    async mount() {
+      const base = detailSnap();
+      detail.update(base);
+      await sleepMs(10); // 图表异步加载 + 活区重画
+      return base;
+    },
+    cleanup() {
+      detail?.dispose();
+      globalThis.fetch = realFetch;
+      globalThis.document = prevDoc;
+    },
+  };
+}
+
+test("detail · quotes tick：图表 SVG 与输入框身份不变、报价行原位更新", async () => {
+  const h = createDomHarness();
+  let fixture = null;
+  try {
+    fixture = await setupDetail(h);
+    const base = await fixture.mount();
+    const svg1 = fixture.detail.el.querySelector("svg.skc-chart");
+    const input1 = fixture.detail.el.querySelector('input[data-field="quantity"]');
+    assert.ok(svg1, "图表在位");
+    assert.ok(input1, "数量输入在位");
+    fixture.detail.update(detailTick(base, 121));
+    assert.equal(fixture.detail.el.querySelector("svg.skc-chart"), svg1, "quotes tick 图表零改动（数据引用未变）");
+    assert.equal(fixture.detail.el.querySelector('input[data-field="quantity"]'), input1, "输入框身份不变");
+    assert.match(fixture.detail.el.querySelector(".skc-quote-price")?.textContent ?? "", /121\.00/, "报价行原位更新");
+  } finally {
+    fixture?.cleanup();
+    h.cleanup();
+  }
+});
+
+test("detail · detailId 切换 → 骨架重建（输入框换新，不残留旧标的输入框）", async () => {
+  const h = createDomHarness();
+  let fixture = null;
+  try {
+    fixture = await setupDetail(h);
+    await fixture.mount();
+    const inputA = fixture.detail.el.querySelector('input[data-field="quantity"]');
+    assert.ok(inputA, "标的 A 输入在位");
+    fixture.detail.update(detailSnap({
+      ui: { ...SNAPB().ui, view: "detail", detailId: "s2" },
+      quotes: { s2: { id: "s2", status: "ok", price: 300, changePercent: 0.5, name: "Microsoft", quoteTime: "15:00:00", fetchedAt: 1 } },
+      changed: { quotes: new Set(["s2"]), business: false, ui: ["view", "detailId"], quoteMetaError: false },
+    }));
+    const inputB = fixture.detail.el.querySelector('input[data-field="quantity"]');
+    assert.ok(inputB, "标的 B 输入在位");
+    assert.notEqual(inputB, inputA, "切换标的重建骨架（输入框随骨架换新）");
+  } finally {
+    fixture?.cleanup();
+    h.cleanup();
+  }
+});
+
+test("detail · list 视图 quotes tick → detail 层 DOM 不动（空转早退）", async () => {
+  const h = createDomHarness();
+  let fixture = null;
+  try {
+    fixture = await setupDetail(h);
+    // 同步首帧：list 视图（detailId=null）→ 空态
+    fixture.detail.update(SNAPB());
+    const node0 = fixture.detail.el.firstChild;
+    assert.ok(node0, "空态占位在位");
+    fixture.detail.update(SNAPB({
+      quotes: { x: { id: "x", status: "ok", price: 1, changePercent: 0, name: "X", quoteTime: "15:00:00", fetchedAt: 1 } },
+      changed: { quotes: new Set(["x"]), business: false, ui: [], quoteMetaError: false },
+    }));
+    assert.equal(fixture.detail.el.firstChild, node0, "list 视图 tick 不触 detail DOM（不再白做空态重建）");
+  } finally {
+    fixture?.cleanup();
     h.cleanup();
   }
 });

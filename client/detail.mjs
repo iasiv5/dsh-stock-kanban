@@ -1,8 +1,11 @@
 /**
  * 详情视图（vanilla）：行情头部（行情时间/拉取时间区分）、图表（分时/日K/周K/月K + 均线 +
  * 成交量）、持仓编辑、目标价编辑、删除标的。快速切换标的时以 fetchKey 守卫异步响应
- * （12.2 无串数据）。update(snapshot) 整段重绘；表单草稿在输入事件中原位更新不触发重绘，
- * 重绘时恢复焦点与光标。
+ * （12.2 无串数据）。
+ * 渲染切片广播（Task 3）：骨架按标的一次构建（renderSkeleton），quotes-only tick 只走
+ * 活区 patch（paintQuoteLine + paintLive）——输入框/图表节点身份由「tick 不重建」保证
+ * （§12.17 契约），跳绘守卫与光标捕获/恢复随之退役。图表仅在数据引用变化（loadChart
+ * 完成/失败）、周期切换、resize 时重画，tick 零改动。
  */
 
 import { api } from "./api.mjs";
@@ -54,6 +57,8 @@ export function createDetail({ store, win }) {
   let pending = null; // 区块内确认条：null | "clear" | "overlap"（替代原生 confirm）
   let busy = false; // 保存中：禁用保存钮，防重复提交
   let live = null; // 当前渲染的实时节点引用：输入时原位刷新，不重绘
+  let skeleton = null; // 骨架节点引用（报价行/周期 Tab/指标行/图表框）；quotes tick 不重建
+  let skeletonId = null; // 当前骨架的标的 id（null = 空态）
 
   const el = document.createElement("div");
 
@@ -125,11 +130,13 @@ export function createDetail({ store, win }) {
         prevClose: data.prevClose ?? null,
         date: data.date ?? null,
       };
-      render();
+      paintPeriodMeta();
+      paintChartArea();
     }).catch((e) => {
       if (disposed || chartKey !== key) return;
       chart = { key, loading: false, data: null, error: "fetch-failed", errorDetail: String(e?.message ?? e), adjust: null };
-      render();
+      paintPeriodMeta();
+      paintChartArea();
     });
   };
 
@@ -160,7 +167,7 @@ export function createDetail({ store, win }) {
     no.textContent = t("detail.cancel");
     no.addEventListener("click", () => {
       pending = null;
-      render();
+      syncPendingStrip();
     });
     row.append(yes, no);
     box.append(msg, row);
@@ -177,7 +184,7 @@ export function createDetail({ store, win }) {
     // 数量与成本都留空、且原本有持仓 = 清除：走区块内确认，不直接提交（防误触）
     if (st.qty === null && st.cost === null && hasSavedPosition(symbol)) {
       pending = "clear";
-      render();
+      syncPendingStrip();
       return;
     }
     busy = true;
@@ -189,8 +196,10 @@ export function createDetail({ store, win }) {
       if (form) form = { ...form, quantity: numText(st.qty), avgCost: numText(st.cost) };
       pending = null;
       pruneForm();
+      syncFormValues();
+      syncPendingStrip();
       store.setToast(t("toast.position-saved"));
-      render();
+      paintLive();
     } else {
       paintLive();
     }
@@ -207,8 +216,10 @@ export function createDetail({ store, win }) {
       if (form) form = { ...form, quantity: "", avgCost: "" };
       pending = null;
       pruneForm();
+      syncFormValues();
+      syncPendingStrip();
       store.setToast(t("toast.position-cleared"));
-      render();
+      paintLive();
     } else {
       paintLive();
     }
@@ -224,14 +235,14 @@ export function createDetail({ store, win }) {
     // 买卖两价都留空、且原本有目标价 = 清除：走区块内确认，不直接提交（与持仓一致）
     if (st.buy === null && st.sell === null && hasSavedTargets(symbol)) {
       pending = "clear-targets";
-      render();
+      syncPendingStrip();
       return;
     }
     const relation = checkTargetRelation(st.buy, st.sell);
     // 买入不低于卖出：两个标记可能同时显示——区块内确认，不弹原生窗口
     if (relation.overlap && !acknowledged) {
       pending = "overlap";
-      render();
+      syncPendingStrip();
       return;
     }
     busy = true;
@@ -244,8 +255,10 @@ export function createDetail({ store, win }) {
       if (form) form = { ...form, buyTarget: numText(st.buy), sellTarget: numText(st.sell) };
       pending = null;
       pruneForm();
+      syncFormValues();
+      syncPendingStrip();
       store.setToast(t("toast.targets-saved"));
-      render();
+      paintLive();
     } else {
       paintLive();
     }
@@ -264,8 +277,10 @@ export function createDetail({ store, win }) {
       if (form) form = { ...form, buyTarget: "", sellTarget: "" };
       pending = null;
       pruneForm();
+      syncFormValues();
+      syncPendingStrip();
       store.setToast(t("toast.targets-cleared"));
-      render();
+      paintLive();
     } else {
       paintLive();
     }
@@ -472,7 +487,7 @@ export function createDetail({ store, win }) {
     clear.hidden = !hasSavedPosition(symbol);
     clear.addEventListener("click", () => {
       pending = "clear";
-      render();
+      syncPendingStrip();
     });
     const unsaved = textSpan("skc-unsaved", t("detail.unsaved"));
     actions.append(save, clear, unsaved);
@@ -531,7 +546,7 @@ export function createDetail({ store, win }) {
     clear.hidden = !hasSavedTargets(symbol);
     clear.addEventListener("click", () => {
       pending = "clear-targets";
-      render();
+      syncPendingStrip();
     });
     const unsaved = textSpan("skc-unsaved", t("detail.unsaved"));
     actions.append(save, clear, unsaved);
@@ -558,20 +573,128 @@ export function createDetail({ store, win }) {
     return { form, strip, live: { buy, sell, save, clear, unsaved } };
   };
 
-  const render = () => {
+  /** 报价行原位刷新（quotes tick 的主要落点）：价格/涨跌/行情时间/stale 徽标 */
+  const paintQuoteLine = () => {
+    if (!skeleton) return;
+    const symbol = symbolOf();
+    if (!symbol) return;
+    const q = snapshot?.quotes?.[symbol.id];
+    const price = q?.status === "ok" ? q.price : null;
+    const pct = q?.changePercent ?? null;
+    skeleton.quote.price.textContent = price != null ? fmtPrice(price) : q ? (q.status === "error" ? t("list.quote-failed") : "…") : "—";
+    skeleton.quote.price.className = `skc-quote-price ${trendClass(pct)}`;
+    skeleton.quote.pct.textContent = fmtPct(pct);
+    skeleton.quote.pct.className = `skc-quote-pct ${trendClass(pct)}`;
+    const qTime = q?.quoteTime ?? null;
+    const fTime = q?.fetchedAt ?? null;
+    const dataStale = q?.target?.status === "stale" || q?.target?.status === "no-data";
+    const quoteTimeText = q && q.status === "ok" && qTime != null ? fmtClock(qTime) : "—";
+    const fetchTimeText = fTime != null ? fmtClockSec(fTime) : "—";
+    const meta = skeleton.quote.meta;
+    meta.replaceChildren(document.createTextNode(t("detail.quote-time", { t: quoteTimeText, f: fetchTimeText })));
+    if (dataStale) {
+      meta.append(textSpan("skc-badge skc-badge-stale", q?.target?.status === "stale" ? t("detail.stale") : t("detail.no-data")));
+    }
+  };
+
+  const paintPeriodTabs = () => {
+    if (!skeleton) return;
+    for (const { key, btn } of skeleton.periodTabs) {
+      btn.className = `skc-tab skc-period${period === key ? " skc-tab-active" : ""}`;
+    }
+  };
+
+  /** 指标行（第 12 轮）：随周期与图表状态重画；只在周期切换/图表加载完成时调用，tick 不触 */
+  const paintPeriodMeta = () => {
+    if (!skeleton) return;
+    const ui = snapshot?.ui ?? {};
+    const meta = skeleton.periodMeta;
+    meta.replaceChildren();
+    if (period === "minute") {
+      const prevClose = chart.data?.prevClose ?? chart.prevClose ?? null;
+      meta.append(textSpan("skc-meta-note", t("detail.prev-close", { v: prevClose != null ? fmtPrice(prevClose) : "—" })));
+    } else {
+      meta.append(buildMaLegend(ui.maVisible, (p) =>
+        store.setMaVisible({ ...ui.maVisible, [p]: ui.maVisible[p] === false })));
+      if (chart.adjust) {
+        meta.append(textSpan("skc-adjust", chart.adjust === "qfq" ? t("detail.adjust.fwd") : t("detail.adjust.none")));
+      }
+    }
+  };
+
+  /** 图表区重画：仅数据引用变化（loadChart 完成/失败）、周期切换、resize 时调用；quotes tick 不触 */
+  const paintChartArea = () => {
+    if (!skeleton || disposed) return;
+    const symbol = symbolOf();
+    if (!symbol) return;
+    const fresh = buildChartBox(symbol, snapshot?.ui ?? {});
+    skeleton.chartBox.replaceWith(fresh);
+    skeleton.chartBox = fresh;
+  };
+
+  const paintSegment = () => {
+    if (!live) return;
+    for (const key of ["position", "targets"]) {
+      const on = segment === key;
+      const seg = live.segs?.[key];
+      if (seg?.btn) {
+        seg.btn.className = `skc-tab skc-seg${on ? " skc-tab-active" : ""}`;
+        seg.btn.setAttribute("aria-pressed", String(on));
+      }
+      const part = key === "position" ? live.holdings?.form : live.targets?.form;
+      part?.classList.toggle("is-off", !on);
+      part?.toggleAttribute("inert", !on);
+      part?.setAttribute("aria-hidden", String(!on));
+    }
+  };
+
+  /** 确认条同步：pending 变化时移除旧条、按需挂新条（区块内确认，第六轮交互语义不变） */
+  const syncPendingStrip = () => {
+    if (!live) return;
+    if (live.strip) {
+      live.strip.remove();
+      live.strip = null;
+    }
+    const symbol = symbolOf();
+    if (!symbol || !pending) return;
+    let strip = null;
+    if (pending === "clear") {
+      strip = confirmStrip({ text: t("detail.confirm.clear"), ok: t("detail.confirm.clear-ok"), danger: true, onOk: () => clearHoldings(symbol) });
+    } else if (pending === "clear-targets") {
+      strip = confirmStrip({ text: t("detail.confirm.clear-targets"), ok: t("detail.confirm.clear-ok"), danger: true, onOk: () => clearTargets(symbol) });
+    } else if (pending === "overlap") {
+      strip = confirmStrip({ text: t("detail.confirm.overlap"), ok: t("detail.confirm.overlap-ok"), danger: false, onOk: () => saveTargets(symbol, { acknowledged: true }) });
+    }
+    if (!strip) return;
+    const host = pending === "clear" ? live.holdings?.form : live.targets?.form;
+    host?.append(strip);
+    live.strip = strip;
+  };
+
+  /** 表单值与草稿同步：保存/清除成功后草稿收敛时调用；输入中绝不调用（防打断打字/光标） */
+  const syncFormValues = () => {
+    const symbol = symbolOf();
+    if (!symbol || !live) return;
+    const d = draftOf(symbol);
+    for (const [name, field] of [
+      ["quantity", live.holdings?.qty],
+      ["avgCost", live.holdings?.cost],
+      ["buyTarget", live.targets?.buy],
+      ["sellTarget", live.targets?.sell],
+    ]) {
+      if (field) field.input.value = d[name] ?? "";
+    }
+  };
+
+  /** 骨架重建（唯一结构路径）：quotes tick 永不走此路径——输入框/图表身份由「tick 不重建」保证 */
+  const renderSkeleton = () => {
     if (disposed) return;
     const symbol = symbolOf();
     const ui = snapshot?.ui ?? {};
-    const quotes = snapshot?.quotes ?? {};
-
-    // 焦点保持：重绘前记录活动输入，重绘后恢复
-    const active = typeof document !== "undefined" && document.activeElement && el.contains(document.activeElement)
-      ? document.activeElement
-      : null;
-    const activeField = active?.dataset?.field ?? null;
-    const activePos = active ? { start: active.selectionStart, end: active.selectionEnd } : null;
-
     el.replaceChildren();
+    live = null;
+    skeleton = null;
+    skeletonId = symbol?.id ?? null;
 
     if (!symbol) {
       const empty = document.createElement("div");
@@ -581,9 +704,6 @@ export function createDetail({ store, win }) {
       return;
     }
 
-    const q = quotes[symbol.id];
-    const price = q?.status === "ok" ? q.price : null;
-    const pct = q?.changePercent ?? null;
     const draft = draftOf(symbol);
 
     const head = document.createElement("div");
@@ -610,25 +730,16 @@ export function createDetail({ store, win }) {
 
     const quoteLine = document.createElement("div");
     quoteLine.className = "skc-quote-line";
-    quoteLine.append(textSpan(`skc-quote-price ${trendClass(pct)}`,
-      price != null ? fmtPrice(price) : q ? (q.status === "error" ? t("list.quote-failed") : "…") : "—"));
-    quoteLine.append(textSpan(`skc-quote-pct ${trendClass(pct)}`, fmtPct(pct)));
+    const quotePrice = textSpan("skc-quote-price", "");
+    const quotePct = textSpan("skc-quote-pct", "");
     const quoteMeta = document.createElement("span");
     quoteMeta.className = "skc-quote-meta";
-    const qTime = q?.quoteTime ?? null;
-    const fTime = q?.fetchedAt ?? null;
-    const dataStale = q?.target?.status === "stale" || q?.target?.status === "no-data";
-    const quoteTimeText = q && q.status === "ok" && qTime != null ? fmtClock(qTime) : "—";
-    const fetchTimeText = fTime != null ? fmtClockSec(fTime) : "—";
-    quoteMeta.append(document.createTextNode(t("detail.quote-time", { t: quoteTimeText, f: fetchTimeText })));
-    if (dataStale) {
-      quoteMeta.append(textSpan("skc-badge skc-badge-stale", q?.target?.status === "stale" ? t("detail.stale") : t("detail.no-data")));
-    }
-    quoteLine.append(quoteMeta);
+    quoteLine.append(quotePrice, quotePct, quoteMeta);
 
     // 周期切换：独立一行的分段控件（与列表 Tab 同族，四段等宽、文字居中），不与 K 线指标共用一行
     const periodTabs = document.createElement("div");
     periodTabs.className = "skc-period-tabs";
+    const periodTabRefs = [];
     for (const p of PERIODS) {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -638,10 +749,13 @@ export function createDetail({ store, win }) {
         if (period === p.key) return;
         period = p.key;
         const s = symbolOf();
-        render();
+        paintPeriodTabs();
+        paintPeriodMeta();
+        paintChartArea();
         if (s) loadChart(s);
       });
       periodTabs.append(btn);
+      periodTabRefs.push({ key: p.key, btn });
     }
     // 指标行四档周期常驻（第 12 轮，2026-11-10）：行高恒定，卡片总高与周期无关。
     // K线档 = MA 图例 + 复权标注；分时档 = 昨收图例（标注图内的虚线参考线，非占位空行）。
@@ -677,10 +791,11 @@ export function createDetail({ store, win }) {
         if (segment === key) return;
         segment = key;
         pending = null;
-        render();
+        paintSegment();
+        syncPendingStrip();
       });
       segTabs.append(btn);
-      segs[key] = { dot };
+      segs[key] = { dot, btn };
     }
     // 两段同挂一个网格格子（grid-area 1/1）：非当前段 visibility:hidden 仍占位，容器高度取较高者，
     // 切换分段时页面高度不变、不跳动（第七轮 2026-11-10）；非当前段 inert，键盘与读屏都进不去
@@ -698,28 +813,26 @@ export function createDetail({ store, win }) {
     live = {
       segs,
       strip: holdingsPart.strip ?? targetsPart.strip,
-      holdings: holdingsPart.live,
-      targets: targetsPart.live,
+      holdings: { ...holdingsPart.live, form: holdingsPart.form },
+      targets: { ...targetsPart.live, form: targetsPart.form },
+    };
+    skeleton = {
+      quote: { price: quotePrice, pct: quotePct, meta: quoteMeta },
+      periodTabs: periodTabRefs,
+      periodMeta,
+      chartBox,
     };
 
     el.append(head, quoteLine, periodTabs, periodMeta, chartBox, segTabs, stack);
-
-    if (activeField) {
-      const input = el.querySelector(`input[data-field="${activeField}"]`);
-      if (input) {
-        input.focus();
-        if (activePos && typeof input.setSelectionRange === "function") {
-          try { input.setSelectionRange(activePos.start, activePos.end); } catch { /* 类型不符时忽略 */ }
-        }
-      }
-    }
+    paintQuoteLine();
     paintLive();
   };
 
-  /* 窗口高度变化：图表高度随视口重算（详情可见时整段重绘；行情与图表数据沿用会话内缓存，不重新拉取） */
+  /* 窗口高度变化：图表高度随视口重算（详情可见时骨架重建；行情与图表数据沿用会话内缓存，不重新拉取。
+     与现状等价的已知取舍：编辑中 resize 仍走重建——评审建议 b：实拍场景③顺带观察，仅记录不处理） */
   const onWinResize = () => {
     if (disposed || !snapshot?.ui?.panelOpen || snapshot?.ui?.view !== "detail" || !symbolOf()) return;
-    render();
+    renderSkeleton();
   };
   winRef()?.addEventListener?.("resize", onWinResize);
 
@@ -727,6 +840,7 @@ export function createDetail({ store, win }) {
     if (disposed) return;
     snapshot = next;
     const ui = next?.ui ?? {};
+    const changed = next?.changed; // undefined = 全量（订阅回放/语言切换/旧快照）
     const symbol = symbolOf();
 
     // detailId 变化：重置会话态（period 保留，语义与 React 版一致）
@@ -744,16 +858,23 @@ export function createDetail({ store, win }) {
       const key = `${symbol.id}:${period}`;
       if (key !== loadedKey) loadChart(symbol);
     }
-    // 编辑中跳过轮询驱动的重绘（手机软键盘保活，2026-11-10）：持仓/目标价输入聚焦时，
-    // update() 整段重绘会销毁聚焦框——移动端程序化 focus() 唤不回软键盘。跳过期间行情
-    // 展示短暂走旧值（最长一个轮询周期），失焦后的下一次快照即带上最新数据重绘。
-    // detailId 变化不豁免（旧输入框属于旧标的，必须重建）。
-    const active = typeof document !== "undefined" ? document.activeElement : null;
-    if (!detailChanged && active && el.contains(active) && active.dataset?.field) {
-      paintLive(); // 行情仍在刷新：派生数字（距现价、市值盈亏）原位更新，输入框不重建
+    // 切片门控（渲染切片广播 Task 3）：结构触发 → 骨架重建；quotes-only tick → 报价行 + 派生域
+    // 原位写。输入框/图表身份由「tick 不重建」保证（§12.17 契约）——跳绘守卫与光标捕获/恢复退役。
+    const structural = changed === undefined
+      || changed.business === true
+      || detailChanged
+      || skeletonId !== (symbol?.id ?? null)
+      || (Array.isArray(changed.ui) ? changed.ui.some((k) => k === "view" || k === "detailId") : true);
+    if (!symbol) {
+      if (structural) renderSkeleton(); // 空态：首次或结构变化才动 DOM，list 视图 tick 早退（不再白做空态重建）
       return;
     }
-    render();
+    if (structural) {
+      renderSkeleton();
+      return;
+    }
+    paintQuoteLine();
+    paintLive();
   };
 
   const dispose = () => {

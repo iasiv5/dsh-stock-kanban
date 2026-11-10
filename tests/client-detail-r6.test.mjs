@@ -263,7 +263,11 @@ test("编辑中行情刷新：输入框节点不变，距现价与摘要原位�
     const buy = field(s, "buyTarget");
     buy.focus();
     typeInto(s.h, buy, "80");
-    s.detail.update(snapshot({ price: 200 })); // 轮询：现价变化（聚焦中，不重绘）
+    // 轮询 tick（渲染切片广播 Task 3）：真实 tick 带 changed 切片 → 活区 patch，输入框不重建
+    s.detail.update({
+      ...snapshot({ price: 200 }),
+      changed: { quotes: new Set([SYMBOL.id]), business: false, ui: [], quoteMetaError: false },
+    });
     assert.equal(field(s, "buyTarget"), buy, "编辑中不重绘：同一输入框节点");
     const dist = t("detail.dist", { p: fmtPct(((80 / 200) - 1) * 100) });
     const label = buy.closest("label");

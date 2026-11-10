@@ -301,7 +301,7 @@ test("add · 搜索重绘不重建输入框（手机软键盘保活：节点身�
   }
 });
 
-test("detail · 编辑中轮询不重绘（软键盘保活），失焦后恢复重绘", async () => {
+test("detail · 行情 tick：输入框身份不变（身份保活取代跳绘守卫），失焦亦不重建", async () => {
   const t = withGlobalsAndFetch();
   try {
     const store = {
@@ -321,11 +321,17 @@ test("detail · 编辑中轮询不重绘（软键盘保活），失焦后恢复�
     const input = detail.el.querySelector('input[data-field="quantity"]');
     assert.ok(input, "数量输入在位");
     input.focus();
-    detail.update({ ...base, quoteMeta: { fetchedAt: 2, error: null } }); // 轮询 tick（聚焦中）
+    const tick = (price) => ({
+      ...base,
+      quotes: { s1: { id: "s1", status: "ok", price, changePercent: 1, name: "Apple", quoteTime: "15:00:00", fetchedAt: 1 } },
+      changed: { quotes: new Set(["s1"]), business: false, ui: [], quoteMetaError: false },
+    });
+    detail.update(tick(123.4)); // 轮询 tick（聚焦中）
     assert.equal(detail.el.querySelector('input[data-field="quantity"]'), input, "编辑中不重绘：同一节点");
     input.blur(); // 失焦（手机收起键盘）
-    detail.update({ ...base, quoteMeta: { fetchedAt: 3, error: null } });
-    assert.notEqual(detail.el.querySelector('input[data-field="quantity"]'), input, "失焦后恢复重绘");
+    detail.update(tick(124.5));
+    assert.equal(detail.el.querySelector('input[data-field="quantity"]'), input, "失焦后仍不重建（tick 只走活区 patch）");
+    assert.match(detail.el.querySelector(".skc-quote-price")?.textContent ?? "", /124\.50/, "报价行原位更新");
     await sleepMs(20); // 冲掉图表异步渲染微任务，避免逃逸到测试外
     detail.dispose();
   } finally {
