@@ -35,7 +35,9 @@ DSH 插件：多市场盯盘与持仓查看。悬浮胶囊 + A 股 / 港股 / �
 
 ## 移动端
 
-<img src="https://raw.githubusercontent.com/iasiv5/dsh-stock-kanban/main/docs/images/mobile.webp" alt="移动端底部 sheet" width="300" align="right">
+<p align="center">
+  <img src="https://raw.githubusercontent.com/iasiv5/dsh-stock-kanban/main/docs/images/mobile.webp" alt="移动端底部 sheet：合并胶囊 + 加密货币分组" width="320">
+</p>
 
 - 视口 ≤480px 时面板自动转**底部 sheet**，按钮全部可达。
 - 触屏长按起拖排序（未满长按不影响原生滚动）；手机 / 平板浏览器开箱即用。
