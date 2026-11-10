@@ -401,4 +401,4 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 
 实施实录（一次性验证脚本抓获）：备份行 helper 误用行类名造成标签嵌套重复渲染——已修正（内层=`skc-setting-main`）。CDP DOM 契约实拍：三行（合并显示 quota/导出备份/导入备份）+ 三副行 + switch checked + 脚注 + export href 全部在位；多恢复标签页抢占截图框位问题未影响 DOM 断言（视觉观感由主人设备复核）。
 
-验证：全量 `npm test` 213/213/0；HMR 下发确认。
+验证：全量 `npm test` 213/213/0；HMR 下发确认。CDP DOM 契约实拍（真实挂载实例）：三行（合并显示 quota/导出备份/导入备份）+ 三副行 + switch checked + 脚注 + export href 全部在位；像素截图受 headless 多恢复标签页抢占限制未框中面板（工具层噪声，非产品问题）——视觉观感由主人设备复核（HMR 刷新即见）。

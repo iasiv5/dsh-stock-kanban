@@ -19,33 +19,13 @@ export function createBackup({ store }) {
   let parseError = null;
 
   const el = document.createElement("div");
-  el.className = "skc-backup-rows";
+  el.className = "skc-backup";
 
   const fileInput = document.createElement("input");
   fileInput.type = "file";
   fileInput.accept = ".json,application/json";
   fileInput.hidden = true;
   fileInput.addEventListener("change", () => onFile());
-
-  /** 行式设置行：主标签 + 副行说明 + 行尾 chevron */
-  const settingRow = (labelText, subText) => {
-    const row = document.createElement("span");
-    row.className = "skc-setting-main";
-    const main = document.createElement("span");
-    main.className = "skc-setting-main";
-    const label = document.createElement("span");
-    label.className = "skc-setting-label";
-    label.textContent = labelText;
-    const sub = document.createElement("span");
-    sub.className = "skc-setting-sub";
-    sub.textContent = subText;
-    main.append(label, sub);
-    const chev = document.createElement("span");
-    chev.className = "skc-setting-chev";
-    chev.append(iconEl(document, "chev-right"));
-    row.append(main, chev);
-    return row;
-  };
 
   const onFile = async () => {
     const file = fileInput.files?.[0];
@@ -106,28 +86,26 @@ export function createBackup({ store }) {
 
     el.replaceChildren();
 
-    // 导出备份行：整行 <a>（下载结构化 JSON，schemaVersion 1）
-    const exportRow = document.createElement("a");
-    exportRow.className = "skc-setting-row skc-setting-row--link";
-    exportRow.href = api.exportUrl;
-    exportRow.setAttribute("download", "");
-    exportRow.append(
-      settingRow(t("backup.export"), t("backup.export.hint")),
-      (() => { const c = document.createElement("span"); c.className = "skc-setting-chev"; c.append(iconEl(document, "chev-right")); return c; })(),
-    );
-    el.append(exportRow);
-
-    // 导入备份行：整行 <button> → 文件选择；覆盖语义副行常显
-    const importRow = document.createElement("button");
-    importRow.type = "button";
-    importRow.className = "skc-setting-row skc-setting-row--link";
-    importRow.disabled = importing;
-    importRow.append(
-      settingRow(t("backup.import"), t("backup.import.hint")),
-      (() => { const c = document.createElement("span"); c.className = "skc-setting-chev"; c.append(iconEl(document, "chev-right")); return c; })(),
-    );
-    importRow.addEventListener("click", () => fileInput.click());
-    el.append(importRow, fileInput);
+    // 备份动作区：一行双钮（qw .dqw-panel-actions 同款 grid）——按钮形态比行式省空间（主人反馈）
+    const actionsGrid = document.createElement("div");
+    actionsGrid.className = "skc-backup-actions";
+    const exportLink = document.createElement("a");
+    exportLink.className = "skc-btn";
+    exportLink.href = api.exportUrl;
+    exportLink.setAttribute("download", "");
+    exportLink.textContent = t("backup.export");
+    const importBtn = document.createElement("button");
+    importBtn.type = "button";
+    importBtn.className = "skc-btn";
+    importBtn.disabled = importing;
+    importBtn.textContent = t("backup.import");
+    importBtn.addEventListener("click", () => fileInput.click());
+    actionsGrid.append(exportLink, importBtn);
+    // 覆盖语义警示常显（原仅在确认弹层）
+    const importHint = document.createElement("div");
+    importHint.className = "skc-setting-sub";
+    importHint.textContent = t("backup.import.hint");
+    el.append(actionsGrid, importHint, fileInput);
 
     if (parseError) {
       const err = document.createElement("div");

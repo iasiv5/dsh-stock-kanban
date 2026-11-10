@@ -287,10 +287,13 @@ export function createPanel({ doc, win, store, views }) {
   mergeHint.className = "skc-setting-sub";
   mergeHint.textContent = t("quota.merge.hint");
   mergeWrap.append(mergeRow, mergeHint);
-  const boundaryHint = doc.createElement("div");
-  boundaryHint.className = "skc-setting-footnote";
-  boundaryHint.textContent = t("app.data-boundary");
-  settingsBody.append(mergeWrap, views.backup.el, boundaryHint);
+  const noteDelay = doc.createElement("div");
+  noteDelay.className = "skc-setting-footnote";
+  noteDelay.textContent = t("app.note.delay");
+  const noteBoundary = doc.createElement("div");
+  noteBoundary.className = "skc-setting-footnote";
+  noteBoundary.textContent = t("app.note.boundary");
+  settingsBody.append(mergeWrap, views.backup.el, noteDelay, noteBoundary);
   settingsLayer.append(settingsHead, settingsBody);
 
   const toast = doc.createElement("div");
@@ -320,7 +323,8 @@ export function createPanel({ doc, win, store, views }) {
     settingsTitle.textContent = t("app.settings");
     mergeLabel.textContent = t("quota.merge");
     mergeHint.textContent = t("quota.merge.hint");
-    boundaryHint.textContent = t("app.data-boundary");
+    noteDelay.textContent = t("app.note.delay");
+    noteBoundary.textContent = t("app.note.boundary");
 
     el.hidden = !open;
     el.classList.toggle("skc-panel--slide", open); // S9：打开时带滑入类（动画位于减少动态效果守卫内），关闭时移除

@@ -368,7 +368,7 @@ test("panel · 骨架静态文案语言实时跟随（12.9 语义在骨架化后
       };
       assert.equal(texts.title, t("app.title"), `title 跟随 ${lang}`);
       assert.equal(texts.settingsTitle, t("app.settings"), `设置标题跟随 ${lang}`);
-      assert.equal(texts.boundary, t("app.data-boundary"), `数据边界文案跟随 ${lang}`);    }
+      assert.equal(texts.boundary, t("app.note.delay"), `脚注文案跟随 ${lang}`);    }
     setLang(prevLang);
     panel.dispose();
   } finally {
