@@ -280,6 +280,8 @@ qw 侧（竞态修复，2026-11-09）：
 
 验证：全量 `npm test` 211/211/0；`npm run build` 幂等重建下发（HMR）。真机复测（Android 键盘不再消失）待主人手机确认。
 
+**§12.17 追记（2026-11-11，机制替换——渲染切片广播 Task 3，ADR 0004）**：detail 层「编辑中跳过重绘」守卫（上文修复第 2 层）退役——切片广播后骨架按标的一次构建（renderSkeleton），quotes tick 只走活区 patch（paintQuoteLine + paintLive）、「tick 不重建」直接保证输入框身份稳定，守卫失去存在理由。覆盖面顺带扩大：旧守卫只认 `data-field` 输入框（确认条/周期 Tab 按钮聚焦时焦点仍每 15s 丢失），身份保活对全视图生效；光标捕获/恢复 bookkeeping 随之删除。用户可见契约不变：输入框跨 tick 身份稳定。回归钉改写：restyle detail 用例翻转（失焦后 tick 同一节点 + 报价行原位更新，不再断言「恢复重绘」）；client-render-identity 新增图表 SVG 身份与空转早退两钉。
+
 ## 12.18 footer 精简：合并开关与说明文案迁入设置（2026-11-10，主人反馈 → 已实现并验证）
 
 主人截图反馈：footer 的「合并/拆分胶囊」切换钮与底层说明文案（免费行情延迟/数据边界）碍事。
@@ -434,3 +436,5 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 **§12.24 追记八（同日九轮，主人反馈 → 已修复）**：设置页脚注一行制——「行情来自免费源，可能有延迟。 · dsh-stock-kanban v0.2.0」同线，中点分隔（opacity .5）+ 版本段弱一档（opacity .65）；脚注 DOM 契约更新（restyle 测试改为断言同行包含延迟文案与版本号），语言实时跟随仅作用于说明段（版本恒拉丁）。270/270/0 全绿；detect 0 发现；刷新即生效。
 
 **§12.24 追记九（同日十轮，主人改定 → B26 琥珀退役）**：合并胶囊额度段 danger 态对齐 qw 本体红（`.skc-qdanger` → `--dsw-alias-label-danger,#c93c3c`）——主人理由成立：同一数据同一语义，跨插件语义色一致性优先于内部拍板，qw 老用户看合并胶囊零陌生感。守卫同步改判：client-dom 钉死串换 label-danger、restyle 令牌卫生 label-warning 计数 2→1。270/270/0 全绿；detect 0 发现；刷新即生效。
+
+**§12.24 追记十（2026-11-11，机制替换——渲染切片广播 Task 2，ADR 0004）**：「拖拽中冻结轮询重绘」退役，改为 patch-only——拖拽中 quotes tick 只做行内文本原位写（价格/涨跌/尾巴列，零节点增删/重排，起拖几何快照假设照旧守住）；结构重建（外部 rev 变化撞上拖拽的罕见路径）跳过并标记，endDrag 补一次全量；拖后 reorder 经 mutate→refreshState 重建语义不变。连带：列表行情 tick 从整段重建升级为 keyed 行复用（行节点身份跨 tick 稳定），焦点抢救补丁随之退役（身份复用天然保焦，不再「重绘后归还」）。回归钉：client-render-identity「拖拽中零节点增删、价格原位更新」；round3 列表焦点用例翻转（notEqual → equal 身份断言）。288/288/0 全绿。

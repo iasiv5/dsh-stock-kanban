@@ -5,8 +5,16 @@ DSH 多市场盯盘插件的领域语言：客户端以「浮动壳」直挂宿�
 ## Language
 
 **快照（Snapshot）**:
-store 对外发布的单一不可变状态对象（business / quotes / quoteMeta / ui / toast / providers）；组件只经它或其字段读取状态。
+store 对外发布的单一不可变状态对象（business / quotes / quoteMeta / ui / toast / providers）；组件只经它或其字段读取状态。快照投递可携带变更切片（changed）；切片缺省（undefined）视为全量。
 _Avoid_: state、全局状态
+
+**变更切片（Changed Slices）**:
+store 随快照投递的变更描述（quotes: 变化的标的 id 集、business、ui: 变化的键名、quoteMetaError）；组件读它决定整段重建还是活区 patch。切片缺省即全量（订阅回放/语言切换）；providers 为引用型例外通道（行情 tick 恒 emit 但切片为空）。
+_Avoid_: diff、脏检查、事件总线
+
+**活区（Live Region）**:
+骨架内随行情 tick 原位改写的节点集（报价行、派生数字、按钮态）；tick 永不重建骨架与图表（图表仅在其数据引用变化时重画）。
+_Avoid_: 热区、动态区、重绘区
 
 ## 浮动界面
 
