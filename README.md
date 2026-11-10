@@ -97,6 +97,10 @@ sudo systemctl restart deepseek-harness.service
 
 本插件与 `@iasiv5/dsh-quota-watch`（GLM Coding Plan / GitHub Copilot 额度悬浮胶囊）通过窗口内 CustomEvent 协议联动。协议规格见 `docs/interop/capsule-embed-protocol.md`，宿主侧决策见 `docs/adr/0002-quota-embed-host-side-capsule-group.md`。
 
+| 合并前（未装 quota-watch） | 合并后（单枚两段胶囊） |
+|---|---|
+| ![合并前：纯股票段胶囊](https://raw.githubusercontent.com/iasiv5/dsh-stock-kanban/main/docs/images/capsule-standalone.webp) | ![合并后：股票段 + 额度段](https://raw.githubusercontent.com/iasiv5/dsh-stock-kanban/main/docs/images/capsule.webp) |
+
 - **合并**：检测到 quota-watch 在线并回复能力（`embed-capabilities`，含 `hide-pill` 与 `anchored-panel`）时，额度胶囊并入本插件的浮动壳，形成单枚两段胶囊（股票段 | 分隔线 | 额度段，见页首图），整枚一次拖动，共享同一套位置记忆。额度段默认合并，设置里没有开关。
 - **额度段**：GLM 5 小时窗口与 Copilot 已用比例；超过 80% 为警示色，超过 95% 为危险色（脉冲遵循 `prefers-reduced-motion`）。待处理兑换时保留一枚琥珀小点。点击额度段由 quota-watch 打开其原生面板，水平推出于分区旁（视口不超过 480px 时为底部 sheet）。
 - **降级**：未安装 quota-watch、版本过低（需 ≥ 0.1.38），或握手 500ms 内无回复时，两个插件共存、互不隐藏（接受重叠，不做避让）。quota-watch 被停用或热更新时，本插件立即拆分并移除额度段。额度接口返回 404 时隐藏额度段并慢速重试；传输错误时保留上次数据，并以提示标注「额度数据已过期」。
