@@ -438,3 +438,29 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 **§12.24 追记九（同日十轮，主人改定 → B26 琥珀退役）**：合并胶囊额度段 danger 态对齐 qw 本体红（`.skc-qdanger` → `--dsw-alias-label-danger,#c93c3c`）——主人理由成立：同一数据同一语义，跨插件语义色一致性优先于内部拍板，qw 老用户看合并胶囊零陌生感。守卫同步改判：client-dom 钉死串换 label-danger、restyle 令牌卫生 label-warning 计数 2→1。270/270/0 全绿；detect 0 发现；刷新即生效。
 
 **§12.24 追记十（2026-11-11，机制替换——渲染切片广播 Task 2，ADR 0004）**：「拖拽中冻结轮询重绘」退役，改为 patch-only——拖拽中 quotes tick 只做行内文本原位写（价格/涨跌/尾巴列，零节点增删/重排，起拖几何快照假设照旧守住）；结构重建（外部 rev 变化撞上拖拽的罕见路径）跳过并标记，endDrag 补一次全量；拖后 reorder 经 mutate→refreshState 重建语义不变。连带：列表行情 tick 从整段重建升级为 keyed 行复用（行节点身份跨 tick 稳定），焦点抢救补丁随之退役（身份复用天然保焦，不再「重绘后归还」）。回归钉：client-render-identity「拖拽中零节点增删、价格原位更新」；round3 列表焦点用例翻转（notEqual → equal 身份断言）。288/288/0 全绿。
+
+## 12.25 渲染切片广播 + 活区 patch（2026-11-11，ADR 0004 → 已实现；单测 + 实拍 + 活体取证完成）
+
+实施计划 `docs/plans/2026-11-10-render-slice-broadcast-implementation-plan.md`（grill 十一题决议 + 三轮独立评审收敛），七个 checkpoint commit：
+
+1. `f85cbfc` store 切片广播——emit 浅拷贝投递携带 `changed`，无实质变化不 emit（providers 引用为例外通道，poll 恒 emit 空切片）；
+2. `da5c521` list keyed 行复用——quotes tick 行内动态域原位写（尾巴列双分支），焦点抢救/拖拽冻结退役（拖拽 patch-only）；
+3. `2bc1f6c` detail 骨架静态化——按标的一次构建，活区 patch（paintQuoteLine + paintLive），图表仅数据引用变化/周期切换/resize 重画；跳绘守卫与光标恢复退役；
+4. `ac12bec` panel chrome 门控——picker 按 rev/结构键重建，toast 走 patchToast 轻路径；main errorGlobal 按 quoteMetaError 门控；
+5. `d140474` minify 开启 + 版本注入断言改 minify 免疫（版本字面量在 + `__APP_VERSION__` 标识符不在）；cdp-shot 指纹探针核查为 CSS 字面量（不受压缩影响），无需改；
+6. `23ce3c4` ADR-0004 + GLOSSARY（快照修订/变更切片/活区）+ §12.17/§12.24 机制替换追记；
+7. 本节（最终验证记录）。
+
+**验证**：
+
+- 单测：`npm test` **288/288/0**（基线 272 + 新增 16：store 切片契约 9 + 跨 tick 身份回归 7；身份翻转改写 3 例——round3 列表焦点、restyle detail 编辑、r6 编辑中 tick 带切片）；双构建 sha256 幂等（`9f42b552…`）。
+- bundle：minify 后 **200.9KB → 130.6KB（133,685B，−34%）**——低于「减半」预估（CSS/i18n 数据串不可压），如实记录，无动作。
+- 下发与活体取证（know-how 037 路径）：新 `lib/client.js` 下发到本机安装副本（旧件备份 `.dsh-research/render-slice-probe/backup/`），宿主未重启（client-only），页面硬刷新后指纹三串在/死串不在。**A/B 对照**：旧构建面板开 15s tick 行节点全换（`NEW,NEW` @ 14806ms）；新构建同窗口 17.5s 行签名全程不变（`w0,w1`）且详情输入框身份保持（tokensKept 2/2、inputIdentityPreserved true；tick 时点休市价格静态 = 空切片零重绘路径真实走到）。探针与日志留证 `.dsh-research/render-slice-probe/`。
+- cdp-shot（新构建）：面板 360 挂载；双层叠哨兵 `hiddenAttr` + `displayNone` 双 true；三视口（桌面面板/窄屏 sheet/详情）+ 设置 + 胶囊特写截图留证 `/tmp/skc-shots/202611-10T2357-*`；console 1 error = `favicon.ico` 404（硬刷新浏览器自动请求，非插件资源，无害；旧构建轮未触发因其未整页刷新）。
+
+**未验证项与降级**（未验证不冒充已验证）：
+
+1. 拖拽中 tick（场景②）与 picker 排序（场景④）未在真实浏览器复演，以 jsdom 身份断言为锚（`client-render-identity`，§12.23 DOM 契约口径），待实机复核；
+2. 移动端软键盘/IME 真机行为待主人设备确认（同 §12.17 口径）；
+3. 编辑中 resize/旋转是否引发骨架重建（detail onWinResize 与现状等价，评审建议 b 观察项）留待实机观察；
+4. 主机侧插件安装副本现携带未发版构建——回滚路径：`npm 0.2.1` 重装或恢复 `backup/client.old.js`；仓库侧回滚：revert 上述 commit 链。
