@@ -367,7 +367,8 @@ export function createDetail({ store }) {
     const symbol = symbolOf();
 
     // detailId 变化：重置会话态（period 保留，语义与 React 版一致）
-    if (ui.detailId !== lastDetailId) {
+    const detailChanged = ui.detailId !== lastDetailId;
+    if (detailChanged) {
       lastDetailId = ui.detailId;
       form = null;
       overlapHint = false;
@@ -378,6 +379,12 @@ export function createDetail({ store }) {
       const key = `${symbol.id}:${period}`;
       if (key !== loadedKey) loadChart(symbol);
     }
+    // 编辑中跳过轮询驱动的重绘（手机软键盘保活，2026-11-10）：持仓/目标价输入聚焦时，
+    // update() 整段重绘会销毁聚焦框——移动端程序化 focus() 唤不回软键盘。跳过期间行情
+    // 展示短暂走旧值（最长一个轮询周期），失焦后的下一次快照即带上最新数据重绘。
+    // detailId 变化不豁免（旧输入框属于旧标的，必须重建）。
+    const active = typeof document !== "undefined" ? document.activeElement : null;
+    if (!detailChanged && active && el.contains(active) && active.dataset?.field) return;
     render();
   };
 

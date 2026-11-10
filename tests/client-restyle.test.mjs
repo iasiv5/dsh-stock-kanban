@@ -14,6 +14,8 @@ import { iconEl } from "../client/icons.mjs";
 import { FLOAT_STYLE_TEXT } from "../client/styles.mjs";
 import { createPanel } from "../client/panel.mjs";
 import { createList } from "../client/list.mjs";
+import { createAdd } from "../client/add.mjs";
+import { createDetail } from "../client/detail.mjs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -143,8 +145,7 @@ test("styles · hidden 属性全局守卫（实拍抓获：.skc-layer 的 flex �
   );
 });
 
-test("icons · emoji 字形零回潮（2026-11-10 retro #6：client 源码除 i18n 外，图标必须走 icons.mjs）", () => {
-  const PICTOGRAPH = /\p{Extended_Pictographic}/gu;
+test("icons · emoji 字形零回潮（2026-11-10 retro #6：client 源码除 i18n 外，图标必须走 icons.mjs）", () => {  const PICTOGRAPH = /\p{Extended_Pictographic}/gu;
   const offenders = [];
   for (const name of readdirSync(new URL("../client/", import.meta.url))) {
     if (!name.endsWith(".mjs") || name === "i18n.mjs") continue; // i18n 文案豁免（「＋」等引用按钮名的 copy）
@@ -215,5 +216,110 @@ test("list · 行键盘可达：Enter/Space 打开详情", () => {
       else globalThis[k] = v;
     }
     h.cleanup();
+  }
+});
+
+/* ---------------- 手机软键盘保活（2026-11-10 主人手机实录：每键一次键盘消失） ---------------- */
+
+const SK_SNAPSHOT = (overrides = {}) => ({
+  business: { rev: 1, settings: { privacyMode: false }, symbols: [], driverKind: null, loaded: true },
+  quotes: {},
+  quoteMeta: { fetchedAt: null, error: null },
+  ui: {
+    panelOpen: true, view: "list", detailId: null, showAdd: false, showSettings: false,
+    lastMarket: "cn", holdingsOnly: false, maVisible: { 5: true, 10: true, 20: true, 60: true },
+    capsuleSymbolId: null,
+  },
+  toast: null,
+  providers: null,
+  ...overrides,
+});
+
+/** 全局注入 + fetch 桩（搜索/分钟线），用毕还原 */
+function withGlobalsAndFetch(t) {
+  const h = createDomHarness();
+  const prev = {
+    document: globalThis.document,
+    window: globalThis.window,
+    localStorage: globalThis.localStorage,
+    fetch: globalThis.fetch,
+  };
+  globalThis.document = h.document;
+  globalThis.window = h.window;
+  globalThis.localStorage = h.localStorage;
+  const fetchCalls = [];
+  globalThis.fetch = async (url) => {
+    fetchCalls.push(String(url));
+    return {
+      ok: true,
+      status: 200,
+      json: async () => (String(url).includes("/search") ? { rows: [] } : { points: [], prevClose: null }),
+    };
+  };
+  return {
+    h,
+    fetchCalls,
+    restore: () => {
+      for (const [k, v] of Object.entries(prev)) {
+        if (v === undefined) delete globalThis[k];
+        else globalThis[k] = v;
+      }
+      h.cleanup();
+    },
+  };
+}
+
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test("add · 搜索重绘不重建输入框（手机软键盘保活：节点身份跨渲染稳定）", async () => {
+  const t = withGlobalsAndFetch();
+  try {
+    const store = { addSymbol: async () => ({ ok: true }), setToast: () => {}, setShowAdd: () => {} };
+    const add = createAdd({ store });
+    add.update(SK_SNAPSHOT({ ui: { ...SK_SNAPSHOT().ui, showAdd: true } }));
+    const input = add.el.querySelector('input[data-field="query"]');
+    assert.ok(input, "搜索输入在位");
+    input.focus();
+    input.value = "600519";
+    input.dispatchEvent(new t.h.window.Event("input", { bubbles: true }));
+    await sleepMs(400); // 越过 300ms 防抖 → searching 渲染 + 结果渲染（旧实现此处销毁重建输入框）
+    const after = add.el.querySelector('input[data-field="query"]');
+    assert.equal(after, input, "同一 DOM 节点——焦点与软键盘不被打断");
+    assert.equal(t.fetchCalls.some((u) => u.includes("/stock-kanban/search")), true, "搜索确实发生");
+    add.dispose();
+  } finally {
+    t.restore();
+  }
+});
+
+test("detail · 编辑中轮询不重绘（软键盘保活），失焦后恢复重绘", async () => {
+  const t = withGlobalsAndFetch();
+  try {
+    const store = {
+      backToList: () => calls.push("back"),
+      updateSymbol: async () => ({ ok: true }),
+      removeSymbol: async () => ({ ok: true }),
+      setToast: () => {},
+      setMaVisible: () => {},
+    };
+    const detail = createDetail({ store });
+    t.h.document.body.append(detail.el); // jsdom focus() 仅对已入文档树的元素生效
+    const base = SK_SNAPSHOT({
+      business: { rev: 1, settings: { privacyMode: false }, symbols: [{ id: "s1", market: "us", code: "AAPL", name: "Apple", quoteCurrency: "USD" }], driverKind: null, loaded: true },
+      ui: { ...SK_SNAPSHOT().ui, view: "detail", detailId: "s1" },
+    });
+    detail.update(base);
+    const input = detail.el.querySelector('input[data-field="quantity"]');
+    assert.ok(input, "数量输入在位");
+    input.focus();
+    detail.update({ ...base, quoteMeta: { fetchedAt: 2, error: null } }); // 轮询 tick（聚焦中）
+    assert.equal(detail.el.querySelector('input[data-field="quantity"]'), input, "编辑中不重绘：同一节点");
+    input.blur(); // 失焦（手机收起键盘）
+    detail.update({ ...base, quoteMeta: { fetchedAt: 3, error: null } });
+    assert.notEqual(detail.el.querySelector('input[data-field="quantity"]'), input, "失焦后恢复重绘");
+    await sleepMs(20); // 冲掉图表异步渲染微任务，避免逃逸到测试外
+    detail.dispose();
+  } finally {
+    t.restore();
   }
 });
