@@ -1,0 +1,28 @@
+# npm 发布（Trusted Publishing / OIDC）：无静态 token，短时凭据 + provenance。
+# 配套的 npm 侧信任配置：repo iasiv5/dsh-stock-kanban :: 本文件名 publish.yml（npm trust github）。
+# 发版 = 打 v* tag 推送（或在本页手动 workflow_dispatch）；包已在 npm bootstrap（0.0.1），首发不能直接 OIDC。
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC：npm trusted publishing 必需
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+      # OIDC 发布要求 runner 的 npm >= 11.5.1；setup-node 自带的可能更旧
+      - name: Ensure npm >= 11.5.1
+        run: npm install -g npm@latest
+      - name: Publish to npm
+        run: npm publish --provenance --access public
