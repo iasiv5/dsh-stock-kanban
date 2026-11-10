@@ -306,6 +306,28 @@ qw 侧（竞态修复，2026-11-09）：
 
 验证：全量 `npm test` 212/212/0（restyle footer 钮清单 privacy→holdings、icons 契约清单更新，隐私遮蔽/组合/integration 用例零改动全绿）；CDP 实拍——footer 钮序 `holdings,add,settings,refresh,close`、筛选栏零残留、持仓开关 accent 开态着色正确（截图留证，浅色主题令牌同步验证）；当前实例无持仓数据（quantity 全 null）→ 只看持仓行区为空属正确行为，盈亏行显示由既有 jsdom 用例（quantity 夹具）覆盖；HMR 下发确认。
 
+## 12.20 面板设计语言对齐 qw（毛玻璃复刻，2026-11-10，主人反馈 → 已实现并验证）
+
+主人反馈：sk 面板风格要与 qw 面板统一——毛玻璃复刻、关闭钮右上、二级返回左上。
+
+**qw（.dqw-panel）设计 DNA 提取**（`dsh-quota-watch/lib/client.js`）：面板 = `bg-base 86%` 单层 color-mix + `blur(14px) saturate(1.3)` 真实半透明毛玻璃 + radius 10 + 单层阴影 `0 8px 24px .25` + 无 supports 回落实底；header 无分隔线（title 11px flex + 动作钮右侧内联）；关闭 24×24 ghost r6 右上、二级返回 28×28 ghost 左上；按钮 = 透明底 hairline 边 10px opacity .72 hover 交互面；次要区分隔 = **dashed** 虚线；密度 10-11px。
+
+**sk 差距梳理与对齐**（12 项，详见本节与 ui-redesign.md）：
+1. 毛玻璃：sk 原为 layer-2 94% 双层叠涂**全不透明**（12.8 为玻璃皮肤可读性引入）→ **复刻 qw 配方**（bg-base 86% + blur(14px) saturate(1.3)，supports-not 回落实底）。computed 实证：`blur(14px) saturate(1.3)`、alpha 0.47——页面文字透面板被柔化，与 qw 同观感；
+2. 圆角 14→10；阴影对齐单层；max-height 对齐 `calc(100dvh - 24px)`；
+3. sheet 去抓手/特殊圆角（qw sheet 即普通面板贴底）；
+4. 头部去 border-bottom（qw 无分隔线），标题 13px→12px 收敛；品牌点与行情异常警示点保留（sk 身份记号）；
+5. **关闭钮迁 header 右上**（24×24 ghost r6，`data-action="close"` 保留）；footer 不再放关闭；
+6. 按钮对齐 qw panel-action：透明底 hairline 边 10.5px、opacity .78→hover 1、hover 交互面（primary/danger 变体保持语义色）；
+7. 分隔语言改 **dashed**：备份区 border-top、目标价节 border-top（qw models/reset 同款）；
+8. 对话框/toast 地板同配方 86%+blur（对话内覆盖层与面板同质）；
+9. icon-btn 26→24 r8→r6（qw close 尺寸）；
+10. chartbox 圆角 8；二级返回按钮已在左上（无需动）；footer 保留（sk 功能密度需要，qw 无 footer）。
+
+**已知取舍**：玻璃皮肤下 bg-base 半透明时，86% 单层会比 12.8 的不透明地板更透——这是 qw 同款取舍（强 blur + 短面板），主人指名要这个观感；可读性若在某皮肤下不达标，回退通道是 `@supports not` 分支 + 单独皮肤调 token。
+
+验证：全量 `npm test` 212/212/0（关闭钮用例迁 header、restyle footer 清单去 close）；CDP 实拍——毛玻璃透字效果、radius 10、header 右上关闭、footer 无关闭（computed backdropFilter/bg 断言 + 截图留证）；HMR 下发确认。
+
 ## 未验证与降级汇总（13 章交付口径）
 
 **已完成且验证通过**：见上表全部 ✅ 项 + 125 单测（vanilla 化后，12.10）+ 23 数据源探针。

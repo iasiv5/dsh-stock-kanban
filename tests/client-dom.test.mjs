@@ -783,12 +783,12 @@ test("panel · 外点关闭与 Esc 关闭", () => {
   }
 });
 
-test("panel · footer 含关闭按钮且点击关闭", () => {
+test("panel · header 右上关闭钮且点击关闭（qw 语言：关闭在右上）", () => {
   const { h, panel } = setupPanel();
   try {
     panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
-    const closeBtn = panel.el.querySelector('.skc-footer [data-action="close"]');
-    assert.ok(closeBtn, "footer 关闭按钮在位");
+    const closeBtn = panel.el.querySelector('.skc-header [data-action="close"]');
+    assert.ok(closeBtn, "header 关闭按钮在位");
     closeBtn.dispatchEvent(new h.window.MouseEvent("click", { bubbles: true }));
     assert.equal(panel.isOpen(), false, "点击关闭");
     panel.dispose();

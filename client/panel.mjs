@@ -173,7 +173,18 @@ export function createPanel({ doc, win, store, views }) {
   title.textContent = t("app.title");
   const headerMeta = doc.createElement("span");
   headerMeta.className = "skc-header-meta";
-  header.append(title, headerMeta);
+  // 关闭钮对齐 qw .dqw-panel-close：面板右上 24×24 ghost（footer 不再放关闭）
+  const headerClose = doc.createElement("button");
+  headerClose.className = "skc-icon-btn";
+  headerClose.type = "button";
+  headerClose.dataset.action = "close";
+  headerClose.append(iconEl(doc, "close"));
+  headerClose.title = t("app.collapse");
+  headerClose.setAttribute("aria-label", t("app.collapse"));
+  headerClose.addEventListener("click", () => close());
+  const headerSpacer = doc.createElement("span");
+  headerSpacer.className = "skc-spacer";
+  header.append(title, headerMeta, headerSpacer, headerClose);
 
   const body = doc.createElement("div");
   body.className = "skc-body";
@@ -225,9 +236,8 @@ export function createPanel({ doc, win, store, views }) {
   const addBtn = makeFooterButton("add", t("add.title"), () => store.setShowAdd(true), "plus");
   const settingsBtn = makeFooterButton("settings", t("app.settings"), () => store.setShowSettings(true), "settings");
   const refreshBtn = makeFooterButton("refresh", t("list.refresh"), () => store.pollQuotes(), "refresh");
-  const closeBtn = makeFooterButton("close", t("app.collapse"), () => close(), "close");
 
-  footerMain.append(pickerLabel, footerActions, holdingsBtn, addBtn, settingsBtn, refreshBtn, closeBtn);
+  footerMain.append(pickerLabel, footerActions, holdingsBtn, addBtn, settingsBtn, refreshBtn);
   footer.append(footerMain);
 
   // 对话框层（面板内渲染）
@@ -303,7 +313,7 @@ export function createPanel({ doc, win, store, views }) {
     // 语言实时跟随（骨架静态文案重套 t()；保持 12.9 的实时切换语义）
     title.textContent = t("app.title");
     pickerLabelText.textContent = t("picker.label");
-    for (const [btn, key] of [[addBtn, "add.title"], [settingsBtn, "app.settings"], [refreshBtn, "list.refresh"], [closeBtn, "app.collapse"]]) {
+    for (const [btn, key] of [[addBtn, "add.title"], [settingsBtn, "app.settings"], [refreshBtn, "list.refresh"], [headerClose, "app.collapse"]]) {
       btn.title = t(key);
       btn.setAttribute("aria-label", t(key));
     }

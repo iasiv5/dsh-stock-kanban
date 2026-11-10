@@ -62,7 +62,7 @@ test("panel · footer 图标钮含 svg 子节点 + aria-label（data-action 契�
     });
     shadow.append(panel.el);
     panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
-    for (const action of ["holdings", "add", "settings", "refresh", "close"]) {
+    for (const action of ["holdings", "add", "settings", "refresh"]) {
       const btn = panel.el.querySelector(`.skc-footer [data-action="${action}"]`);
       assert.ok(btn, `${action} 钮在位`);
       assert.ok(btn.querySelector("svg"), `${action} 钮为 SVG 图标`);
