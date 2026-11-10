@@ -1,17 +1,51 @@
 # dsh-stock-kanban
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/iasiv5/dsh-stock-kanban/main/docs/images/capsule.webp" alt="dsh-stock-kanban 合并胶囊：股票段（含目标价触达 S 标记）+ quota-watch 额度段" width="480">
+</p>
+
 DSH 插件：多市场盯盘与持仓查看。悬浮胶囊 + A 股 / 港股 / 美股 / 加密货币分组自选 + 持仓盈亏 + 目标价 + 分时 / 日 / 周 / 月 K 线。
 
-![badge](https://img.shields.io/badge/DSH-0.2.2--rc.1-22d3ee) ![license](https://img.shields.io/badge/license-MIT-green)
+![npm](https://img.shields.io/npm/v/dsh-stock-kanban) ![DSH](https://img.shields.io/badge/DSH-0.2.2--rc.1-22d3ee) ![license](https://img.shields.io/badge/license-MIT-green)
 
-## 功能
+## 悬浮胶囊
 
-- **悬浮胶囊**：显示自选标的的名称、现价、涨跌幅。可拖动，位置按访问端浏览器记忆（自由坐标，视口内钳位）。达到目标价时显示 B / S 标记；行情过期时明确暂停，不伪装成最新价。点击展开面板；拖动胶囊时面板自动收起。
-- **列表**：A 股 / 港股 / 美股 / 加密货币四个分组（ETF 归入上市市场，是类型不是分组）；同一标的只出现一次。分组内可拖拽排序（整行拖动 / 触屏长按 / 行聚焦 Alt+↑↓，顺序存 DSH 实例跨浏览器共享）。
-- **只看持仓**：footer 的公文包开关。开启后列表只显示有持仓的标的，并在每行显示盈亏金额与比例。
-- **详情**：分时 / 日K / 周K / 月K（自绘 SVG，含成交量与 MA5 / 10 / 20 / 60，无 CDN 依赖）；持仓数量与平均成本，自动计算市值、浮动盈亏与比例；买入 / 卖出目标价（阈值重叠时区块内确认）；行情时间与拉取时间分开标注。
-- **持仓汇总**：按报价币种分别汇总（USD 与 USDT 不合并）；缺行情时明确标注"不完整"。
-- **备份**：设置中导出结构化 JSON（schemaVersion 1），导入为覆盖式（双重校验、显式确认）。
+- 显示自选标的的名称、现价、涨跌幅；自由拖动，位置按访问端浏览器记忆（视口内钳位）。
+- 达到买入 / 卖出目标价时显示 **B / S** 标记（见上图）；行情过期时明确暂停，不伪装成最新价。
+- 点击展开面板；拖动胶囊时面板自动收起。
+- 与 [quota-watch](https://www.npmjs.com/package/@iasiv5/dsh-quota-watch) 同装时自动合并为**单枚两段胶囊**（股票段 | 额度段），整枚一次拖动、共享位置记忆，见下文「与 quota-watch 联动」。
+
+## 盯盘面板
+
+![盯盘面板：四市场分组列表](https://raw.githubusercontent.com/iasiv5/dsh-stock-kanban/main/docs/images/panel.webp)
+
+- **分组自选**：A 股 / 港股 / 美股 / 加密货币四个分组（ETF 归入上市市场，是类型不是分组）；同一标的只出现一次。
+- **拖拽排序**：整行拖动（悬停浮现把手）/ 触屏长按 / 行聚焦 `Alt+↑↓`，三条路径等效；顺序存 DSH 实例跨浏览器共享，footer「胶囊显示」下拉与面板列表实时同序。
+- **只看持仓**：footer 公文包开关，开启后只显示有持仓的标的，并在每行显示盈亏金额与比例。
+- **状态标注**：休市 / 行情过期有独立徽标（见图中「休」），绝不静默展示旧数据。
+- **持仓汇总**：按报价币种分别汇总（USD 与 USDT 不合并）；缺行情时明确标注「不完整」。
+
+## 详情与 K 线
+
+![详情页：居中头部 + 分段持仓/目标价 + 日K 均线](https://raw.githubusercontent.com/iasiv5/dsh-stock-kanban/main/docs/images/detail.webp)
+
+- **分时 / 日K / 周K / 月K**：自绘 SVG（含成交量与 MA5 / 10 / 20 / 60），无 CDN 依赖；切周期卡片几何恒定、零位移。
+- **持仓与目标价**：数量与平均成本自动计算市值、浮动盈亏与比例；买入 / 卖出目标价，阈值重叠时区块内确认。
+- **时间口径**：行情时间与拉取时间分开标注；加载 / 出错 / 成图三态等高，不跳动。
+
+## 移动端
+
+<img src="https://raw.githubusercontent.com/iasiv5/dsh-stock-kanban/main/docs/images/mobile.webp" alt="移动端底部 sheet" width="300" align="right">
+
+- 视口 ≤480px 时面板自动转**底部 sheet**，按钮全部可达。
+- 触屏长按起拖排序（未满长按不影响原生滚动）；手机 / 平板浏览器开箱即用。
+
+## 设置与备份
+
+![设置页：导出/导入备份与版本脚注](https://raw.githubusercontent.com/iasiv5/dsh-stock-kanban/main/docs/images/settings.webp)
+
+- **导出**：结构化 JSON（schemaVersion 1）；**导入**：覆盖式（双重校验、显式确认）。
+- 页尾脚注：数据边界说明与插件版本号（构建期注入，与发布版本一致）。
 
 ## 安装与升级
 
@@ -21,12 +55,12 @@ DSH 插件：多市场盯盘与持仓查看。悬浮胶囊 + A 股 / 港股 / �
 # 开发态链接安装（正式部署可 npm pack 后 add 包）
 dsh plugin --profile web add "link:/path/to/dsh-stock-kanban"
 # 或使用 tarball：
-# npm pack && dsh plugin --profile web add ./dsh-stock-kanban-0.2.0.tgz
+# npm pack && dsh plugin --profile web add ./dsh-stock-kanban-<版本>.tgz
 # 随后重启 DSH 服务，使 host 端路由生效：
 sudo systemctl restart deepseek-harness.service
 ```
 
-- **验证已激活**：浏览器打开 DSH，右下角应出现"盯盘"胶囊；也可访问 `http://<dsh>/stock-kanban/health`，返回的 JSON 含 `driver` 字段。
+- **验证已激活**：浏览器打开 DSH，右下角应出现「盯盘」胶囊；也可访问 `http://<dsh>/stock-kanban/health`，返回的 JSON 含 `driver` 字段。
 - **升级**：对同一路径再执行一次 `add`（link 安装）。
 - **卸载**：`dsh plugin --profile web remove dsh-stock-kanban`。卸载不删除业务数据，重装后自动读回。卸载前建议先在设置中导出备份。
 
@@ -43,7 +77,7 @@ sudo systemctl restart deepseek-harness.service
 - 备份文件是 JSON 明文，包含持仓数据，请自行妥善保管。导入为覆盖模式，会替换当前全部数据。
 - 行情请求只携带市场代码，**不发送任何持仓数据**给行情提供方。
 - 写操作路由强制同源校验（Origin / Sec-Fetch-Site），并限制请求体积。
-- 多页面一致：每次变更带版本号（rev）。旧页面用过期数据提交时会收到 409，并提示"数据已被其他页面更新，已刷新，请重试"，不静默覆盖。
+- 多页面一致：每次变更带版本号（rev）。旧页面用过期数据提交时会收到 409，并提示「数据已被其他页面更新，已刷新，请重试」，不静默覆盖。
 
 ## 行情来源与限制
 
@@ -63,9 +97,9 @@ sudo systemctl restart deepseek-harness.service
 
 本插件与 `@iasiv5/dsh-quota-watch`（GLM Coding Plan / GitHub Copilot 额度悬浮胶囊）通过窗口内 CustomEvent 协议联动。协议规格见 `docs/interop/capsule-embed-protocol.md`，宿主侧决策见 `docs/adr/0002-quota-embed-host-side-capsule-group.md`。
 
-- **合并**：检测到 quota-watch 在线并回复能力（`embed-capabilities`，含 `hide-pill` 与 `anchored-panel`）时，额度胶囊并入本插件的浮动壳，形成单枚两段胶囊（股票段 | 分隔线 | 额度段），整枚一次拖动，共享同一套位置记忆。额度段默认合并，设置里没有开关。
+- **合并**：检测到 quota-watch 在线并回复能力（`embed-capabilities`，含 `hide-pill` 与 `anchored-panel`）时，额度胶囊并入本插件的浮动壳，形成单枚两段胶囊（股票段 | 分隔线 | 额度段，见页首图），整枚一次拖动，共享同一套位置记忆。额度段默认合并，设置里没有开关。
 - **额度段**：GLM 5 小时窗口与 Copilot 已用比例；超过 80% 为警示色，超过 95% 为危险色（脉冲遵循 `prefers-reduced-motion`）。待处理兑换时保留一枚琥珀小点。点击额度段由 quota-watch 打开其原生面板，水平推出于分区旁（视口不超过 480px 时为底部 sheet）。
-- **降级**：未安装 quota-watch、版本过低（需 ≥ 0.1.38），或握手 500ms 内无回复时，两个插件共存、互不隐藏（接受重叠，不做避让）。quota-watch 被停用或热更新时，本插件立即拆分并移除额度段。额度接口返回 404 时隐藏额度段并慢速重试；传输错误时保留上次数据，并以提示标注"额度数据已过期"。
+- **降级**：未安装 quota-watch、版本过低（需 ≥ 0.1.38），或握手 500ms 内无回复时，两个插件共存、互不隐藏（接受重叠，不做避让）。quota-watch 被停用或热更新时，本插件立即拆分并移除额度段。额度接口返回 404 时隐藏额度段并慢速重试；传输错误时保留上次数据，并以提示标注「额度数据已过期」。
 - 端到端活体验证（真实额度数据、双向点击与开关往返、停用消失）尚未完成，见 `docs/verification.md` §12.11。
 
 ## 开发

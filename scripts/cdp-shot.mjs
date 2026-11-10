@@ -95,14 +95,58 @@ const evalJS = async (expression) => {
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 截图专用重试（2026-11-10 实录：详情图表渲染后 captureScreenshot 偶发连超，单次重试不够）
+const capturePng = async (params, tries = 3) => {
+  let lastErr;
+  for (let i = 0; i < tries; i += 1) {
+    try {
+      const r = await sendRetry("Page.captureScreenshot", params);
+      if (r.result?.data) return r.result.data;
+      lastErr = new Error("capture: empty payload");
+    } catch (e) {
+      lastErr = e;
+    }
+    await sleep(900);
+  }
+  throw lastErr;
+};
 const stamp = new Date().toISOString().slice(0, 16).replaceAll(":", "").replace("-", "");
 mkdirSync(outDir, { recursive: true });
 const shot = async (name) => {
   await sendRetry("Page.bringToFront").catch(() => {});
-  const r = await sendRetry("Page.captureScreenshot", { format: "png", fromSurface: true, captureBeyondViewport: false });
+  const data = await capturePng({ format: "png", fromSurface: true, captureBeyondViewport: false });
   const path = `${outDir}/${stamp}-${name}.png`;
-  writeFileSync(path, Buffer.from(r.result.data, "base64"));
+  writeFileSync(path, Buffer.from(data, "base64"));
   console.log("shot:", path);
+};
+// 元素裁剪截图（README/市场用图）：只拍插件面自己，不带出宿主工作区（2026-11-10 实拍教训：
+// 全屏截图把会话名/其他插件全拍进去了）。pad=元素外扩像素，scale=2 retina 采样。
+const shotEl = async (name, selector, pad = 12) => {
+  await sendRetry("Page.bringToFront").catch(() => {});
+  const rect = await evalJS(`(() => {
+    const host = document.querySelector('[data-dsh-stock-kanban-float]');
+    const el = host.shadowRoot.querySelector('${selector}');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  })()`);
+  if (!rect) { console.log(`shot ${name}: ${selector} 不可得，跳过`); return null; }
+  const iw = await evalJS("window.innerWidth");
+  const ih = await evalJS("window.innerHeight");
+  const x = Math.max(0, rect.x - pad);
+  const y = Math.max(0, rect.y - pad);
+  const clip = {
+    x,
+    y,
+    width: Math.min(rect.width + pad * 2, iw - x),
+    height: Math.min(rect.height + pad * 2, ih - y),
+    scale: 2,
+  };
+  const r = await capturePng({ format: "png", clip });
+  const path = `${outDir}/${stamp}-${name}.png`;
+  writeFileSync(path, Buffer.from(r, "base64"));
+  console.log("shot:", path);
+  return path;
 };
 const setViewport = async (w, h) => {
   await sendRetry("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 2, mobile: false });
@@ -167,13 +211,15 @@ console.log("layering:", JSON.stringify(layering));
 if (!layering.displayNone) { console.error("LAYER_LEAK: 详情层在列表视图可见（hidden 被击穿）"); process.exit(3); }
 
 if (!checkOnly) {
-  await shot("panel-desktop");
+  await shotEl("panel-desktop", ".skc-panel", 14);
   await setViewport(400, 768);
-  await shot("panel-sheet");
+  await shotEl("panel-sheet", ".skc-panel", 8);
   await setViewport(1024, 768);
   const detail = await evalJS(`(async () => {
     const host = document.querySelector('[data-dsh-stock-kanban-float]');
-    const row = host.shadowRoot.querySelector('.skc-row');
+    // 详情行优先选无持仓标记（★）的行：实拍图可能进公开仓/市场注册，不带出真实持仓数据
+    const rows = [...host.shadowRoot.querySelectorAll('.skc-row')];
+    const row = rows.find((r) => !r.querySelector('.skc-pos-dot')) ?? rows[0];
     if (!row) return { row: false };
     row.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     await new Promise(r => setTimeout(r, 1500));
@@ -181,10 +227,53 @@ if (!checkOnly) {
     return { row: true, detailVisible: !layer.hidden, title: layer.querySelector('.skc-detail-title')?.textContent ?? null };
   })()`);
   console.log("detail:", JSON.stringify(detail));
-  await shot("detail");
+  await shotEl("detail", ".skc-panel", 14);
+  // ④ 设置页（README 用图）：footer data-action="settings" → 对话框可见即拍 → 收起回列表
+  const settings = await evalJS(`(() => {
+    const host = document.querySelector('[data-dsh-stock-kanban-float]');
+    const btn = host.shadowRoot.querySelector('.skc-icon-btn[data-action="settings"]');
+    if (!btn) return { btn: false };
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    const layer = host.shadowRoot.querySelector('.skc-dialog--settings');
+    return { btn: true, visible: Boolean(layer) && !layer.hidden };
+  })()`);
+  console.log("settings:", JSON.stringify(settings));
+  if (settings.btn && settings.visible) {
+    await sleep(400);
+    await shotEl("settings", ".skc-panel", 14);
+    await evalJS(`(() => {
+      const host = document.querySelector('[data-dsh-stock-kanban-float]');
+      host.shadowRoot.querySelector('.skc-dialog--settings .skc-icon-btn')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    })()`);
+    await sleep(300);
+  }
   // 收尾：Esc 关面板 + 还原视口（不留脏会话态）
   await evalJS(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }))`);
+  await sleep(600);
   await setViewport(1024, 768);
+  // ⑤ 胶囊特写（合并态：sk 行情段 + qw 额度段）：面板关闭后按胶囊矩形裁剪，2x 采样
+  const capRect = await evalJS(`(() => {
+    const host = document.querySelector('[data-dsh-stock-kanban-float]');
+    const r = host.shadowRoot.querySelector('.skc-capsule')?.getBoundingClientRect();
+    return r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null;
+  })()`);
+  if (capRect) {
+    const pad = 14;
+    const clip = {
+      x: Math.max(0, capRect.x - pad),
+      y: Math.max(0, capRect.y - pad),
+      width: Math.min(capRect.width + pad * 2, (await evalJS("window.innerWidth")) - Math.max(0, capRect.x - pad)),
+      height: capRect.height + pad * 2,
+      scale: 2,
+    };
+    const r = await sendRetry("Page.captureScreenshot", { format: "png", clip });
+    const path = `${outDir}/${stamp}-capsule-closeup.png`;
+    writeFileSync(path, Buffer.from(r.result.data, "base64"));
+    console.log("shot:", path);
+  } else {
+    console.log("capsule rect 不可得，跳过特写");
+  }
 }
 
 const errLines = [String(consoleErrors)];
