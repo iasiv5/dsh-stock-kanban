@@ -354,7 +354,7 @@ export const FLOAT_STYLE_TEXT = `
    原继承 sk 胶囊 12px/常规字重，合并前后观感不一致；danger 琥珀为 B26 拍板规格，不随 qw 红色） */
 .skc-qval{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
 .skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}
-.skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)} /* B26：额度危险态为琥珀 */
+.skc-qdanger{color:var(--dsw-alias-label-danger,#c93c3c)} /* danger 语义色对齐 qw 本体红（2026-11-10 主人改定，B26 琥珀退役——跨插件语义一致优先） */
 .skc-qseg{display:inline-flex;align-items:center;gap:6px}
 .skc-qseg[hidden]{display:none}
 .skc-qsep{opacity:.5} /* 分隔点对齐 qw .dqw-capsule-sep */

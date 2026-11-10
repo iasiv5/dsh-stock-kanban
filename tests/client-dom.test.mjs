@@ -92,7 +92,7 @@ test("FLOAT_STYLE_TEXT · quota pill 样式：--quota cursor、tabular-nums、wa
   assert.ok(s.includes(".skc-capsule--quota{cursor:pointer}"), "--quota 覆写 cursor:pointer");
   assert.ok(s.includes(".skc-qval{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}"), "数值段对齐 qw 独立胶囊文字规格（11px/600 + tabular-nums，spec §9）");
   assert.ok(s.includes(".skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}"), "warn 色（与 qw 同名回退值）");
-  assert.ok(s.includes(".skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}"), "danger 色已改琥珀（B26，与 qw 警告色同名回退值）");
+  assert.ok(s.includes(".skc-qdanger{color:var(--dsw-alias-label-danger,#c93c3c)}"), "danger 色对齐 qw 本体红（B26 琥珀退役，跨插件语义一致）");
   assert.ok(!s.includes(".skc-switch") && !s.includes(".skc-quota-merge-on"), "合并开关样式随隐藏退役（第四轮 2026-11-10）");
   const guardAt = s.indexOf("@media (prefers-reduced-motion: no-preference)");
   assert.ok(guardAt >= 0, "reduced-motion 守卫块存在");
@@ -103,10 +103,10 @@ test("FLOAT_STYLE_TEXT · quota pill 样式：--quota cursor、tabular-nums、wa
   assert.equal(s.split(".skc-qpulse{").length - 1, 1, ".skc-qpulse 只出现一次（守卫块内）");
 });
 
-test("字形：额度危险态为琥珀（B26）", () => {
+test("字形：额度危险态对齐 qw 本体红（B26 琥珀退役）", () => {
   assert.ok(
-    FLOAT_STYLE_TEXT.includes(".skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}"),
-    "danger 色已改琥珀（B26，与 qw 警告色同名回退值）",
+    FLOAT_STYLE_TEXT.includes(".skc-qdanger{color:var(--dsw-alias-label-danger,#c93c3c)}"),
+    "danger 色对齐 qw 本体红——熟悉 qw 的同学看合并胶囊零陌生感",
   );
 });
 

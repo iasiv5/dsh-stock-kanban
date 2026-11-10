@@ -432,3 +432,5 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 **§12.24 追记七（同日八轮）**：设置页页尾加入版本号——`dsh-stock-kanban v0.2.0`，位于「行情来自免费源」脚注之后；构建期 esbuild define 注入 package.json 版本（client/version.mjs，typeof 守卫使 node --test 直跑源码回落 "dev"），与发版号永不错位；样式 11px/text-2/opacity .6（字号阶梯无 10px 契约守卫生效，10px 改 11px + 透明度弱化）。270/270/0 全绿；detect 0 发现；client-only + 构建脚本改动，刷新即生效。
 
 **§12.24 追记八（同日九轮，主人反馈 → 已修复）**：设置页脚注一行制——「行情来自免费源，可能有延迟。 · dsh-stock-kanban v0.2.0」同线，中点分隔（opacity .5）+ 版本段弱一档（opacity .65）；脚注 DOM 契约更新（restyle 测试改为断言同行包含延迟文案与版本号），语言实时跟随仅作用于说明段（版本恒拉丁）。270/270/0 全绿；detect 0 发现；刷新即生效。
+
+**§12.24 追记九（同日十轮，主人改定 → B26 琥珀退役）**：合并胶囊额度段 danger 态对齐 qw 本体红（`.skc-qdanger` → `--dsw-alias-label-danger,#c93c3c`）——主人理由成立：同一数据同一语义，跨插件语义色一致性优先于内部拍板，qw 老用户看合并胶囊零陌生感。守卫同步改判：client-dom 钉死串换 label-danger、restyle 令牌卫生 label-warning 计数 2→1。270/270/0 全绿；detect 0 发现；刷新即生效。

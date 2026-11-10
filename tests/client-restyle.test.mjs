@@ -3,7 +3,7 @@
  *   - icons.mjs 线性图标 DOM 契约（createElementNS、currentColor、未知名抛错）；
  *   - footer 图标化后的面板契约（SVG 子节点、quote-error 头部状态类）；
  *   - 样式令牌卫生：真实 DSH alias 在位、四个失效令牌不再出现
- *     （label-warning 仅存于测试钉死的 qwarn/qdanger 回退串，见 client-dom.test.mjs）。
+ *     （label-warning 仅存于测试钉死的 qwarn 回退串，见 client-dom.test.mjs；qdanger 已对齐 qw 本体红）。
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -131,11 +131,11 @@ test("styles · 令牌卫生：真实 DSH alias 在位、失效令牌清零（�
   ]) {
     assert.ok(s.includes(token), `${token} 在位`);
   }
-  // 失效令牌仅允许出现在测试钉死的两串回退里（qwarn/qdanger，client-dom.test.mjs 钉死）
+  // 失效令牌仅允许出现在测试钉死的回退串里（qwarn，client-dom.test.mjs 钉死）
   const dead = ["--dsw-alias-border-secondary", "--dsw-alias-bg-elevated", "--dsw-alias-bg-hover"];
   for (const token of dead) assert.equal(s.includes(token), false, `${token} 已清零`);
   const warningUses = s.split("--dsw-alias-label-warning").length - 1;
-  assert.equal(warningUses, 2, "label-warning 仅存于 qwarn/qdanger 钉死串");
+  assert.equal(warningUses, 1, "label-warning 仅存于 qwarn 钉死串（qdanger 已换 label-danger 对齐 qw）");
 });
 
 test("styles · hidden 属性全局守卫（实拍抓获：.skc-layer 的 flex 击穿 UA [hidden]，双层叠渲染）", () => {
