@@ -229,7 +229,9 @@ export const FLOAT_STYLE_TEXT = `
 .skc-dialog{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;gap:10px;padding:12px;overflow-y:auto;background:color-mix(in srgb,var(--skc-surface) 97%,transparent);background:linear-gradient(var(--skc-surface),var(--skc-surface)),rgb(from var(--skc-base) r g b / 1);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 8%,transparent);scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
 .skc-dialog[hidden]{display:none}
 .skc-dialog-head{display:flex;align-items:center;gap:8px;padding-bottom:2px}
-.skc-add-results{display:flex;flex-direction:column;gap:3px;max-height:180px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
+.skc-dialog--pinned{overflow:hidden}
+.skc-dialog-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
+.skc-add-results{display:flex;flex-direction:column;gap:3px}
 .skc-add-row{display:flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--skc-hairline);border-radius:9px;color:var(--skc-text);padding:6px 9px;cursor:pointer;font:inherit;text-align:left;transition:border-color .12s var(--skc-ease), background .12s var(--skc-ease)}
 .skc-add-row:hover:not(:disabled){border-color:color-mix(in srgb,var(--skc-accent) 45%,transparent);background:var(--skc-hover)}
 .skc-add-row:disabled{opacity:.45;cursor:default}

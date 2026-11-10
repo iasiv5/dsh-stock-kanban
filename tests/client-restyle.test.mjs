@@ -254,7 +254,9 @@ function withGlobalsAndFetch(t) {
     return {
       ok: true,
       status: 200,
-      json: async () => (String(url).includes("/search") ? { rows: [] } : { points: [], prevClose: null }),
+      json: async () => (String(url).includes("/search")
+        ? { rows: [{ id: "cn:sh600519", market: "cn", code: "sh600519", name: "贵州茅台" }] }
+        : { points: [], prevClose: null }),
     };
   };
   return {
@@ -287,6 +289,12 @@ test("add · 搜索重绘不重建输入框（手机软键盘保活：节点身�
     const after = add.el.querySelector('input[data-field="query"]');
     assert.equal(after, input, "同一 DOM 节点——焦点与软键盘不被打断");
     assert.equal(t.fetchCalls.some((u) => u.includes("/stock-kanban/search")), true, "搜索确实发生");
+    // 钉头结构（2026-11-10 手机实录：整段滚动会让市场 Tab 被聚焦框顶出截半）
+    const scrollRegion = add.el.querySelector(".skc-dialog-scroll");
+    assert.ok(scrollRegion, "内滚区在位");
+    assert.equal(input.parentElement, add.el, "搜索框钉在骨架层（不在内滚区内，永不滚出）");
+    assert.equal(add.el.querySelector(".skc-tabs").parentElement, add.el, "市场 Tab 钉在骨架层");
+    assert.ok(scrollRegion.querySelector(".skc-add-row"), "结果行落在内滚区内");
     add.dispose();
   } finally {
     t.restore();

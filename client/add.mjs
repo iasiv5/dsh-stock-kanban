@@ -98,7 +98,9 @@ export function createAdd({ store }) {
   /* ---------------- 静态骨架（一次构建；软键盘/IME 保活的前提） ---------------- */
 
   const el = document.createElement("div");
-  el.className = "skc-dialog";
+  // 钉住头/Tab/输入框/直连区：只有状态区+结果区内滚（2026-11-10 手机实录：整段滚动容器
+  // 会让浏览器为聚焦框滚动，市场 Tab 被顶出截半）
+  el.className = "skc-dialog skc-dialog--pinned";
 
   const head = document.createElement("div");
   head.className = "skc-dialog-head";
@@ -142,10 +144,13 @@ export function createAdd({ store }) {
     if (e.key === "Escape") onClose();
   });
 
-  // 动态区：状态（搜索中/错误/无匹配）与结果行——随搜索状态整段重建
+  // 动态区：状态（搜索中/错误/无匹配）与结果行——随搜索状态整段重建；位于内滚区
   const statusEl = document.createElement("div");
   const resultsEl = document.createElement("div");
   resultsEl.className = "skc-add-results";
+  const scrollRegion = document.createElement("div");
+  scrollRegion.className = "skc-dialog-scroll";
+  scrollRegion.append(statusEl, resultsEl);
 
   const direct = document.createElement("div");
   direct.className = "skc-direct";
@@ -175,7 +180,7 @@ export function createAdd({ store }) {
   directHint.textContent = t("add.hint");
   direct.append(directTitle, directRow, directHint);
 
-  el.append(head, tabs, queryInput, statusEl, resultsEl, direct);
+  el.append(head, tabs, queryInput, scrollRegion, direct);
 
   /* ---------------- 渲染：只更新属性与动态区 ---------------- */
 
