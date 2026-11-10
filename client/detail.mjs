@@ -9,7 +9,7 @@ import { api } from "./api.mjs";
 import { fmtPrice, fmtPct, fmtAmount, maskIf, trendClass, parsePositiveInput, fmtClock, fmtClockSec } from "./fmt.mjs";
 import { buildMinuteChart, buildCandleChart, buildMaLegend } from "./charts.mjs";
 import { iconEl } from "./icons.mjs";
-import { t, tErr } from "./i18n.mjs";
+import { t, tErr, getLang } from "./i18n.mjs";
 import { checkTargetRelation } from "../src/identity.mjs";
 import { positionMetrics } from "../src/portfolio.mjs";
 
@@ -20,6 +20,18 @@ const PERIODS = [
   { key: "month", label: () => t("detail.period.month") },
 ];
 
+/* 图表高度随视口收缩（第 10 轮，2026-11-10）：卡片 max-height = 100dvh − 24，图表取「视口 − 24 − 固定区高度」，
+   夹在 [min, max] 内。固定区 = 卡片头尾 + 详情中除图表外的内容；按界面语言取值（英文文案更长，固定区高 17px，实测）。 */
+const CHART_H = {
+  minute: { max: 190, min: 120, fixed: { zh: 466, en: 483 } },
+  candle: { max: 230, min: 140, fixed: { zh: 494, en: 511 } },
+};
+const chartHeight = (kind, vh) => {
+  const c = CHART_H[kind];
+  const fixed = c.fixed[getLang()] ?? c.fixed.zh;
+  return Math.round(Math.min(c.max, Math.max(c.min, vh - 24 - fixed)));
+};
+
 function textSpan(className, text) {
   const el = document.createElement("span");
   if (className) el.className = className;
@@ -27,7 +39,10 @@ function textSpan(className, text) {
   return el;
 }
 
-export function createDetail({ store }) {
+export function createDetail({ store, win }) {
+  // 视口来源优先取注入的 win（宿主传入）；DSH 运行时全局 window 可能不存在，此前会回退到 768 导致图表不收缩（第 11 轮）
+  const winRef = () => win ?? globalThis.window ?? null;
+  const viewportHeight = () => winRef()?.innerHeight ?? 768;
   let disposed = false;
   let snapshot = null;
   let period = "minute";
@@ -308,10 +323,10 @@ export function createDetail({ store }) {
     } else if (period === "minute") {
       box.append(buildMinuteChart(
         { points: chart.data?.points ?? [], prevClose: chart.data?.prevClose ?? chart.prevClose ?? null },
-        { dark: false, width: chartWidth() },
+        { dark: false, width: chartWidth(), height: chartHeight("minute", viewportHeight()) },
       ));
     } else {
-      box.append(buildCandleChart(chart.data ?? [], { maVisible: ui.maVisible, dark: false, width: chartWidth() }));
+      box.append(buildCandleChart(chart.data ?? [], { maVisible: ui.maVisible, dark: false, width: chartWidth(), height: chartHeight("candle", viewportHeight()) }));
     }
     return box;
   };
@@ -697,6 +712,13 @@ export function createDetail({ store }) {
     paintLive();
   };
 
+  /* 窗口高度变化：图表高度随视口重算（详情可见时整段重绘；行情与图表数据沿用会话内缓存，不重新拉取） */
+  const onWinResize = () => {
+    if (disposed || !snapshot?.ui?.panelOpen || snapshot?.ui?.view !== "detail" || !symbolOf()) return;
+    render();
+  };
+  winRef()?.addEventListener?.("resize", onWinResize);
+
   const update = (next) => {
     if (disposed) return;
     snapshot = next;
@@ -732,6 +754,7 @@ export function createDetail({ store }) {
 
   const dispose = () => {
     disposed = true;
+    winRef()?.removeEventListener?.("resize", onWinResize);
     el.replaceChildren();
     el.remove();
   };

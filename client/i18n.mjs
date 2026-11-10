@@ -18,6 +18,11 @@ export function setLang(lang) {
   if (lang === "zh" || lang === "en") currentLang = lang;
 }
 
+/** 当前生效的语言（布局按语言取常量时使用，如详情图表的固定区高度） */
+export function getLang() {
+  return currentLang;
+}
+
 const zh = {  "market.cn": "A 股",
   "market.hk": "港股",
   "market.us": "美股",

@@ -59,7 +59,7 @@ export function mountKanban({ doc, win, storage }) {
   const store = createStore(storage);
   const views = {
     list: createList({ store }),
-    detail: createDetail({ store }),
+    detail: createDetail({ store, win }),
     add: createAdd({ store }),
     backup: createBackup({ store }),
   };

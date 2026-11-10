@@ -93,10 +93,13 @@ export function createPanel({ doc, win, store, views }) {
       el.classList.add("skc-panel--sheet");
       el.style.left = "";
       el.style.top = "";
+      el.style.maxHeight = "";
       return;
     }
     el.classList.remove("skc-panel--sheet");
     const insets = readInsets();
+    // 最大高度按实际视口与安全区计算（不依赖 CSS 的 100dvh）：卡片任何时候都不越出可见区域（第 11 轮）
+    el.style.maxHeight = `${Math.max(160, Math.round(vh - 2 * MARGIN - insets.top - insets.bottom))}px`;
     const width = el.offsetWidth || WIDTH_FALLBACK;
     const height = el.offsetHeight || HEIGHT_FALLBACK;
     const minLeft = MARGIN + insets.left;
@@ -127,7 +130,36 @@ export function createPanel({ doc, win, store, views }) {
     el.style.top = `${Math.round(top)}px`;
   };
 
-  const onResize = () => placePanel();
+  /* ---------------- 滚动提示（第 10 轮，2026-11-10）：可滚区域内容未到底时底部渐隐（class skc-scroll-more）；到底或无溢出即撤掉 ---------------- */
+
+  const SCROLL_CUE_SEL = ".skc-rows, .skc-layer-detail, .skc-dialog-scroll";
+  const cueOf = (node) => {
+    node.classList.toggle("skc-scroll-more", node.scrollHeight - node.clientHeight - node.scrollTop > 8); // 不足 8px 的溢出视为已完整显示
+  };
+  const refreshScrollCues = () => {
+    for (const node of el.querySelectorAll(SCROLL_CUE_SEL)) cueOf(node);
+  };
+  // 滚动事件不冒泡：在面板根上捕获阶段统一接收（列表 / 详情重绘后节点会换，不逐个绑定）
+  el.addEventListener("scroll", (event) => {
+    const node = event.target;
+    if (node?.matches?.(SCROLL_CUE_SEL)) cueOf(node);
+  }, { capture: true, passive: true });
+  // 面板尺寸变化（内容变高 / 变矮：日 K 多出均线行、图表异步到达、添加对话框候选变多）时重新定位，保证整卡仍在视口内（第 11 轮）
+  const sizeObserver = typeof win.ResizeObserver === "function" ? new win.ResizeObserver(() => placePanel()) : null;
+  sizeObserver?.observe(el);
+  // 内容变化时刷新滚动提示；没有 ResizeObserver 的环境用子树变化回退重新定位
+  const cueObserver = typeof win.MutationObserver === "function"
+    ? new win.MutationObserver(() => {
+      refreshScrollCues();
+      if (!sizeObserver) placePanel();
+    })
+    : null;
+  cueObserver?.observe(el, { childList: true, subtree: true, characterData: true });
+
+  const onResize = () => {
+    placePanel();
+    refreshScrollCues();
+  };
 
   /* ---------------- 关闭语义：Esc / 外点 ---------------- */
 
@@ -357,6 +389,7 @@ export function createPanel({ doc, win, store, views }) {
     if (snapshot?.toast) toast.textContent = snapshot.toast.text;
 
     if (open) placePanel();
+    refreshScrollCues();
   };
 
   /* ---------------- 对外接口 ---------------- */
@@ -397,6 +430,8 @@ export function createPanel({ doc, win, store, views }) {
     doc.removeEventListener("pointerdown", onDocPointerDown);
     win.removeEventListener("resize", onResize);
     safeProbe?.remove?.();
+    cueObserver?.disconnect?.();
+    sizeObserver?.disconnect?.();
     el.remove();
   };
 

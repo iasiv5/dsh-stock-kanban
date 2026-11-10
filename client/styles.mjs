@@ -123,7 +123,7 @@ export const FLOAT_STYLE_TEXT = `
 
 /* 列表（终端密度：紧行距 + hairline 分隔 + hover/active 反馈；行内容与 Tab 同列对齐） */
 .skc-listwrap{display:flex;flex-direction:column;min-height:0;flex:1}
-.skc-rows{overflow-y:auto;flex:1;padding:0 4px 6px;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
+.skc-rows{overflow-y:auto;flex:1;padding:0 4px 6px;scrollbar-width:thin;scrollbar-color:var(--skc-text-3) transparent}
 .skc-rows::-webkit-scrollbar{width:8px}
 .skc-rows::-webkit-scrollbar-thumb{background:var(--skc-hairline-strong);border-radius:999px;border:2px solid transparent;background-clip:content-box}
 .skc-rows::-webkit-scrollbar-track{background:transparent}
@@ -158,7 +158,9 @@ export const FLOAT_STYLE_TEXT = `
 .skc-skeleton-caption{font-size:12px;line-height:16px;color:var(--skc-text-2)}
 
 /* 详情（覆盖列表的二级视图；与列表同 12px 槽线） */
-.skc-layer-detail{overflow-y:auto;padding:12px 12px 14px;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
+.skc-layer-detail{overflow-y:auto;padding:12px 12px 14px;scrollbar-width:thin;scrollbar-color:var(--skc-text-3) transparent}
+/* 滚动提示（第 10 轮，2026-11-10）：可滚区域内容未到底时，底部 28px 渐隐；到底或无溢出即撤掉（class 由 panel 维护） */
+.skc-scroll-more{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 28px),transparent 100%);mask-image:linear-gradient(to bottom,#000 calc(100% - 28px),transparent 100%)}
 /* 详情头部（第五轮 2026-11-10）：返回 | 标题区（名称单行省略 + 代码行）| 删除；单行 flex 不换行，长名称只省略标题本身 */
 .skc-detail-head{display:flex;align-items:flex-start;gap:8px;flex-wrap:nowrap}
 .skc-btn.skc-detail-back{flex:none;min-height:26px;padding:0 8px;margin-top:-3px}
@@ -282,7 +284,7 @@ export const FLOAT_STYLE_TEXT = `
 .skc-dialog-title{margin:0;font-size:14px;line-height:20px;font-weight:600;color:var(--skc-text)}
 .skc-dialog--pinned{overflow:hidden}
 .skc-dialog--pinned > .skc-tabs{margin:0} /* 对话框内 Tab 与标题/搜索框同用对话框的 12px 块间距 */
-.skc-dialog-scroll{flex:1 1 auto;min-height:112px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
+.skc-dialog-scroll{flex:1 1 auto;min-height:112px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:var(--skc-text-3) transparent}
 /* 结果区教学空态（未搜索时给示例，文案即引导；无匹配/错误时同一位置给出恢复路径） */
 .skc-guide{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;flex:1 1 auto;padding:16px 12px;text-align:center;color:var(--skc-text-2);font-size:12px;line-height:18px;text-wrap:balance}
 .skc-guide-example{color:var(--skc-text);font-weight:500}
