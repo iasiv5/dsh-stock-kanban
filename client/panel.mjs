@@ -14,7 +14,7 @@ import { MARGIN, titlebarTopInset } from "./float-prefs.mjs";
 import { parseInset } from "./drag.mjs";
 
 const ZERO_INSETS = { left: 0, right: 0, top: 0, bottom: 0 };
-const WIDTH_FALLBACK = 320; // 与 styles.mjs 的面板宽度一致（offsetWidth 为 0 时的回退，第三轮紧凑化 2026-11-10）
+const WIDTH_FALLBACK = 360; // 与 styles.mjs 的面板宽度一致（offsetWidth 为 0 时的回退；第四轮 2026-11-10 由 320 调宽）
 const HEIGHT_FALLBACK = 160;
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
@@ -263,40 +263,18 @@ export function createPanel({ doc, win, store, views }) {
   settingsClose.addEventListener("click", () => store.setShowSettings(false));
   settingsHead.append(settingsTitle, settingsSpacer, settingsClose);
 
-  /* 设置体：行式设置列表（方案 B，2026-11-11 拍板）——合并开关行 + 备份行组 + 页尾脚注 */
+  /* 设置体：备份行组 + 页尾脚注（第四轮 2026-11-10：合并显示额度开关已隐藏，默认合并，不再提供设置项） */
   const settingsBody = doc.createElement("div");
   settingsBody.className = "skc-settings-body";
-  // 合并显示 quota 行：仅能力在线（ui.quotaCapable）时由 render() 挂载；缺省视为开（与 store 默认一致）
-  const mergeWrap = doc.createElement("div");
-  const mergeRow = doc.createElement("label");
-  mergeRow.className = "skc-setting-row";
-  const mergeLabel = doc.createElement("span");
-  mergeLabel.className = "skc-setting-label";
-  mergeLabel.textContent = t("quota.merge");
-  const mergeCheck = doc.createElement("input");
-  mergeCheck.type = "checkbox";
-  mergeCheck.className = "skc-switch";
-  mergeCheck.dataset.action = "quota-merge";
-  mergeCheck.addEventListener("change", () => {
-    const on = snapshot?.ui?.quotaMerge !== false;
-    store.setQuotaMerge(!on);
-  });
-  mergeRow.append(mergeLabel, mergeCheck);
-  const mergeHint = doc.createElement("div");
-  mergeHint.className = "skc-setting-sub";
-  mergeHint.textContent = t("quota.merge.hint");
-  mergeWrap.append(mergeRow, mergeHint);
+  // 页尾仅保留行情延迟说明（第 9 轮：弱化为 11px）；界面偏好与数据位置说明已移入 README「数据与隐私」
   const noteDelay = doc.createElement("div");
-  noteDelay.className = "skc-setting-footnote";
+  noteDelay.className = "skc-setting-footnote skc-setting-footnote--weak";
   noteDelay.textContent = t("app.note.delay");
-  const noteBoundary = doc.createElement("div");
-  noteBoundary.className = "skc-setting-footnote";
-  noteBoundary.textContent = t("app.note.boundary");
-  // 页尾说明收进一组（同一区块，行距紧凑；首条仍为行情延迟说明）
+  // 页尾说明收进一组（同一区块，行距紧凑）
   const notes = doc.createElement("div");
   notes.className = "skc-setting-notes";
-  notes.append(noteDelay, noteBoundary);
-  settingsBody.append(mergeWrap, views.backup.el, notes);
+  notes.append(noteDelay);
+  settingsBody.append(views.backup.el, notes);
   settingsLayer.append(settingsHead, settingsBody);
 
   const toast = doc.createElement("div");
@@ -324,12 +302,11 @@ export function createPanel({ doc, win, store, views }) {
     }
     settingsClose.setAttribute("aria-label", t("app.collapse"));
     settingsTitle.textContent = t("app.settings");
-    mergeLabel.textContent = t("quota.merge");
-    mergeHint.textContent = t("quota.merge.hint");
     noteDelay.textContent = t("app.note.delay");
-    noteBoundary.textContent = t("app.note.boundary");
 
     el.hidden = !open;
+    // 面板表面（第五轮 2026-11-10）：一级列表 360px；二级（详情 / 添加 / 设置）由 CSS 按 data-surface 展开到 420px
+    el.dataset.surface = ui.showAdd || ui.showSettings ? "dialog" : ui.view === "detail" ? "detail" : "list";
     el.classList.toggle("skc-panel--slide", open); // S9：打开时带滑入类（动画位于减少动态效果守卫内），关闭时移除
     el.classList.toggle("skc-quote-error", Boolean(quoteMeta?.error)); // 行情异常：头部品牌点转警示红
     headerMeta.textContent = quoteMeta?.error
@@ -368,16 +345,6 @@ export function createPanel({ doc, win, store, views }) {
     holdingsBtn.setAttribute("aria-label", t("list.holdings-only"));
     holdingsBtn.setAttribute("aria-pressed", holdingsOnly ? "true" : "false");
     holdingsBtn.classList.toggle("skc-toggle-on", holdingsOnly);
-
-    // 合并显示 quota（设置内）：能力在线才挂载、能力消失即移除；checked 随 ui.quotaMerge
-    if (ui.quotaCapable === true) {
-      const quotaOn = ui.quotaMerge !== false;
-      mergeCheck.checked = quotaOn;
-      mergeLabel.classList.toggle("skc-quota-merge-on", quotaOn);
-      if (mergeWrap.parentNode !== settingsBody) settingsBody.insertBefore(mergeWrap, views.backup.el);
-    } else {
-      mergeWrap.remove();
-    }
 
     addLayer.hidden = !ui.showAdd;
     settingsLayer.hidden = !ui.showSettings;

@@ -7,7 +7,7 @@
  * 先收敛为 :host 级 --skc-* 局部别名再使用，每处带独立 fallback。
  *
  * 第三轮排版约定（2026-11-10）：
- *   - 面板宽 320px（原 400px，列表信息挤在两端留白过大）；页内统一 12px 槽线（gutter）。
+ *   - 面板宽 360px（第四轮：二级页文案不再换行；原 400px 列表信息挤在两端，第三轮收到 320px），页内统一 12px 槽线（gutter）。
  *   - 字号阶梯：正文/控件 13px、辅助说明 12px、徽章/数量 11px，不再出现 10px；
  *     辅助文案用 label-secondary（≥4.5:1），不用 caption/tertiary 承载正文（对比度不足）。
  *   - 对话框（添加/设置）改为流内布局：打开时面板只显示对话框，面板高度随内容自适应，
@@ -83,11 +83,13 @@ export const FLOAT_STYLE_TEXT = `
 .skc-flat{color:var(--skc-text-2)}
 
 /* 面板（锚定胶囊弹出；≤480px 转底部 sheet；头不再拖动）
-   宽 320px（第三轮紧凑化）；高度由内容决定，对话框打开时只显示对话框。
+   一级列表宽 360px（第四轮）；二级视图（详情/添加/设置）按 data-surface 展开到 420px（第五轮），超出视口时收窄；高度由内容决定，对话框打开时只显示对话框。
    毛玻璃配方对齐 qw .dqw-panel：bg-base 86% 单层 + blur(14px) saturate(1.3)，
    不支持 backdrop-filter 时回落实底——真实半透明毛玻璃（2026-11-10 主人要求复刻） */
 .skc-panel { position:fixed; z-index:2147483000; }
-.skc-panel{width:min(320px,calc(100vw - 16px));max-height:calc(100dvh - 24px);display:flex;flex-direction:column;border-radius:10px;border:1px solid var(--skc-hairline);background:var(--skc-surface);background:color-mix(in srgb,var(--skc-base) 86%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 8px 24px rgba(0,0,0,.25);color:var(--skc-text);font:inherit;overflow:hidden}
+.skc-panel{--skc-panel-w:360px;width:min(var(--skc-panel-w),calc(100vw - 16px));max-height:calc(100dvh - 24px);display:flex;flex-direction:column;border-radius:10px;border:1px solid var(--skc-hairline);background:var(--skc-surface);background:color-mix(in srgb,var(--skc-base) 86%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 8px 24px rgba(0,0,0,.25);color:var(--skc-text);font:inherit;overflow:hidden}
+/* 二级视图（详情 / 添加 / 设置）：内容需要更宽的空间，宽度动态展开到 420px；视口更窄时仍由 100vw-16 收窄（第五轮 2026-11-10） */
+.skc-panel[data-surface="detail"],.skc-panel[data-surface="dialog"]{--skc-panel-w:420px}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .skc-panel{background:var(--skc-surface)}
 }
@@ -108,12 +110,12 @@ export const FLOAT_STYLE_TEXT = `
 /* footer：胶囊显示标的（左，弹性宽）+ 功能钮 dock（右，26px 图标钮）；关闭钮已迁 header 右上 */
 .skc-footer{display:flex;flex-direction:column;gap:6px;padding:8px 12px 10px;border-top:1px solid var(--skc-hairline-soft);color:var(--skc-text-2)}
 .skc-footer-main{display:flex;align-items:center;gap:6px;min-height:28px}
-.skc-hint{color:var(--skc-text-2);font-size:12px;line-height:18px}
+.skc-hint{color:var(--skc-text-2);font-size:12px;line-height:18px;text-wrap:balance}
 
 /* 分段 Tab（DSH 分段控件语言：嵌入式底 + 浮起选中段） */
 .skc-tabs{flex:none;display:flex;gap:2px;margin:0 12px 8px;padding:2px;border-radius:9px;background:var(--skc-hover);overflow-x:auto;scrollbar-width:none}
 .skc-tabs::-webkit-scrollbar{display:none}
-.skc-tab{flex:1 1 0;min-width:0;padding:5px 4px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--skc-text-2);cursor:pointer;font:inherit;font-size:12px;line-height:16px;letter-spacing:0;text-align:center;white-space:nowrap;transition:color .12s var(--skc-ease), background .12s var(--skc-ease), border-color .12s var(--skc-ease)}
+.skc-tab{display:flex;align-items:center;justify-content:center;flex:1 1 0;min-width:0;padding:5px 4px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--skc-text-2);cursor:pointer;font:inherit;font-size:12px;line-height:16px;letter-spacing:0;text-align:center;white-space:nowrap;transition:color .12s var(--skc-ease), background .12s var(--skc-ease), border-color .12s var(--skc-ease)}
 .skc-tab:hover{color:var(--skc-text)}
 .skc-tab:active{transform:scale(.97)}
 .skc-tab-active{background:var(--skc-surface-deep);border-color:var(--skc-hairline);color:var(--skc-text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
@@ -157,21 +159,32 @@ export const FLOAT_STYLE_TEXT = `
 
 /* 详情（覆盖列表的二级视图；与列表同 12px 槽线） */
 .skc-layer-detail{overflow-y:auto;padding:12px 12px 14px;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
-.skc-detail-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.skc-detail-title{font-weight:700;font-size:15px;line-height:20px;letter-spacing:0}
+/* 详情头部（第五轮 2026-11-10）：返回 | 标题区（名称单行省略 + 代码行）| 删除；单行 flex 不换行，长名称只省略标题本身 */
+.skc-detail-head{display:flex;align-items:flex-start;gap:8px;flex-wrap:nowrap}
+.skc-btn.skc-detail-back{flex:none;min-height:26px;padding:0 8px;margin-top:-3px}
+.skc-detail-titlecol{display:flex;flex-direction:column;gap:2px;flex:1 1 auto;min-width:0}
+.skc-detail-title{font-weight:700;font-size:15px;line-height:20px;letter-spacing:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.skc-detail-meta{font-size:12px;line-height:16px;color:var(--skc-text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* 删除：中性幽灵钮（不抢主操作的视觉焦点）；仅悬停/聚焦时转危险色 */
+.skc-btn.skc-detail-delete{flex:none;min-height:26px;margin-top:-3px;padding:0 6px;border-color:transparent;background:transparent;color:var(--skc-text-2);font-size:12px;font-weight:500}
+.skc-btn.skc-detail-delete:hover{color:var(--skc-danger);background:color-mix(in srgb,var(--skc-danger) 9%,transparent)}
+
 .skc-quote-line{display:flex;align-items:baseline;gap:10px;margin:10px 0 12px;flex-wrap:wrap}
 .skc-quote-price{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15;letter-spacing:-.01em}
 .skc-quote-pct{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
 .skc-quote-meta{color:var(--skc-text-2);font-size:12px;line-height:16px;display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;font-variant-numeric:tabular-nums}
-.skc-period-tabs{display:flex;align-items:center;gap:4px;margin-bottom:8px;flex-wrap:wrap}
-.skc-period{padding:3px 10px;font-size:12px}
-.skc-adjust{color:var(--skc-text-2);font-size:12px;margin-left:6px}
+/* 周期切换：分段轨道（与列表 Tab 同族），四段等宽独占一行；按钮内 flex 居中，不依赖字体行高（第五轮 2026-11-10） */
+.skc-period-tabs{display:flex;gap:2px;padding:2px;border-radius:9px;background:var(--skc-hover);margin-bottom:8px}
+.skc-period{font-size:12px}
+/* K 线指标行（MA 图例 + 复权标注）另起一行：不挤占周期分段的宽度，分时模式下隐藏 */
+.skc-period-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin:0 0 8px}
+.skc-adjust{color:var(--skc-text-2);font-size:12px}
 .skc-chartbox{border:1px solid var(--skc-hairline);border-radius:8px;padding:6px;min-height:140px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--skc-surface-deep) 45%,transparent)}
 .skc-chart{display:block;max-width:100%;height:auto}
 .skc-chart-empty{color:var(--skc-text-2);padding:20px;text-align:center}
 .skc-chart-error{color:var(--skc-danger)}
-.skc-ma-legend{display:flex;gap:4px;margin-left:6px;flex-wrap:wrap}
-.skc-ma-chip{border:1px solid var(--skc-hairline);background:transparent;border-radius:999px;font-size:11px;line-height:16px;padding:1px 8px;cursor:pointer;color:var(--skc-text-2);font-variant-numeric:tabular-nums}
+.skc-ma-legend{display:flex;gap:4px;flex-wrap:wrap}
+.skc-ma-chip{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--skc-hairline);background:transparent;border-radius:999px;font-size:11px;line-height:16px;padding:1px 8px;cursor:pointer;color:var(--skc-text-2);font-variant-numeric:tabular-nums}
 .skc-ma-chip:hover{border-color:var(--skc-hairline-strong)}
 .skc-ma-off{opacity:.35}
 /* 区块标题（详情的「持仓/目标价」与对话框的分组标题共用）：辅助色 + 600，不做大写 */
@@ -179,11 +192,29 @@ export const FLOAT_STYLE_TEXT = `
 .skc-section-meta{color:var(--skc-text-2);font-size:12px;font-weight:500;letter-spacing:0;font-variant-numeric:tabular-nums}
 .skc-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .skc-form-grid label{display:flex;flex-direction:column;gap:5px;font-size:12px;line-height:16px;color:var(--skc-text-2)}
-.skc-form-actions{grid-column:1 / -1;display:flex;gap:8px}
+/* 标签行：名称在左，目标价的距现价等 meta 在右（第七轮 2026-11-10，蓝框位置） */
+.skc-field-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}
+.skc-field-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.skc-field-meta{flex:none;color:var(--skc-text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* 持仓 / 目标价两段同挂一个网格格子：非当前段 visibility:hidden 仍占位，页高取较高者，切换不跳动（第七轮） */
+.skc-seg-stack{display:grid}
+.skc-seg-stack > form{grid-area:1 / 1;min-width:0}
+.skc-seg-stack > form.is-off{visibility:hidden}
+/* 全局兜底：hidden 属性必须真隐藏（.skc-btn 等类的 display 会盖过 UA 的 [hidden]；第六轮 2026-11-10） */
+[hidden]{display:none!important}
+.skc-form-actions{grid-column:1 / -1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.skc-unsaved{font-size:12px;line-height:16px;color:var(--skc-warn)}
+.skc-holdings-meta{font-size:12px;line-height:18px;color:var(--skc-text-2);font-variant-numeric:tabular-nums}
+.skc-input-wrap{position:relative;display:flex;align-items:center;min-width:0}
+.skc-input-wrap .skc-input{padding-right:44px}
+.skc-input-suffix{position:absolute;right:10px;color:var(--skc-text-2);font-size:12px;line-height:16px;pointer-events:none}
+.skc-field-helper{display:flex;flex-direction:column;gap:1px;min-height:16px;font-size:12px;line-height:16px;color:var(--skc-text-2)}
+.skc-field-helper--error{color:var(--skc-danger)}
 /* 输入框（13px 控件字号；高 34px 与按钮齐平） */
 .skc-input{background:transparent;border:1px solid var(--skc-hairline-strong);border-radius:8px;color:var(--skc-text);padding:0 10px;min-height:34px;font:inherit;font-size:13px;line-height:18px;font-variant-numeric:tabular-nums;width:100%;min-width:0;transition:border-color .12s var(--skc-ease), box-shadow .12s var(--skc-ease)}
 .skc-input::placeholder{color:var(--skc-text-2)} /* 占位符满不透明辅助色（≥4.5:1；0.85 透明度会落到 ~4.2:1） */
 .skc-input:focus{outline:none;border-color:var(--skc-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--skc-accent) 20%,transparent)}
+.skc-input-invalid,.skc-input-invalid:focus{border-color:var(--skc-danger);box-shadow:0 0 0 1px color-mix(in srgb,var(--skc-danger) 40%,transparent)}
 .skc-select{background:var(--skc-surface-deep);border:1px solid var(--skc-hairline);border-radius:8px;color:var(--skc-text-2);padding:0 8px;height:28px;font:inherit;font-size:12px;min-width:0;max-width:100%;cursor:pointer;transition:border-color .12s var(--skc-ease)}
 .skc-select:hover{border-color:var(--skc-hairline-strong);color:var(--skc-text)}
 .skc-select:focus{outline:none;border-color:var(--skc-accent)}
@@ -194,14 +225,18 @@ export const FLOAT_STYLE_TEXT = `
 .skc-btn:hover{background:var(--skc-hover)}
 .skc-btn:active{transform:scale(.97)}
 .skc-btn:disabled{opacity:.45;cursor:default;background:transparent;transform:none}
-.skc-btn-primary:disabled{background:color-mix(in srgb,var(--skc-accent) 10%,transparent)}
+.skc-btn-primary:disabled{background:color-mix(in srgb,var(--skc-text) 22%,transparent);color:var(--skc-text-2)}
 .skc-btn-danger:disabled{background:color-mix(in srgb,var(--skc-danger) 9%,transparent)}
-.skc-btn-primary{border-color:color-mix(in srgb,var(--skc-accent) 40%,transparent);background:color-mix(in srgb,var(--skc-accent) 10%,transparent);color:var(--skc-accent);font-weight:600}
-.skc-btn-primary:hover{background:color-mix(in srgb,var(--skc-accent) 17%,transparent)}
+.skc-btn-primary{border-color:transparent;background:var(--skc-text);color:var(--skc-base);font-weight:600}
+.skc-btn-primary:hover{background:color-mix(in srgb,var(--skc-text) 88%,transparent)}
+/* 主按钮改中性实色（第六轮 2026-11-10）：红色只留给涨跌与告警，不再与删除、告警同色 */
 .skc-btn-danger{border-color:color-mix(in srgb,var(--skc-danger) 40%,transparent);background:color-mix(in srgb,var(--skc-danger) 9%,transparent);color:var(--skc-danger);font-weight:600}
 .skc-btn-danger:hover{background:color-mix(in srgb,var(--skc-danger) 17%,transparent);border-color:var(--skc-danger)}
 .skc-btn-ghost{border-color:transparent}
 .skc-btn-ghost:hover{background:var(--skc-hover)}
+/* 文字按钮（清除持仓等次要破坏性操作）：不靠边框和底色抢视觉，悬停才下划线 */
+.skc-btn-text{background:transparent;border-color:transparent;color:var(--skc-text-2);padding:0 6px;min-height:28px;font-weight:500}
+.skc-btn-text:hover{background:transparent;color:var(--skc-text);text-decoration:underline;text-underline-offset:3px}
 .skc-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:transparent;border:none;color:var(--skc-text-2);cursor:pointer;padding:0;border-radius:6px;font-family:inherit;transition:background .12s var(--skc-ease), color .12s var(--skc-ease)}
 .skc-icon-btn:hover{color:var(--skc-text);background:var(--skc-hover)}
 .skc-icon-btn:active{transform:scale(.94)}
@@ -209,20 +244,25 @@ export const FLOAT_STYLE_TEXT = `
 .skc-toggle-on{color:var(--skc-accent)}
 .skc-btn:focus-visible,.skc-icon-btn:focus-visible,.skc-tab:focus-visible,.skc-ma-chip:focus-visible,.skc-add-row:focus-visible{outline:2px solid color-mix(in srgb,var(--skc-accent) 55%,transparent);outline-offset:1px}
 .skc-row:focus-visible{outline:2px solid color-mix(in srgb,var(--skc-accent) 55%,transparent);outline-offset:-1px}
-.skc-error{color:var(--skc-danger);font-size:12px;line-height:18px;margin-top:4px}
+.skc-error{color:var(--skc-danger);font-size:12px;line-height:18px;margin-top:4px;text-wrap:balance}
 .skc-error-global{position:fixed;bottom:8px;left:8px;pointer-events:none;color:var(--skc-danger);font-size:12px;line-height:18px;z-index:10000;background:var(--skc-base);background:rgb(from var(--skc-base) r g b / 1);border:1px solid color-mix(in srgb,var(--skc-danger) 35%,transparent);border-radius:8px;padding:3px 9px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
-.skc-targets{margin-top:12px;border-top:1px solid var(--skc-hairline-soft);padding-top:2px}
-.skc-holdings{margin-top:4px}
+/* 详情的持仓 / 目标价：分段二选一（第六轮 2026-11-10，方案 B）；段内即表单，不再带分隔线与标题 */
+.skc-holdings,.skc-targets{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;border:0;min-width:0}
+.skc-targets-hint{margin:0}
+.skc-confirm-actions{display:flex;gap:8px;flex-wrap:wrap}
+.skc-seg-tabs{display:flex;gap:2px;padding:2px;border-radius:9px;background:var(--skc-hover);margin:10px 0 12px}
+.skc-seg-dot{display:inline-block;width:5px;height:5px;margin-left:6px;border-radius:999px;background:var(--skc-text-2);vertical-align:middle}
+.skc-seg-dot--unsaved{background:var(--skc-warn)}
 
-/* 设置体（方案 B 行式设置列表，2026-11-11 主人拍板；第三轮 2026-11-10 收紧间距与字号）：
-   每条设置一行（左标签 + 副行说明，右控件），区块间细实线分隔；开关为 DSH switch 语言 */
+/* 设置体（方案 B 行式设置列表，2026-11-11 主人拍板；第三轮收紧间距与字号；第四轮 2026-11-10：
+   合并显示额度开关已隐藏，设置仅余备份与说明）：区块间细实线分隔 */
 .skc-settings-body{display:flex;flex-direction:column;gap:12px;min-height:0}
 .skc-settings-body > * + *{border-top:1px solid var(--skc-hairline-soft);padding-top:12px}
-.skc-setting-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px;cursor:pointer;font-size:13px;line-height:18px;color:var(--skc-text)}
-.skc-setting-label{font-weight:500}
-.skc-setting-sub{font-size:12px;line-height:18px;color:var(--skc-text-2);margin:4px 0 0}
+.skc-setting-sub{font-size:12px;line-height:18px;color:var(--skc-text-2);margin:4px 0 0;text-wrap:balance}
 .skc-setting-notes{display:flex;flex-direction:column;gap:4px}
-.skc-setting-footnote{font-size:12px;line-height:18px;color:var(--skc-text-2)}
+.skc-setting-footnote{font-size:12px;line-height:18px;color:var(--skc-text-2);text-wrap:balance}
+/* 弱化脚注（第 9 轮）：11px 辅助字号，颜色仍用 text-2（tertiary 在浅色主题约 3.7:1，不用于说明文字） */
+.skc-setting-footnote--weak{font-size:11px;line-height:16px}
 .skc-backup{display:flex;flex-direction:column;gap:8px}
 .skc-backup-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .skc-backup-actions .skc-btn{justify-content:center;width:100%}
@@ -230,12 +270,6 @@ export const FLOAT_STYLE_TEXT = `
 .skc-confirm{border:1px solid color-mix(in srgb,var(--skc-danger) 36%,transparent);background:color-mix(in srgb,var(--skc-danger) 7%,transparent);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:18px}
 .skc-confirm .skc-hint{font-size:12px;line-height:18px}
 .skc-warn-text{color:var(--skc-warn);font-size:12px;line-height:18px}
-.skc-switch{appearance:none;-webkit-appearance:none;flex:none;width:34px;height:20px;border-radius:999px;background:var(--skc-hairline-strong);position:relative;cursor:pointer;margin:0;transition:background .15s var(--skc-ease)}
-.skc-switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:999px;background:var(--dsw-alias-switch-thumb,#fff);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s var(--skc-ease)}
-.skc-switch:checked{background:var(--dsw-alias-brand-primary,#5b8def)}
-.skc-switch:checked::after{transform:translateX(14px)}
-.skc-switch:focus-visible{outline:2px solid color-mix(in srgb,var(--skc-accent) 55%,transparent);outline-offset:2px}
-.skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def);font-weight:600}
 
 /* 对话框（添加/设置）：流内布局——打开时面板只显示对话框（见 .skc-panel--dialog），高度随内容。
    不透明地板（12.8/12.21 教训）：覆盖层盖在自家列表文字上，qw 玻璃配方（86% 单层）会让下层
@@ -250,10 +284,10 @@ export const FLOAT_STYLE_TEXT = `
 .skc-dialog--pinned > .skc-tabs{margin:0} /* 对话框内 Tab 与标题/搜索框同用对话框的 12px 块间距 */
 .skc-dialog-scroll{flex:1 1 auto;min-height:112px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
 /* 结果区教学空态（未搜索时给示例，文案即引导；无匹配/错误时同一位置给出恢复路径） */
-.skc-guide{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;flex:1 1 auto;padding:16px 12px;text-align:center;color:var(--skc-text-2);font-size:12px;line-height:18px}
+.skc-guide{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;flex:1 1 auto;padding:16px 12px;text-align:center;color:var(--skc-text-2);font-size:12px;line-height:18px;text-wrap:balance}
 .skc-guide-example{color:var(--skc-text);font-weight:500}
 .skc-add-results{display:flex;flex-direction:column;gap:4px}
-.skc-add-row{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:1px solid var(--skc-hairline);border-radius:10px;color:var(--skc-text);padding:8px 10px;min-height:44px;cursor:pointer;font:inherit;text-align:left;transition:border-color .12s var(--skc-ease), background .12s var(--skc-ease)}
+.skc-add-row{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:1px solid var(--skc-hairline);border-radius:10px;color:var(--skc-text);padding:10px 12px;min-height:48px;cursor:pointer;font:inherit;text-align:left;transition:border-color .12s var(--skc-ease), background .12s var(--skc-ease)}
 .skc-add-row:hover:not(:disabled){border-color:color-mix(in srgb,var(--skc-accent) 45%,transparent);background:var(--skc-hover)}
 .skc-add-row:disabled{opacity:.5;cursor:default}
 .skc-add-main{display:flex;align-items:baseline;gap:8px;flex:1 1 auto;min-width:0}
@@ -303,7 +337,6 @@ export const FLOAT_STYLE_TEXT = `
 .skc-qval{font-variant-numeric:tabular-nums}
 .skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}
 .skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}
-.skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def)}
 .skc-qseg{display:inline-flex;align-items:center;gap:6px}
 .skc-qseg[hidden]{display:none}
 .skc-qsep{color:var(--skc-text-2)}

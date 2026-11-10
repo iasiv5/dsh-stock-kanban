@@ -22,7 +22,6 @@ test("t：zh 文案与参数插值", () => {
   assert.equal(t("badge.closed"), "休");
   assert.ok(t("toast.added", { name: "贵州茅台" }).includes("贵州茅台"));
   assert.ok(t("app.note.delay").includes("免费"));
-  assert.ok(t("app.note.boundary").includes("DSH 实例"));
 });
 
 test("t：en 文案", () => {
@@ -45,7 +44,7 @@ test("tErr：已知代码本地化、未知代码原样透出、detail 附加、
 });
 
 test("quota.* 文案（合并开关 / 过期）：zh 与 en 双侧均有译文，非键名回退", () => {
-  const keys = ["quota.merge", "quota.merge.on", "quota.merge.off", "quota.stale", "quota.outcome"];
+  const keys = ["quota.merge.on", "quota.merge.off", "quota.stale", "quota.outcome"];
   for (const key of keys) {
     assert.ok(DICT_KEYS.zh.includes(key), `zh 字典含 ${key}`);
     assert.ok(DICT_KEYS.en.includes(key), `en 字典含 ${key}`);

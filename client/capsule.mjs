@@ -31,8 +31,9 @@ const ZERO_INSETS = { left: 0, right: 0, top: 0, bottom: 0 };
  * 两枚 pill（stock 胶囊 / quota 嵌入 pill）复用同一管线：拖 = 移动 host，
  * 落同一位置记忆键（dsh-stock-kanban:float-position），tap = 各自点击语义。
  * readInsets 可注入（胶囊传自有探针，避免重复探针）；缺省自建惰性探针。
+ * onDragStart 可注入：拖拽真正开始（超 slop）时调用一次；胶囊用它收起卡面（第 8 轮，2026-11-10）。
  */
-export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets: readInsetsArg, onPersisted }) {
+export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets: readInsetsArg, onPersisted, onDragStart }) {
   let dragging = false;
   let moved = false;
   let originX = 0;
@@ -120,6 +121,7 @@ export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets
       moved = true;
       doc.body.style.userSelect = "none";
       el.classList.add("skc-capsule--dragging");
+      if (typeof onDragStart === "function") onDragStart(); // 拖拽真正开始：收起卡面（一级 / 二级都收，第 8 轮）
     }
     lastPoint = { x: event.clientX, y: event.clientY };
     scheduleFrame(() => {
@@ -328,7 +330,11 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel,
     }
     toggle(stockRect());
   };
-  const dragCtl = attachFloatDrag({ el, host, doc, win, storage, onTap: routeTap, readInsets, onPersisted: (point) => { if (typeof onPositionPersisted === "function") onPositionPersisted(point); } });
+  /** 拖拽开始收起卡面（第 8 轮，2026-11-10）：按住并拖动胶囊时卡面不得停在原地；一级与二级卡片都收，与 qw 胶囊一致。仅卡面打开时才写状态 */
+  const collapsePanel = () => {
+    if (store?.getState?.()?.ui?.panelOpen === true) store.closePanel?.();
+  };
+  const dragCtl = attachFloatDrag({ el, host, doc, win, storage, onTap: routeTap, readInsets, onPersisted: (point) => { if (typeof onPositionPersisted === "function") onPositionPersisted(point); }, onDragStart: collapsePanel });
 
   const onKeyDown = (event) => {
     if (event.key === "Enter" || event.key === " ") {

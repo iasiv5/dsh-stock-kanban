@@ -364,11 +364,14 @@ test("panel · 骨架静态文案语言实时跟随（12.9 语义在骨架化后
       const texts = {
         title: panel.el.querySelector(".skc-title").textContent,
         settingsTitle: panel.el.querySelector(".skc-dialog--settings .skc-dialog-head .skc-section-title").textContent,
-        boundary: panel.el.querySelector(".skc-setting-footnote").textContent,
+        delay: panel.el.querySelector(".skc-setting-footnote").textContent,
       };
       assert.equal(texts.title, t("app.title"), `title 跟随 ${lang}`);
       assert.equal(texts.settingsTitle, t("app.settings"), `设置标题跟随 ${lang}`);
-      assert.equal(texts.boundary, t("app.note.delay"), `脚注文案跟随 ${lang}`);    }
+      assert.equal(texts.delay, t("app.note.delay"), `脚注文案跟随 ${lang}`);
+      assert.equal(panel.el.querySelectorAll(".skc-setting-footnote").length, 1, "页尾只剩行情延迟脚注");
+      assert.ok(panel.el.querySelector(".skc-setting-footnote--weak"), "脚注弱化样式在位");
+    }
     setLang(prevLang);
     panel.dispose();
   } finally {

@@ -122,24 +122,24 @@ test("store · subscribe 即刻回放 + 动作通知 + unsubscribe 止噪", () =
   assert.equal(seen.length, 2, "unsubscribe 后不再触发");
 });
 
-test("store · quotaMerge 四件套（默认开/白名单/动作/导出）", () => {
+test("store · quotaMerge：默认开、会话态不落盘（第四轮：开关已隐藏，旧存储的关闭值不再生效）", () => {
   const storage = createStorageStub();
   const store = createStore(storage);
   assert.equal(store.getState().ui.quotaMerge, true, "DEFAULT_UI.quotaMerge 默认开");
-  assert.equal(typeof store.setQuotaMerge, "function", "setQuotaMerge 导出");
+  assert.equal(typeof store.setQuotaMerge, "function", "setQuotaMerge 导出（代码级会话开关，无 UI）");
   store.setQuotaMerge(false);
+  assert.equal(store.getState().ui.quotaMerge, false, "会话内可被代码切换");
   const persisted = JSON.parse(storage.getItem("stock-kanban:ui:v1"));
-  assert.equal("quotaMerge" in persisted, true, "persist 白名单含 quotaMerge");
-  assert.equal(persisted.quotaMerge, false);
-  assert.equal(store.getState().ui.quotaMerge, false);
-  // 旧存储含 quotaMerge 时读取生效（沿白名单）
+  assert.equal("quotaMerge" in persisted, false, "persist 白名单不含 quotaMerge");
+  // 旧存储里的 quotaMerge:false 不再读取：每次加载默认合并
   const store2 = createStore(createStorageStub({
     "stock-kanban:ui:v1": JSON.stringify({ quotaMerge: false, lastMarket: "hk" }),
   }));
-  assert.equal(store2.getState().ui.quotaMerge, false, "旧存储 quotaMerge 读取");
+  assert.equal(store2.getState().ui.quotaMerge, true, "旧存储的 quotaMerge 被忽略 → 默认合并");
+  assert.equal(store2.getState().ui.lastMarket, "hk", "其它白名单键照常读取");
 });
 
-test("store · persist 写入 quotaMerge；会话态 quotaCapable 不落盘（默认 false，重载回默认）", () => {
+test("store · 会话态 quotaCapable 不落盘（默认 false，重载回默认）；quotaMerge 会话内切换不入盘", () => {
   const storage = createStorageStub();
   const store = createStore(storage);
   assert.equal(store.getState().ui.quotaCapable, false, "DEFAULT_UI.quotaCapable 默认 false");
@@ -150,9 +150,9 @@ test("store · persist 写入 quotaMerge；会话态 quotaCapable 不落盘（�
   assert.equal("quotaCapable" in afterCapable, false, "会话态 quotaCapable 不入落盘白名单");
   store.setQuotaMerge(false);
   const persisted = JSON.parse(storage.getItem("stock-kanban:ui:v1"));
-  assert.equal(persisted.quotaMerge, false, "persist 写入 quotaMerge");
-  assert.equal("quotaCapable" in persisted, false, "写 quotaMerge 时仍不带 quotaCapable");
+  assert.equal("quotaMerge" in persisted, false, "quotaMerge 不入盘");
+  assert.equal("quotaCapable" in persisted, false, "写其它键时仍不带 quotaCapable");
   const reloaded = createStore(storage).getState().ui;
   assert.equal(reloaded.quotaCapable, false, "重载后会话态回默认 false");
-  assert.equal(reloaded.quotaMerge, false, "重载后 quotaMerge 沿白名单恢复");
+  assert.equal(reloaded.quotaMerge, true, "重载后 quotaMerge 回默认合并");
 });

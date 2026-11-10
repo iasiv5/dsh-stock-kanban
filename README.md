@@ -1,101 +1,99 @@
 # dsh-stock-kanban
 
-DSH 0.2.2-rc1 轻量多市场盯盘与持仓查看插件：悬浮胶囊 + A股/港股/美股/加密货币分组自选 + 持仓盈亏 + 目标价 + 分时/日/周/月K。
+DSH 插件：多市场盯盘与持仓查看。悬浮胶囊 + A 股 / 港股 / 美股 / 加密货币分组自选 + 持仓盈亏 + 目标价 + 分时 / 日 / 周 / 月 K 线。
 
 ![badge](https://img.shields.io/badge/DSH-0.2.2--rc.1-22d3ee) ![license](https://img.shields.io/badge/license-MIT-green)
 
-## 功能一览
+## 功能
 
-- **悬浮胶囊**：显示自选标的名称/现价/涨跌幅；拖动后按访问端记忆位置（自由坐标，视口内钳位）；达到目标价显示 B/S 标记（行情过期时明确暂停而非伪装）；点击展开面板。
-- **四市场分组**：A 股 / 港股 / 美股 / 加密货币 固定分组（ETF 归入上市市场，是类型不是分组）；同一标的只在一处。
-- **列表**：名称/代码、现价、涨跌幅、持仓标记 ★、目标价状态；「只看持仓」额外显示盈亏金额与比例。
-- **详情**：分时 / 日K / 周K / 月K（自绘 SVG，含成交量与 MA5/10/20/60，无 CDN 依赖）；持仓数量/平均成本编辑，自动计算市值/浮动盈亏/比例；买卖目标价设置（阈值重叠显式确认）；行情时间与拉取时间分开标注。
-- **持仓汇总**：按报价币种独立汇总（USD 与 USDT 不合并）；部分缺行情时明确标注"不完整"。
-- **持仓开关**：footer 公文包图标一键「只看持仓」——开时列表/胶囊区显示盈亏金额与比例，关时仅行情与目标价状态（2026-11-10 起 UI 移除隐私遮挡开关；服务端 privacyMode 字段保留兼容，仅 API 可达）。
-- **备份**：结构化导出（schemaVersion 1）与覆盖式导入（双重校验、显式确认）。
-- **数据边界**：业务数据（自选/持仓/目标价）存 **DSH 实例**（跨浏览器共享）；界面偏好（胶囊位置/上次市场/只看持仓/均线显隐/胶囊展示标的/合并显示 quota）按**访问端浏览器**保存。
+- **悬浮胶囊**：显示自选标的的名称、现价、涨跌幅。可拖动，位置按访问端浏览器记忆（自由坐标，视口内钳位）。达到目标价时显示 B / S 标记；行情过期时明确暂停，不伪装成最新价。点击展开面板；拖动胶囊时面板自动收起。
+- **列表**：A 股 / 港股 / 美股 / 加密货币四个分组（ETF 归入上市市场，是类型不是分组）；同一标的只出现一次。
+- **只看持仓**：footer 的公文包开关。开启后列表只显示有持仓的标的，并在每行显示盈亏金额与比例。
+- **详情**：分时 / 日K / 周K / 月K（自绘 SVG，含成交量与 MA5 / 10 / 20 / 60，无 CDN 依赖）；持仓数量与平均成本，自动计算市值、浮动盈亏与比例；买入 / 卖出目标价（阈值重叠时区块内确认）；行情时间与拉取时间分开标注。
+- **持仓汇总**：按报价币种分别汇总（USD 与 USDT 不合并）；缺行情时明确标注"不完整"。
+- **备份**：设置中导出结构化 JSON（schemaVersion 1），导入为覆盖式（双重校验、显式确认）。
 
-## 与 quota-watch 联动（可选，CEP v1）
+## 安装与升级
 
-本插件与 `@iasiv5/dsh-quota-watch`（GLM Coding Plan / GitHub Copilot 额度悬浮胶囊）通过窗口内 CustomEvent 协议联动（规格：`docs/interop/capsule-embed-protocol.md`；宿主侧决策：`docs/adr/0002-quota-embed-host-side-capsule-group.md`）。
-
-- **合并行为**：检测到 quota-watch 在线且回复能力（`embed-capabilities`，含 `hide-pill` 与 `anchored-panel`）时，额度胶囊并入本插件浮动壳，并入本插件的合并胶囊（单枚胶囊两段：股票段 | 分隔线 | 额度段）：整枚一次拖动，共享同一套位置记忆。额度段与 quota-watch 胶囊同款文案（GLM 5 小时窗口、Copilot 已用比例，全名 + 百分比，数字常驻）；超过 80% 为警示色，超过 95% 为危险色（琥珀色，脉冲遵循 `prefers-reduced-motion`）。待处理兑换时额度段保留一枚琥珀小点，即使没有数字。点击额度段由 quota-watch 打开其原生面板，水平推出于分区旁（视口不超过 480px 时为底部 sheet）；窄屏下股票名称隐藏，额度段热区不小于 44px。
-- **设置**：行式设置列表——「合并显示 quota」开关行（默认开，仅协议可用时出现；关闭后额度胶囊恢复独立显示，组内额度段移除；偏好按访问端浏览器保存）、导出/导入备份行（导入为覆盖模式，副行常显警示）、页尾数据边界脚注。
-- **降级**：未安装 quota-watch、旧版（不回复协议），或握手 500ms 内无回复 → 两插件共存、互不隐藏（接受重叠，不做避让）；quota-watch 被停用或热更新（访客元素消失）→ 本插件立即拆分并移除额度段；额度接口返回 404 → 藏额度段并慢速重试；额度接口传输错误 → 保留上次数据，额度胶囊以提示（title）标注「额度数据已过期」。
-- **兼容性**：需要 `@iasiv5/dsh-quota-watch` ≥ 0.1.38（CEP v1 访客侧）。更低版本一律按共存降级，stock 胶囊与其它功能不受影响。quota-watch 的侧栏卡片不在合并范围内。
-- 端到端活体验证（真实额度数据、双向点击与开关往返、停用消失）尚未完成，见 `docs/verification.md` §12.11。
-
-## 安装（web profile，Linux/Windows 浏览器访问远端 DSH 同此）
+在能访问 DSH runtime 的机器上：
 
 ```bash
-# 在能访问 DSH runtime 的机器上（开发态链接安装；正式部署可 npm pack 后 add 包）
+# 开发态链接安装（正式部署可 npm pack 后 add 包）
 dsh plugin --profile web add "link:/path/to/dsh-stock-kanban"
-# 或 tarball：
+# 或使用 tarball：
 # npm pack && dsh plugin --profile web add ./dsh-stock-kanban-0.1.0.tgz
-# 随后重启 DSH 服务使 host 端路由激活：
+# 随后重启 DSH 服务，使 host 端路由生效：
 sudo systemctl restart deepseek-harness.service
 ```
 
-- 从源码构建客户端（如改动 client/ 后）：`npm install && npm run build`
-- 运行测试：`npm test`（全离线 mock，不依赖外网；用例总数以命令输出为准）
-- 推送门禁：`git config core.hooksPath .githooks`（clone 后一次性配置；pre-push 跑全套 `npm test`）
+- **验证已激活**：浏览器打开 DSH，右下角应出现"盯盘"胶囊；也可访问 `http://<dsh>/stock-kanban/health`，返回的 JSON 含 `driver` 字段。
+- **升级**：对同一路径再执行一次 `add`（link 安装）。
+- **卸载**：`dsh plugin --profile web remove dsh-stock-kanban`。卸载不删除业务数据，重装后自动读回。卸载前建议先在设置中导出备份。
 
-**界面设计**：客户端按「克制金融终端 × DSH 表面阶梯」设计——全部取 `--dsw-alias-*`
-主题令牌（真实存在的 border-l1..l3 / bg-layer-2..3 / interactive-bg-* / state-* 阶梯，
-随 DSH 主题与皮肤实时切换），线性 SVG 图标系统，tabular 数字；功能清单与设计契约见
-`docs/ui-redesign.md`。
+## 数据与隐私
 
-**验证插件已激活**：浏览器打开 DSH → 应看到右下角"盯盘"胶囊；或 `curl http://<dsh>/stock-kanban/health` 返回 `{"driver":...}`。
+| 数据 | 存放位置 | 共享范围 |
+|---|---|---|
+| 自选、持仓、目标价 | DSH 服务端 `~/.dsh/storages/stock_kanban.json`（DSH storage 单元；该服务缺失时回退 `~/.dsh/stock-kanban/data.json`，health 的 `driver` 字段可查当前驱动） | 同一 DSH 实例的全部浏览器共享 |
+| 胶囊位置（自由坐标） | 访问端浏览器 `localStorage["dsh-stock-kanban:float-position"]` | 按浏览器独立 |
+| 上次市场、只看持仓、均线显隐、胶囊展示标的 | 访问端浏览器 `localStorage["stock-kanban:ui:v1"]` | 按浏览器独立 |
 
-### 升级 / 卸载
+- **要点：业务数据跨浏览器共享，界面偏好只存在当前浏览器。** 合并显示额度段是会话内状态，不落盘。
+- 不同 DSH 实例（如本机 desktop 与远端 web）的数据互相独立，迁移用手动导出 / 导入。
+- 备份文件是 JSON 明文，包含持仓数据，请自行妥善保管。导入为覆盖模式，会替换当前全部数据。
+- 行情请求只携带市场代码，**不发送任何持仓数据**给行情提供方。
+- 写操作路由强制同源校验（Origin / Sec-Fetch-Site），并限制请求体积。
+- 多页面一致：每次变更带版本号（rev）。旧页面用过期数据提交时会收到 409，并提示"数据已被其他页面更新，已刷新，请重试"，不静默覆盖。
+
+## 行情来源与限制
+
+免费、无 Key、无需注册。全部接口都可能有延迟与限流；插件显示行情时间与拉取时间，失败与过期状态会明确标注，不承诺实时，也不把旧数据伪装成最新。
+
+| 市场 | 快照 / 列表 | 分时 | K 线 | 复权口径 |
+|---|---|---|---|---|
+| A 股 / ETF | 腾讯 qt.gtimg.cn（批量） | 腾讯 minute/query（proxy 域主、web 域备） | 腾讯 fqkline | **前复权（qfq）** |
+| 港股 | 同上（同批） | 同上 | 同上 | **不复权**（接口无 qfq 键，图表如实标注） |
+| 美股 | 东方财富 ulist（批量）/ stock/get | trends2（北京时间为轴） | kline klt=101/102/103 | **前复权（fqt=1）** |
+| 加密货币 | OKX 现货公开 REST（ticker / tickers） | 5m×288 ≈ 24h | candles 1D / 1W / 1M | 无复权概念 |
+
+- **搜索**：A 股 / 港股 / ETF 用本地标的池（`data/*.json`，约 1 万条，来自参考项目）加腾讯 smartbox；美股用 smartbox；加密货币用 OKX 交易对清单。搜索源不可用时明确提示，不展示虚构结果。
+- **直接输入代码添加**：必须先通过行情校验，实际取到有效价格才会加入。
+
+## 与 quota-watch 联动（可选，CEP v1）
+
+本插件与 `@iasiv5/dsh-quota-watch`（GLM Coding Plan / GitHub Copilot 额度悬浮胶囊）通过窗口内 CustomEvent 协议联动。协议规格见 `docs/interop/capsule-embed-protocol.md`，宿主侧决策见 `docs/adr/0002-quota-embed-host-side-capsule-group.md`。
+
+- **合并**：检测到 quota-watch 在线并回复能力（`embed-capabilities`，含 `hide-pill` 与 `anchored-panel`）时，额度胶囊并入本插件的浮动壳，形成单枚两段胶囊（股票段 | 分隔线 | 额度段），整枚一次拖动，共享同一套位置记忆。额度段默认合并，设置里没有开关。
+- **额度段**：GLM 5 小时窗口与 Copilot 已用比例；超过 80% 为警示色，超过 95% 为危险色（脉冲遵循 `prefers-reduced-motion`）。待处理兑换时保留一枚琥珀小点。点击额度段由 quota-watch 打开其原生面板，水平推出于分区旁（视口不超过 480px 时为底部 sheet）。
+- **降级**：未安装 quota-watch、版本过低（需 ≥ 0.1.38），或握手 500ms 内无回复时，两个插件共存、互不隐藏（接受重叠，不做避让）。quota-watch 被停用或热更新时，本插件立即拆分并移除额度段。额度接口返回 404 时隐藏额度段并慢速重试；传输错误时保留上次数据，并以提示标注"额度数据已过期"。
+- 端到端活体验证（真实额度数据、双向点击与开关往返、停用消失）尚未完成，见 `docs/verification.md` §12.11。
+
+## 开发
 
 ```bash
-dsh plugin --profile web add "link:/path/to/dsh-stock-kanban"   # 覆盖同路径升级（link 安装）
-dsh plugin --profile web remove dsh-stock-kanban                # 卸载（数据保留）
+npm install
+npm run build   # 改动 client/ 后重新打包 lib/client.js
+npm test        # 全离线 mock，不依赖外网
 ```
 
-卸载不删除业务数据：DSH storage 单元在 `~/.dsh/storages/stock_kanban.json`（文件回退驱动在 `~/.dsh/stock-kanban/data.json`），重装后自动读回。建议卸载前先在 UI 导出备份。
+- 推送门禁：`git config core.hooksPath .githooks`（clone 后一次性配置；pre-push 跑全套 `npm test`）。
+- 运行时零 npm 依赖。devDependencies：`esbuild`（构建）、`jsdom`（测试）。
+- 界面按「克制金融终端 × DSH 表面阶梯」设计：颜色与字号全部取 `--dsw-alias-*` 主题令牌，随 DSH 主题与皮肤实时切换；图标为线性 SVG；数字用 tabular 排版。设计契约与变更记录见 `docs/ui-redesign.md`。
 
-## 数据保存位置与共享关系
+## 文档索引
 
-| 数据 | 位置 | 共享范围 |
-|---|---|---|
-| 自选/持仓/目标价 | DSH 服务端 `~/.dsh/storages/stock_kanban.json`（DSH storage hub json 后端；缺失该服务时回退 `~/.dsh/stock-kanban/data.json`，health 路由的 `driver` 字段可查当前驱动） | 同一 DSH 实例的全部浏览器（Windows/Linux 访问同一远端 DSH 看到同一份） |
-| 胶囊位置（自由坐标 {x,y}） | 各访问端浏览器 `localStorage["dsh-stock-kanban:float-position"]` | 按浏览器独立 |
-| 上次市场、只看持仓、均线显隐、胶囊展示标的、合并显示 quota | 各访问端浏览器 `localStorage["stock-kanban:ui:v1"]` | 按浏览器独立 |
-
-胶囊位置为自由坐标并按实测几何钳位（不迁移历史 `ui:v1` 的 `pos` 格式）；面板锚定胶囊弹出，无独立位置记忆（旧 `pos`/`panelPos` 键已退役，读取时忽略）。
-
-不同 DSH 实例（如 Windows 本机 desktop 与远端 web）数据完全独立，迁移用手动导出/导入。
-
-## 多页面一致性
-
-每次变更带版本号（rev）：旧页面用过期状态提交会收到 409 与最新数据，UI 明确提示"数据已被其他页面更新，已刷新，请重试"——不静默覆盖、不静默丢失。行情轮询在服务端做 TTL 缓存合并（默认 10s），多页面/多视图同时轮询不会放大上游请求；上游失败按提供方指数退避（30s→5min）。
-
-## 行情来源与限制（免费、无 Key、无注册）
-
-| 市场 | 快照/列表 | 分时 | K线 | 复权口径 |
-|---|---|---|---|---|
-| A 股/ETF | 腾讯 qt.gtimg.cn（批量） | 腾讯 minute/query（proxy 域主、web 域备） | 腾讯 fqkline | **前复权（qfq）** |
-| 港股 | 同上（同批） | 同上 | 同上 | **不复权**（接口无 qfq 键，图表如实标注） |
-| 美股 | 东方财富 ulist（批量）/stock/get | trends2（北京时间为轴） | kline klt=101/102/103 | **前复权（fqt=1）** |
-| 加密货币 | OKX 现货公开 REST（ticker/tickers） | 5m×288 ≈ 24h | candles 1D/1W/1M | 无复权概念 |
-
-- 全部免费接口有延迟与限流可能；插件显示数据时间（行情时间/拉取时间）、失败与过期状态，不承诺实时行情，不缓存伪装最新。
-- 搜索：A股/港股/ETF 用本地标的池（`data/*.json`，约 1 万条，来自参考项目）+ 腾讯 smartbox；美股 smartbox；加密 OKX 交易对清单。搜索源不可用时明确提示，不展示虚构结果。
-- 直连代码添加必须通过行情校验（实际取到有效价格才收）。
-
-## 隐私与安全边界
-
-- 行情请求只携带市场代码，**不发送任何持仓数据**给行情提供方。
-- 写操作路由强制同源（Origin/Sec-Fetch-Site 双校验）+ JSON 体积上限。
-- 隐私遮挡开关已于 2026-11-10 自 UI 移除（服务端 privacyMode 字段保留兼容，展示层遮挡路径仅 API 可达时惰性生效）；导出备份包含持仓明文，请自行妥善保管。
-- 传入备份逐条校验身份与数值，非法文件被整体拒绝或计入 rejected，不破坏现有数据。
+- `docs/ui-redesign.md`：界面设计契约与分轮变更记录
+- `docs/verification.md`：验证记录，以及未验证项与降级
+- `docs/tech-notes.md`：DSH 接口与技术核查记录
+- `docs/adr/`：架构决策记录（0001–0003）
+- `docs/interop/capsule-embed-protocol.md`：与 quota-watch 的 CEP v1 协议规格
+- `docs/reuse-mapping.md`：参考项目的复用与改造清单
+- `docs/data-source-probe.md`：行情数据源探测记录
 
 ## 已知限制
 
-见 `docs/verification.md` 的「未验证与降级」章节（Windows desktop profile 未实测、备份导入的文件选择器在部分嵌入式浏览器需手动路径、腾讯接口曾有 WAF 前科等）。
+见 `docs/verification.md` 的「未验证与降级」章节：Windows desktop profile 尚未实测；备份导入的文件选择器在部分嵌入式浏览器中需要手动输入路径；腾讯接口曾出现 WAF 拦截。
 
 ## License
 
-MIT（含第三方 MIT 复用声明，见 `NOTICE.md`）。运行时零 npm 依赖；devDependencies 仅构建期 esbuild。
+MIT。第三方 MIT 复用声明见 `NOTICE.md`。

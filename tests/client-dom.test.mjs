@@ -93,7 +93,7 @@ test("FLOAT_STYLE_TEXT · quota pill 样式：--quota cursor、tabular-nums、wa
   assert.ok(s.includes(".skc-qval{font-variant-numeric:tabular-nums}"), "数值段 tabular-nums（spec §9）");
   assert.ok(s.includes(".skc-qwarn{color:var(--dsw-alias-label-warning,#d29922)}"), "warn 色（与 qw 同名回退值）");
   assert.ok(s.includes(".skc-qdanger{color:var(--dsw-alias-label-warning,#d29922)}"), "danger 色已改琥珀（B26，与 qw 警告色同名回退值）");
-  assert.ok(s.includes(".skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def)}"), "合并开关 active 态样式（2026-11-10 迁入设置）");
+  assert.ok(!s.includes(".skc-switch") && !s.includes(".skc-quota-merge-on"), "合并开关样式随隐藏退役（第四轮 2026-11-10）");
   const guardAt = s.indexOf("@media (prefers-reduced-motion: no-preference)");
   assert.ok(guardAt >= 0, "reduced-motion 守卫块存在");
   const guard = balancedBlock(s, guardAt);
@@ -592,7 +592,7 @@ function setupPanel({ viewport = [1024, 768] } = {}) {
   return { h, host, shadow, panel, store, views, actions };
 }
 
-/** S8 面板夹具：高度桩 160px；宽度不桩（offsetWidth 为 0 → WIDTH_FALLBACK 320，与 CSS 面板宽一致） */
+/** S8 面板夹具：高度桩 160px；宽度不桩（offsetWidth 为 0 → WIDTH_FALLBACK 360，与 CSS 面板宽一致） */
 function setupPanelAnchored(viewport) {
   const s = setupPanel({ viewport });
   Object.defineProperty(s.panel.el, "offsetHeight", { configurable: true, get: () => 160 });
@@ -621,8 +621,8 @@ test("水平推出：放不下则左侧", () => {
       { left: 900, top: 204, width: 70, height: 26 },
       { left: 200, top: 200, width: 150, height: 26 },
     );
-    // 右侧放不下（900+70+8 = 978 > 1024−320−8 = 696）→ 左侧：900 − 320 − 8 = 572（面板宽 320，第三轮紧凑化）
-    assert.equal(panel.el.style.left, "572px", "放不下右侧 → left = segRect.left − width − 8");
+    // 右侧放不下（900+70+8 = 978 > 1024−360−8 = 656）→ 左侧：900 − 360 − 8 = 532（面板宽 360，第四轮 2026-11-10）
+    assert.equal(panel.el.style.left, "532px", "放不下右侧 → left = segRect.left − width − 8");
     panel.dispose();
   } finally {
     h.cleanup();
@@ -632,7 +632,7 @@ test("水平推出：放不下则左侧", () => {
 test("垂直回退：两侧都放不下时下方优先", () => {
   const { h, panel } = setupPanelAnchored([500, 768]);
   try {
-    // 锚点取 left=200：右侧 278 > 500−320−8 = 172，左侧 200−328 < 8 → 两侧都放不下（面板 320 宽）
+    // 锚点取 left=200：右侧 278 > 500−360−8 = 132，左侧 200−368 < 8 → 两侧都放不下（面板 360 宽）
     panel.openFrom(
       { left: 200, top: 204, width: 70, height: 26 },
       { left: 200, top: 200, width: 150, height: 26 },
@@ -798,44 +798,24 @@ test("panel · header 右上关闭钮且点击关闭（qw 语言：关闭在右�
   }
 });
 
-test("panel · 设置内合并开关：仅 quotaCapable 时渲染；checked 随 quotaMerge；点击取反；能力消失即移除（2026-11-10 自 footer 迁入设置）", () => {
-  const { h, panel, actions } = setupPanel();
+test("panel · 设置不渲染合并显示额度开关（第四轮 2026-11-10 隐藏）：quotaCapable 在线也无开关；默认合并为既定行为", () => {
+  const { h, panel } = setupPanel();
   const base = {
     panelOpen: true, view: "list", detailId: null, showAdd: false, showSettings: false,
     lastMarket: "cn", holdingsOnly: false, maVisible: { 5: true, 10: true, 20: true, 60: true },
     capsuleSymbolId: null,
   };
-  const snap = (ui) => ({
-    business: { rev: 1, settings: { privacyMode: false }, symbols: [] },
-    quoteMeta: { fetchedAt: null, error: null },
-    toast: null,
-    providers: null,
-    ui: { ...base, quotaMerge: true, quotaCapable: false, ...ui },
-  });
-  const btnOf = () => panel.el.querySelector('.skc-dialog--settings [data-action="quota-merge"]');
-  const lastMergeCall = () => actions.filter((a) => Array.isArray(a) && a[0] === "setQuotaMerge").pop();
   try {
     panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
-    panel.update(snap({}));
-    assert.equal(btnOf(), null, "能力未检测到 → 不渲染开关");
-
-    panel.update(snap({ quotaCapable: true, quotaMerge: true }));
-    let check = btnOf();
-    assert.ok(check, "quotaCapable → 渲染开关（设置对话框内）");
-    assert.equal(check.checked, true, "默认开");
-    assert.ok(check.closest(".skc-setting-row").querySelector(".skc-quota-merge-on"), "开态 active 样式类");
-    check.dispatchEvent(new h.window.Event("change", { bubbles: true }));
-    assert.deepEqual(lastMergeCall(), ["setQuotaMerge", false], "开 → 点击 → setQuotaMerge(false)");
-
-    panel.update(snap({ quotaCapable: true, quotaMerge: false }));
-    check = btnOf();
-    assert.equal(check.checked, false, "关态 checked");
-    assert.equal(check.closest(".skc-setting-row").querySelector(".skc-quota-merge-on"), null, "关态无 active 类");
-    check.dispatchEvent(new h.window.Event("change", { bubbles: true }));
-    assert.deepEqual(lastMergeCall(), ["setQuotaMerge", true], "关 → 点击 → setQuotaMerge(true)");
-
-    panel.update(snap({ quotaCapable: false, quotaMerge: true }));
-    assert.equal(btnOf(), null, "能力消失 → 开关移除");
+    panel.update({
+      business: { rev: 1, settings: { privacyMode: false }, symbols: [] },
+      quoteMeta: { fetchedAt: null, error: null },
+      toast: null,
+      providers: null,
+      ui: { ...base, showSettings: true, quotaCapable: true, quotaMerge: true },
+    });
+    assert.equal(panel.el.querySelector('[data-action="quota-merge"]'), null, "额度在线 → 设置内仍无合并开关");
+    assert.equal(panel.el.querySelector(".skc-switch"), null, "开关控件已退役");
   } finally {
     panel.dispose();
     h.cleanup();

@@ -15,8 +15,8 @@ import { api } from "./api.mjs";
 import { t, tErr } from "./i18n.mjs";
 
 const UI_KEY = "stock-kanban:ui:v1";
-/** 落盘字段集（会话态 panelOpen/view/detailId/showAdd/showSettings/quotaCapable 不落盘） */
-const UI_PERSIST_KEYS = ["lastMarket", "holdingsOnly", "maVisible", "capsuleSymbolId", "quotaMerge"];
+/** 落盘字段集（会话态 panelOpen/view/detailId/showAdd/showSettings/quotaCapable 不落盘；quotaMerge 第四轮起不落盘：设置开关已隐藏，每次加载默认合并） */
+const UI_PERSIST_KEYS = ["lastMarket", "holdingsOnly", "maVisible", "capsuleSymbolId"];
 
 const DEFAULT_UI = {
   panelOpen: false,
@@ -29,7 +29,7 @@ const DEFAULT_UI = {
   holdingsOnly: false,
   maVisible: { 5: true, 10: true, 20: true, 60: true },
   capsuleSymbolId: null, // null → 第一个标的
-  quotaMerge: true, // 持久：合并显示 quota（默认开；仅能力在线时生效）
+  quotaMerge: true, // 会话态：合并显示 quota（默认开、不落盘；设置开关已隐藏，第四轮 2026-11-10；仅能力在线时生效）
 };
 
 /** 读旧 ui:v1 时只取白名单键：退役的 pos/panelPos 与未知键一律忽略，不抛错 */

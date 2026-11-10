@@ -1,6 +1,6 @@
 // client 集成组（CEP v1 宿主侧，Plan B Task S5）：main.mjs 真实 mountKanban 下的 quota 全链。
-// 覆盖：挂载后 / 挂载前两条握手路径；pill 与合并开关出现；engage 与心跳（间隔注入）；
-// 组拖动（拖 quota pill → host 整组位移）；guest 消失 → disengage；quotaMerge off 不 engage；
+// 覆盖：挂载后 / 挂载前两条握手路径；pill 出现（默认合并，设置内无开关，第四轮）；engage 与心跳（间隔注入）；
+// 组拖动（拖 quota pill → host 整组位移）；guest 消失 → disengage；旧存储 quotaMerge:false 不再生效；
 // legacy 态（guest 在、不应答 = qw 0.1.37 真实态）零变化；传输错误 → title=quota.stale；dispose 全清。
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -145,7 +145,7 @@ async function setupKanban({ seed = {}, guestBeforeMount = null } = {}) {
   };
 }
 
-test("S5 集成 · 挂载后 guest 握手：quota pill 与合并开关出现，engage 与心跳派发可见", async () => {
+test("S5 集成 · 挂载后 guest 握手：quota pill 出现（默认合并），engage 与心跳派发可见；设置内无合并开关", async () => {
   const s = await setupKanban();
   try {
     assert.equal(s.pillOf(), null, "挂载时无 guest → 无 quota pill（默认零变化）");
@@ -154,9 +154,7 @@ test("S5 集成 · 挂载后 guest 握手：quota pill 与合并开关出现，e
     const pill = s.pillOf();
     assert.ok(pill, "能力回复后 stack 内出现 quota pill");
     assert.equal(countOf(s.events, "embed-engage"), 1, "engage 派发一次");
-    const btn = s.toggleBtnOf();
-    assert.ok(btn, "能力在线 → 设置内合并开关出现");
-    assert.equal(btn.checked, true, "默认开");
+    assert.equal(s.toggleBtnOf(), null, "能力在线 → 设置内不再出现合并开关（第四轮隐藏）");
     await tick();
     assert.ok(pill.textContent.includes("GLM"), "overview 渲染进 pill（GLM 段）");
     assert.equal(s.intervals.size, 1, "注册一个心跳 interval");
@@ -167,13 +165,12 @@ test("S5 集成 · 挂载后 guest 握手：quota pill 与合并开关出现，e
   }
 });
 
-test("S5 集成 · 挂载前即有 guest（同步握手路径）+ 默认开：首帧即合并", async () => {
+test("S5 集成 · 挂载前即有 guest（同步握手路径）+ 默认合并：首帧即合并，设置内无开关", async () => {
   const s = await setupKanban({ guestBeforeMount: { capabilities: CAPS } });
   try {
     await tick();
     assert.ok(s.pillOf(), "挂载即合并（同步回复路径）");
-    assert.ok(s.toggleBtnOf(), "开关随首帧呈现");
-    assert.equal(s.toggleBtnOf().checked, true, "默认开");
+    assert.equal(s.toggleBtnOf(), null, "设置内无合并开关（第四轮隐藏）");
     assert.equal(countOf(s.events, "embed-engage"), 1, "engage 一次");
   } finally {
     s.cleanup();
@@ -222,41 +219,30 @@ test("S5 集成 · legacy 态（guest 在、不应答 = qw 0.1.37 真实态）�
   }
 });
 
-test("S5 集成 · quotaMerge off（seed ui:v1）：有能力也不 engage；开关呈关态；点击开 → 立即合并", async () => {
+test("S5 集成 · 旧存储 quotaMerge:false 不再生效：有能力即合并、设置内无开关（第四轮：开关隐藏、默认合并）", async () => {
   const s = await setupKanban({
     seed: { [UI_KEY]: JSON.stringify({ quotaMerge: false }) },
     guestBeforeMount: { capabilities: CAPS },
   });
   try {
     await tick();
-    assert.equal(s.pillOf(), null, "quotaMerge off → 不挂 pill");
-    assert.equal(countOf(s.events, "embed-engage"), 0, "不 engage");
-    assert.equal(s.intervals.size, 0, "无心跳");
-    assert.equal(overviewFetches(s.fetchLog), 0, "不拉 overview");
-    const btn = s.toggleBtnOf();
-    assert.ok(btn, "能力在线 → 开关呈现（关态，可再开）");
-    assert.equal(btn.checked, false, "关态");
-    click(s.h, btn);
-    await tick();
-    assert.ok(s.pillOf(), "点击开 → 立即合并");
+    assert.ok(s.pillOf(), "旧存储的关闭值被忽略 → 挂 pill（默认合并）");
     assert.equal(countOf(s.events, "embed-engage"), 1, "engage 一次");
-    assert.equal(s.toggleBtnOf().checked, true, "开关转开态");
+    assert.equal(s.toggleBtnOf(), null, "设置内无合并开关");
   } finally {
     s.cleanup();
   }
 });
 
-test("S5 集成 · guest 消失（禁用/HMR）→ disengage：pill 移除、开关消失、心跳停", async () => {
+test("S5 集成 · guest 消失（禁用/HMR）→ disengage：pill 移除、心跳停", async () => {
   const s = await setupKanban();
   try {
     const guest = addGuest(s.h);
     await tick();
     assert.ok(s.pillOf(), "前置：已合并");
-    assert.ok(s.toggleBtnOf(), "前置：开关在位");
     guest.remove();
     await tick();
     assert.equal(s.pillOf(), null, "pill 移除");
-    assert.equal(s.toggleBtnOf(), null, "开关消失");
     assert.equal(countOf(s.events, "embed-disengage"), 1, "disengage 派发一次");
     assert.equal(s.intervals.size, 0, "心跳已 clearInterval");
   } finally {
@@ -267,26 +253,26 @@ test("S5 集成 · guest 消失（禁用/HMR）→ disengage：pill 移除、开
 test("S5 集成 · overview 传输错误：保留上次渲染，pill title = quota.stale；恢复后清除", async () => {
   const s = await setupKanban();
   try {
-    addGuest(s.h);
+    const first = addGuest(s.h);
     await tick();
     const pill = s.pillOf();
     assert.ok(pill && pill.textContent.includes("GLM"), "前置：已有上次渲染");
     assert.equal(pill.getAttribute("title"), null, "正常态无 stale title");
-    // 传输错误：关→开 触发 engage→pull（拉取失败）
+    // 传输错误：guest 离开再回来 → 重新 engage → 拉取失败（第四轮：合并开关已隐藏，改由 guest 生命周期驱动重连）
     s.ctl.overviewOk = false;
-    click(s.h, s.toggleBtnOf());
+    first.remove();
     await tick();
-    click(s.h, s.toggleBtnOf());
+    addGuest(s.h);
     await tick();
     const stale = s.pillOf();
     assert.ok(stale, "传输错误后 pill 保留");
     assert.ok(stale.textContent.includes("GLM"), "保留上次渲染内容");
     assert.equal(stale.getAttribute("title"), t("quota.stale"), "title = quota.stale");
-    // 恢复：关→开 拉取成功 → title 清除
+    // 恢复：guest 再次离开并回来 → 拉取成功 → title 清除
     s.ctl.overviewOk = true;
-    click(s.h, s.toggleBtnOf());
+    s.h.document.querySelector("[data-dsh-quota-watch-float]").remove();
     await tick();
-    click(s.h, s.toggleBtnOf());
+    addGuest(s.h);
     await tick();
     assert.equal(s.pillOf().getAttribute("title"), null, "拉取恢复后清除 stale title");
   } finally {

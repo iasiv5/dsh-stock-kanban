@@ -1,6 +1,6 @@
 /**
  * 第三轮排版回归（2026-11-10，docs/ui-redesign.md §8）：
- *   - 面板 320px 宽；字号阶梯无 10px；图表轴字号 ≥ 11 且宽度可注入；
+ *   - 面板 360px 宽（第四轮）；字号阶梯无 10px；图表轴字号 ≥ 11 且宽度可注入；
  *   - 对话框打开时面板切到流内模式（skc-panel--dialog），上升沿才触发搜索框聚焦；
  *   - 添加对话框：未搜索的教学空态 / 无匹配的恢复路径 / 直连代码的内联错误与重复提示；
  *   - 搜索竞态：慢响应不覆盖最新结果；
@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 
 import { createDomHarness } from "./helpers/dom-harness.mjs";
 import { FLOAT_STYLE_TEXT } from "../client/styles.mjs";
+import { iconEl } from "../client/icons.mjs";
 import { createPanel } from "../client/panel.mjs";
 import { createAdd } from "../client/add.mjs";
 import { createList } from "../client/list.mjs";
@@ -67,9 +68,12 @@ const fire = (h, input, value) => {
   input.dispatchEvent(new h.window.Event("input", { bubbles: true }));
 };
 
-test("styles · 第三轮：面板 320px、字号阶梯无 10px、对话框流内模式规则在位", () => {
+test("styles · 面板宽：一级 360px、二级（详情/添加/设置）按 data-surface 展开 420px；字号阶梯无 10px；对话框流内模式规则在位", () => {
   const s = FLOAT_STYLE_TEXT;
-  assert.ok(s.includes("width:min(320px,calc(100vw - 16px))"), "面板宽 320px（紧凑化）");
+  assert.ok(s.includes("width:min(var(--skc-panel-w),calc(100vw - 16px))"), "面板宽由表面变量决定（视口收窄）");
+  assert.ok(s.includes("--skc-panel-w:360px"), "一级列表 360px（第四轮）");
+  assert.ok(s.includes('.skc-panel[data-surface="dialog"]') && s.includes('.skc-panel[data-surface="detail"]'), "二级表面选择器在位");
+  assert.ok(s.includes("--skc-panel-w:420px"), "二级视图展开 420px（第五轮）");
   assert.equal(/font-size:\s*10(\.5)?px/.test(s), false, "字号阶梯无 10px（辅助文案不小于 11px）");
   assert.ok(s.includes(".skc-panel--dialog > .skc-header"), "对话框模式隐藏面板头");
   assert.ok(s.includes(".skc-dialog-layer{display:flex"), "对话框层为流内布局");
@@ -330,6 +334,94 @@ test("add · 轮询重绘保留结果行焦点（按 id 归还）", async () => 
     assert.equal(h.document.activeElement, again, "焦点归还同 id 的结果行");
   } finally {
     add?.dispose();
+    g.restore();
+  }
+});
+
+test("icons · settings 为齿轮（6 齿外轮廓 path + 中心孔 circle；第四轮由滑杆换齿轮）", () => {
+  const h = createDomHarness();
+  try {
+    const svg = iconEl(h.document, "settings");
+    assert.deepEqual([...svg.childNodes].map((n) => n.tagName), ["path", "circle"], "外轮廓 + 中心孔");
+    const d = svg.querySelector("path").getAttribute("d");
+    assert.ok(d.startsWith("M") && d.endsWith("Z"), "外轮廓为闭合路径");
+    assert.equal((d.match(/[LM]/g) ?? []).length, 30, "6 齿 × 5 个节点（每齿 4 个角点 + 齿根中点）");
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("panel · 设置不渲染合并显示额度开关（第四轮隐藏）：额度在线也无开关，设置仅余备份与说明", () => {
+  const g = withGlobals(async () => okJson({}));
+  let panel = null;
+  try {
+    const h = g.h;
+    h.setViewport(h.window, 1024, 768);
+    const host = h.document.createElement("div");
+    h.document.body.append(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const noop = () => {};
+    const backupEl = h.document.createElement("div");
+    backupEl.className = "skc-backup";
+    const stubView = () => ({ el: h.document.createElement("div"), update() {}, dispose() {} });
+    const store = {
+      closePanel: noop, setCapsuleSymbol: noop, setPrivacy: noop, setShowAdd: noop,
+      setShowSettings: noop, pollQuotes: noop, setQuotaMerge: noop, setHoldingsOnly: noop,
+    };
+    const views = {
+      list: stubView(),
+      detail: stubView(),
+      add: stubView(),
+      backup: { el: backupEl, update() {}, dispose() {} },
+    };
+    panel = createPanel({ doc: h.document, win: h.window, store, views });
+    shadow.append(panel.el);
+    panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
+    panel.update(SNAP({ ui: { ...SNAP().ui, showAdd: false, showSettings: true, quotaCapable: true, quotaMerge: true } }));
+    assert.equal(panel.el.querySelector('[data-action="quota-merge"]'), null, "额度在线也不渲染合并开关");
+    const settings = panel.el.querySelector(".skc-dialog--settings");
+    assert.ok(settings, "设置对话框在位");
+    assert.ok(settings.querySelector(".skc-backup"), "备份区在位");
+    assert.ok(settings.querySelector(".skc-setting-notes"), "页尾说明在位");
+    assert.equal(settings.querySelectorAll(".skc-setting-row").length, 0, "行式开关行已退役");
+  } finally {
+    panel?.dispose();
+    g.restore();
+  }
+});
+
+test("panel · 表面 data-surface 随视图切换：列表 / 详情 / 添加 / 设置（二级宽度由 CSS 展开）", () => {
+  const g = withGlobals(async () => okJson({}));
+  let panel = null;
+  try {
+    const h = g.h;
+    h.setViewport(h.window, 1024, 768);
+    const host = h.document.createElement("div");
+    h.document.body.append(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const noop = () => {};
+    const stubView = () => ({ el: h.document.createElement("div"), update() {}, dispose() {} });
+    const store = {
+      closePanel: noop, setCapsuleSymbol: noop, setPrivacy: noop, setShowAdd: noop,
+      setShowSettings: noop, pollQuotes: noop, setQuotaMerge: noop, setHoldingsOnly: noop,
+    };
+    panel = createPanel({
+      doc: h.document, win: h.window, store,
+      views: { list: stubView(), detail: stubView(), add: stubView(), backup: stubView() },
+    });
+    shadow.append(panel.el);
+    panel.openFrom({ left: 100, top: 200, width: 150, height: 26 });
+    const base = SNAP().ui;
+    panel.update(SNAP({ ui: { ...base, view: "list", showAdd: false, showSettings: false } }));
+    assert.equal(panel.el.dataset.surface, "list", "列表 → 一级表面（360）");
+    panel.update(SNAP({ ui: { ...base, view: "detail", detailId: "s1", showAdd: false, showSettings: false } }));
+    assert.equal(panel.el.dataset.surface, "detail", "详情 → 二级表面（420）");
+    panel.update(SNAP({ ui: { ...base, view: "list", showAdd: true, showSettings: false } }));
+    assert.equal(panel.el.dataset.surface, "dialog", "添加对话框 → 二级表面（420）");
+    panel.update(SNAP({ ui: { ...base, view: "list", showAdd: false, showSettings: true } }));
+    assert.equal(panel.el.dataset.surface, "dialog", "设置对话框 → 二级表面（420）");
+  } finally {
+    panel?.dispose();
     g.restore();
   }
 });
