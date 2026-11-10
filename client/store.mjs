@@ -50,6 +50,50 @@ function loadUi(storage) {
   }
 }
 
+/* ------------------------------------------------ 切片广播（渲染切片广播 Task 1） ------------------------------------------------ */
+
+/** quotes 行指纹：剔除 fetchedAt 的稳定序列化（键排序；行引用相同则不必算）。 */
+function rowFingerprint(row) {
+  if (row == null || typeof row !== "object") return JSON.stringify(row ?? null);
+  const clone = {};
+  for (const k of Object.keys(row).sort()) {
+    if (k === "fetchedAt") continue;
+    clone[k] = row[k];
+  }
+  return JSON.stringify(clone);
+}
+
+/**
+ * 实质变化判定（实施计划「接口契约」节）：
+ *   quotes 行内容（fingerprint，剔 fetchedAt、quoteTime 计入）+ business.rev/loaded
+ *   + ui 逐键 + quoteMeta.error + providers 引用 + toast 引用。
+ * 全部相等 → 返回 null（调用方不 emit）；否则返回 { quotes:Set, business, ui:string[], quoteMetaError }。
+ * providers 引用是例外通道：poll 响应每 tick 新引用 → 恒 emit（quotes 为空切片），B3 基线。
+ */
+function deriveChanged(prev, next) {
+  const quotes = new Set();
+  const ids = new Set([...Object.keys(prev.quotes ?? {}), ...Object.keys(next.quotes ?? {})]);
+  for (const id of ids) {
+    const a = prev.quotes?.[id];
+    const b = next.quotes?.[id];
+    if (a === b) continue;
+    if (rowFingerprint(a) !== rowFingerprint(b)) quotes.add(id);
+  }
+  const business = prev.business?.rev !== next.business?.rev || prev.business?.loaded !== next.business?.loaded;
+  const ui = [];
+  const uiKeys = new Set([...Object.keys(prev.ui ?? {}), ...Object.keys(next.ui ?? {})]);
+  for (const k of uiKeys) {
+    if (prev.ui?.[k] !== next.ui?.[k]) ui.push(k);
+  }
+  const quoteMetaError = (prev.quoteMeta?.error ?? null) !== (next.quoteMeta?.error ?? null);
+  const providersChanged = prev.providers !== next.providers;
+  const toastChanged = prev.toast !== next.toast;
+  if (quotes.size === 0 && !business && ui.length === 0 && !quoteMetaError && !providersChanged && !toastChanged) {
+    return null;
+  }
+  return { quotes, business, ui, quoteMetaError };
+}
+
 export function createStore(storage = window.localStorage) {
   let state = {
     business: { rev: 0, settings: { privacyMode: false }, symbols: [], driverKind: null, loaded: false },
@@ -60,8 +104,6 @@ export function createStore(storage = window.localStorage) {
     providers: null,
   };
   const listeners = new Set();
-
-  const emit = () => { for (const l of [...listeners]) { try { l(state); } catch { /* 订阅者异常不扩散 */ } } };
 
   const persistUi = () => {
     try {
@@ -74,8 +116,14 @@ export function createStore(storage = window.localStorage) {
   };
 
   const set = (partial) => {
-    state = { ...state, ...partial };
-    emit();
+    const prev = state;
+    state = { ...prev, ...partial };
+    const changed = deriveChanged(prev, state);
+    if (!changed) return; // 判定域全等：更新 state、不通知（changed 只随 emit 投递，不入 state）
+    // 切片广播：对每个监听者投递浅拷贝副本携带 changed；state 本体与 getState()/订阅回放永不携带
+    for (const l of [...listeners]) {
+      try { l({ ...state, changed }); } catch { /* 订阅者异常不扩散 */ }
+    }
   };
   const setUi = (partial) => {
     const ui = { ...state.ui, ...partial };
