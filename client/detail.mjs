@@ -141,6 +141,12 @@ export function createDetail({ store }) {
     // 输入原位反映在 DOM，无需重绘
   };
 
+  /** 图表宽随详情内宽自适应：面板 320px 时约 280px；移动端 sheet 变宽时同步加宽（封顶 372）；隐藏态取回退 280 */
+  const chartWidth = () => {
+    const inner = el.clientWidth - 14; // 图表框 padding 6×2 + border 1×2
+    return inner > 0 ? Math.min(372, Math.max(240, inner)) : 280;
+  };
+
   const buildChartBox = (symbol, ui) => {
     const box = document.createElement("div");
     box.className = "skc-chartbox";
@@ -166,10 +172,10 @@ export function createDetail({ store }) {
     } else if (period === "minute") {
       box.append(buildMinuteChart(
         { points: chart.data?.points ?? [], prevClose: chart.data?.prevClose ?? chart.prevClose ?? null },
-        { dark: false },
+        { dark: false, width: chartWidth() },
       ));
     } else {
-      box.append(buildCandleChart(chart.data ?? [], { maVisible: ui.maVisible, dark: false }));
+      box.append(buildCandleChart(chart.data ?? [], { maVisible: ui.maVisible, dark: false, width: chartWidth() }));
     }
     return box;
   };

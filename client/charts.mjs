@@ -16,7 +16,8 @@ const YELLOW = "#d9a514";
 /** MA 线色：MA5 由 #e8e8e8（深底遗产，浅色面板不可读）改中性灰蓝（2026-11-10 UI 重构） */
 const MA_COLORS = { 5: "#94a3b8", 10: "#d9a514", 20: "#a78bfa", 60: "#4ade80" };
 /** 主题跟随的轴文字/参考线：SVG 表现属性吃不到 var()，走 style 属性（跟随 DSH 主题/皮肤） */
-const AXIS_TEXT_STYLE = "fill:var(--dsw-alias-label-tertiary,rgba(127,127,127,.62))";
+// 轴文字：label-secondary（浅底上 ≥4.5:1；tertiary 在浅色主题仅 ~3.5:1，轴标签过淡）
+const AXIS_TEXT_STYLE = "fill:var(--dsw-alias-label-secondary,rgba(127,127,127,.9))";
 const BASELINE_STYLE = "stroke:var(--dsw-alias-border-l4,rgba(127,127,127,.35))";
 
 function svgEl(tag, attrs, textContent) {
@@ -77,9 +78,9 @@ export function buildMinuteChart(svgData, opts = {}) {
   const kids = [
     svgEl("polyline", { points: pricePts, fill: "none", stroke: up ? UP : DOWN, "stroke-width": 1.5 }),
     svgEl("polyline", { points: avgPts, fill: "none", stroke: YELLOW, "stroke-width": 1 }),
-    svgEl("text", { x: 2, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 9 }, timeLabel(points[0].t)),
-    svgEl("text", { x: width / 2 - 16, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 9 }, timeLabel(points[Math.floor(points.length / 2)].t)),
-    svgEl("text", { x: width - 30, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 9 }, timeLabel(points[points.length - 1].t)),
+    svgEl("text", { x: 2, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, timeLabel(points[0].t)),
+    svgEl("text", { x: width / 2 - 16, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, timeLabel(points[Math.floor(points.length / 2)].t)),
+    svgEl("text", { x: width - 30, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, timeLabel(points[points.length - 1].t)),
   ];
   if (baseY != null) {
     kids.splice(2, 0, svgEl("line", {
@@ -173,7 +174,7 @@ export function buildCandleChart(klineData, opts = {}) {
   const labelIdx = [0, Math.floor(candles.length / 2), candles.length - 1];
   labelIdx.forEach((i, k) => {
     const text = String(candles[i]?.time ?? "").slice(5);
-    kids.push(svgEl("text", { x: k === 0 ? 2 : k === 1 ? width / 2 - 14 : width - 34, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 9 }, text));
+    kids.push(svgEl("text", { x: k === 0 ? 2 : k === 1 ? width / 2 - 14 : width - 34, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, text));
   });
 
   const svg = svgEl("svg", { class: "skc-chart", width, height, viewBox: `0 0 ${width} ${height}` });

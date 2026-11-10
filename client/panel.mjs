@@ -14,7 +14,7 @@ import { MARGIN, titlebarTopInset } from "./float-prefs.mjs";
 import { parseInset } from "./drag.mjs";
 
 const ZERO_INSETS = { left: 0, right: 0, top: 0, bottom: 0 };
-const WIDTH_FALLBACK = 400;
+const WIDTH_FALLBACK = 320; // 与 styles.mjs 的面板宽度一致（offsetWidth 为 0 时的回退，第三轮紧凑化 2026-11-10）
 const HEIGHT_FALLBACK = 160;
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), Math.max(lo, hi));
@@ -26,6 +26,7 @@ export function createPanel({ doc, win, store, views }) {
   let capsuleRect = null; // S8：胶囊矩形（顶边与垂直回退的锚定依据）
   let safeProbe = null;
   let snapshot = null;
+  let addWasShown = false; // 添加对话框上升沿：交给 add 视图聚焦搜索框
 
   const el = doc.createElement("div");
   el.className = "skc-panel";
@@ -212,8 +213,6 @@ export function createPanel({ doc, win, store, views }) {
   pickerSelect.addEventListener("change", () => store.setCapsuleSymbol(pickerSelect.value));
   pickerLabel.append(pickerSelect);
 
-  const footerActions = doc.createElement("span");
-  footerActions.className = "skc-spacer";
   /** 图标钮（icons.mjs 线性 SVG；aria-label 承载可读名，label 形参已随 emoji 字形一并退役） */
   const makeFooterButton = (action, titleText, onClick, iconName) => {
     const btn = doc.createElement("button");
@@ -237,7 +236,7 @@ export function createPanel({ doc, win, store, views }) {
   const settingsBtn = makeFooterButton("settings", t("app.settings"), () => store.setShowSettings(true), "settings");
   const refreshBtn = makeFooterButton("refresh", t("list.refresh"), () => store.pollQuotes(), "refresh");
 
-  footerMain.append(pickerLabel, footerActions, holdingsBtn, addBtn, settingsBtn, refreshBtn);
+  footerMain.append(pickerLabel, holdingsBtn, addBtn, settingsBtn, refreshBtn);
   footer.append(footerMain);
 
   // 对话框层（面板内渲染）
@@ -252,7 +251,7 @@ export function createPanel({ doc, win, store, views }) {
   const settingsHead = doc.createElement("div");
   settingsHead.className = "skc-dialog-head";
   const settingsTitle = doc.createElement("span");
-  settingsTitle.className = "skc-section-title";
+  settingsTitle.className = "skc-section-title skc-dialog-title";
   settingsTitle.textContent = t("app.settings");
   const settingsSpacer = doc.createElement("span");
   settingsSpacer.className = "skc-spacer";
@@ -293,7 +292,11 @@ export function createPanel({ doc, win, store, views }) {
   const noteBoundary = doc.createElement("div");
   noteBoundary.className = "skc-setting-footnote";
   noteBoundary.textContent = t("app.note.boundary");
-  settingsBody.append(mergeWrap, views.backup.el, noteDelay, noteBoundary);
+  // 页尾说明收进一组（同一区块，行距紧凑；首条仍为行情延迟说明）
+  const notes = doc.createElement("div");
+  notes.className = "skc-setting-notes";
+  notes.append(noteDelay, noteBoundary);
+  settingsBody.append(mergeWrap, views.backup.el, notes);
   settingsLayer.append(settingsHead, settingsBody);
 
   const toast = doc.createElement("div");
@@ -346,10 +349,13 @@ export function createPanel({ doc, win, store, views }) {
       opt.textContent = t("picker.empty");
       pickerSelect.append(opt);
     } else {
+      // 选项只放名称（选择器窄，市场标签会被截断）；同名跨市场时才补市场后缀以便区分
+      const nameCount = new Map();
+      for (const s of symbols) nameCount.set(s.name, (nameCount.get(s.name) ?? 0) + 1);
       for (const s of symbols) {
         const opt = doc.createElement("option");
         opt.value = s.id;
-        opt.textContent = `${s.name} · ${t("market." + s.market)}`;
+        opt.textContent = nameCount.get(s.name) > 1 ? `${s.name} · ${t("market." + s.market)}` : s.name;
         pickerSelect.append(opt);
       }
     }
@@ -375,6 +381,10 @@ export function createPanel({ doc, win, store, views }) {
 
     addLayer.hidden = !ui.showAdd;
     settingsLayer.hidden = !ui.showSettings;
+    // 对话框打开时面板只显示对话框（流内布局，高度随内容自适应）
+    el.classList.toggle("skc-panel--dialog", Boolean(ui.showAdd || ui.showSettings));
+    if (ui.showAdd && !addWasShown) views.add.onOpen?.();
+    addWasShown = Boolean(ui.showAdd);
 
     toast.hidden = !snapshot?.toast;
     if (snapshot?.toast) toast.textContent = snapshot.toast.text;

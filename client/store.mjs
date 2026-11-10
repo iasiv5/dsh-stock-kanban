@@ -97,24 +97,27 @@ export function createStore(storage = window.localStorage) {
     return data;
   }
 
-  async function mutate(action) {
-    // 统一变更入口：带 ifRev；409 → 刷新状态 + 明确提示（不静默覆盖）
+  async function mutate(action, { quiet = false } = {}) {
+    // 统一变更入口：带 ifRev；409 版本冲突 → 刷新状态 + 明确提示（不静默覆盖）
+    // quiet：失败由调用方自行呈现（添加对话框的内联错误/重复提示），不冒泡通用 toast
     try {
       const result = await action(state.business.rev);
       await refreshState();
       return { ok: true, result };
     } catch (e) {
-      if (e.status === 409) {
+      // 重复添加是业务冲突而非版本冲突：不刷新、不报「数据已被其他页面更新」（第三轮 2026-11-10）
+      if (e.status === 409 && e.body?.error !== "duplicate") {
         await refreshState();
         setToast(t("toast.conflict"));
         return { ok: false, conflict: true, error: e };
       }
-      setToast(t("toast.op-failed", { e: tErr(e.body?.error, String(e?.message ?? e)) }));
+      if (!quiet) setToast(t("toast.op-failed", { e: tErr(e.body?.error, String(e?.message ?? e)) }));
       return { ok: false, error: e };
     }
   }
 
-  const addSymbol = (market, code, patch) => mutate((rev) => api.add(market, code, patch, rev));
+  // 添加失败由 add.mjs 呈现（重复/校验失败/通用错误各有内联或 toast 出口），此处静默
+  const addSymbol = (market, code, patch) => mutate((rev) => api.add(market, code, patch, rev), { quiet: true });
   const updateSymbol = (id, patch) => mutate((rev) => api.update(id, patch, rev));
   const removeSymbol = (id) => mutate((rev) => api.remove(id, rev));
   const setPrivacy = (privacyMode) => mutate((rev) => api.setSettings({ privacyMode }, rev));

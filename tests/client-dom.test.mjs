@@ -592,7 +592,7 @@ function setupPanel({ viewport = [1024, 768] } = {}) {
   return { h, host, shadow, panel, store, views, actions };
 }
 
-/** S8 面板夹具：高度桩 160px；宽度不桩（offsetWidth 为 0 → WIDTH_FALLBACK 400） */
+/** S8 面板夹具：高度桩 160px；宽度不桩（offsetWidth 为 0 → WIDTH_FALLBACK 320，与 CSS 面板宽一致） */
 function setupPanelAnchored(viewport) {
   const s = setupPanel({ viewport });
   Object.defineProperty(s.panel.el, "offsetHeight", { configurable: true, get: () => 160 });
@@ -621,8 +621,8 @@ test("水平推出：放不下则左侧", () => {
       { left: 900, top: 204, width: 70, height: 26 },
       { left: 200, top: 200, width: 150, height: 26 },
     );
-    // 右侧放不下（970+8+400 > 1016）→ 左侧：900 − 400 − 8 = 492
-    assert.equal(panel.el.style.left, "492px", "放不下右侧 → left = segRect.left − width − 8");
+    // 右侧放不下（900+70+8 = 978 > 1024−320−8 = 696）→ 左侧：900 − 320 − 8 = 572（面板宽 320，第三轮紧凑化）
+    assert.equal(panel.el.style.left, "572px", "放不下右侧 → left = segRect.left − width − 8");
     panel.dispose();
   } finally {
     h.cleanup();
@@ -632,9 +632,10 @@ test("水平推出：放不下则左侧", () => {
 test("垂直回退：两侧都放不下时下方优先", () => {
   const { h, panel } = setupPanelAnchored([500, 768]);
   try {
+    // 锚点取 left=200：右侧 278 > 500−320−8 = 172，左侧 200−328 < 8 → 两侧都放不下（面板 320 宽）
     panel.openFrom(
-      { left: 50, top: 204, width: 70, height: 26 },
-      { left: 50, top: 200, width: 150, height: 26 },
+      { left: 200, top: 204, width: 70, height: 26 },
+      { left: 200, top: 200, width: 150, height: 26 },
     );
     // 两侧都放不下 → 下方优先：capsuleRect.bottom + 8 = 234
     assert.equal(panel.el.style.top, "234px", "下方优先：capsuleRect.bottom + 8");
@@ -648,8 +649,8 @@ test("垂直回退：下方放不下时翻到锚上方", () => {
   const { h, panel } = setupPanelAnchored([500, 300]);
   try {
     panel.openFrom(
-      { left: 50, top: 204, width: 70, height: 26 },
-      { left: 50, top: 200, width: 150, height: 26 },
+      { left: 200, top: 204, width: 70, height: 26 },
+      { left: 200, top: 200, width: 150, height: 26 },
     );
     // 下方放不下（234+160 > 292）→ 翻上方：capsuleRect.top − 160 − 8 = 32（补回原「视口矮时翻转」覆盖）
     assert.equal(panel.el.style.top, "32px", "翻转到胶囊上方");

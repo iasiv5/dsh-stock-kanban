@@ -82,7 +82,9 @@ export function createList({ store }) {
 
     const row = document.createElement("div");
     row.className = "skc-row";
+    row.dataset.id = s.id; // 轮询重绘后按 id 归还键盘焦点（第三轮 2026-11-10）
     row.tabIndex = 0; // 键盘可达：Tab 进入行，Enter/Space 打开详情（polish：焦点 + 激活路径）
+    row.setAttribute("role", "button");
     row.addEventListener("click", () => store.openDetail(s.id));
     row.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
@@ -164,6 +166,9 @@ export function createList({ store }) {
     if (market !== prevMarket && !ui.panelOpen) rowsEl.scrollTop = 0;
     prevMarket = market;
 
+    // 轮询重绘会整段替换行节点：先记下键盘焦点所在的行，重绘后归还给同 id 的新行
+    // （否则 Tab 停在行上的焦点每 15s 丢失；第三轮 2026-11-10）
+    const focusedId = rowsEl.getRootNode?.().activeElement?.dataset?.id ?? null;
     rowsEl.replaceChildren();
     if (shown.length === 0) {
       // 教学式空态：自选空给「添加」图形引导；持仓空纯文案
@@ -182,6 +187,9 @@ export function createList({ store }) {
       return;
     }
     for (const s of shown) rowsEl.append(buildRow(s, ui, quotes, privacy));
+    if (focusedId != null) {
+      [...rowsEl.children].find((node) => node.dataset?.id === focusedId)?.focus({ preventScroll: true });
+    }
   };
 
   const dispose = () => {

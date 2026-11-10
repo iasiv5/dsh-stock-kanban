@@ -1,15 +1,14 @@
 /**
- * 备份导入／导出（vanilla，行式设置列表——2026-11-11 方案 B）：
- *   - 导出备份行：整行可点 <a>（下载结构化 JSON，schemaVersion 1），副行注明去向；
- *   - 导入备份行：整行可点 <button> → 文件选择，副行注明覆盖语义（常显警示）；
- *   - 导入链路：文件选择 → 预读计数 → 覆盖式显式确认（可取消）→ 服务端再次全量校验；
- *   - 明确提示：备份含持仓明文（未加密）。
+ * 备份导入／导出（vanilla，行式设置列表——2026-11-11 方案 B；第三轮 2026-11-10 文案与警示分层）：
+ *   - 动作区：导出（<a download>，下载结构化 JSON，schemaVersion 1）+ 导入（文件选择）双钮；
+ *   - 导出说明：文件含持仓明文（未加密），常显；
+ *   - 导入警示：覆盖语义常显（warn 色），与导出说明分开呈现，不混在同一行小字里；
+ *   - 导入链路：文件选择 → 预读计数 → 覆盖式显式确认（可取消）→ 服务端再次全量校验。
  * DOM 契约：a[href="/stock-kanban/export"]（download 属性）+ input[type=file]。
  */
 
 import { api } from "./api.mjs";
 import { t, tErr } from "./i18n.mjs";
-import { iconEl } from "./icons.mjs";
 
 export function createBackup({ store }) {
   let disposed = false;
@@ -86,7 +85,7 @@ export function createBackup({ store }) {
 
     el.replaceChildren();
 
-    // 备份动作区：一行双钮（qw .dqw-panel-actions 同款 grid）——按钮形态比行式省空间（主人反馈）
+    // 动作区：一行双钮（qw .dqw-panel-actions 同款 grid）——按钮形态比行式省空间（主人反馈）
     const actionsGrid = document.createElement("div");
     actionsGrid.className = "skc-backup-actions";
     const exportLink = document.createElement("a");
@@ -98,14 +97,17 @@ export function createBackup({ store }) {
     importBtn.type = "button";
     importBtn.className = "skc-btn";
     importBtn.disabled = importing;
-    importBtn.textContent = t("backup.import");
+    importBtn.textContent = importing ? t("backup.importing") : t("backup.import");
     importBtn.addEventListener("click", () => fileInput.click());
     actionsGrid.append(exportLink, importBtn);
-    // 覆盖语义警示常显（原仅在确认弹层）
+    // 说明分层：导出说明（中性，含持仓明文提醒）/ 导入警示（warn 色，覆盖语义常显）
+    const exportHint = document.createElement("div");
+    exportHint.className = "skc-setting-sub";
+    exportHint.textContent = t("backup.export.hint");
     const importHint = document.createElement("div");
-    importHint.className = "skc-setting-sub";
+    importHint.className = "skc-warn-text";
     importHint.textContent = t("backup.import.hint");
-    el.append(actionsGrid, importHint, fileInput);
+    el.append(actionsGrid, exportHint, importHint, fileInput);
 
     if (parseError) {
       const err = document.createElement("div");
