@@ -93,6 +93,7 @@ export function createList({ store }) {
   let dragCache = null; // { listTop, rowH, orderIds, grabOffsetY } —— 起拖时的行几何快照
   let suppressClick = false;
   let flipTimer = null;
+  let dragSkippedStructural = false; // 拖拽期间被跳过的结构重建标记（endDrag 补一次全量）
 
   /** 当前市场分组的权威全序（渲染序 = sort 升序，与列表一致） */
   const marketState = () => {
@@ -175,6 +176,10 @@ export function createList({ store }) {
     dragIndex = -1;
     dragCache = null;
     if (wasActive && order) commitVisibleOrder(order); // 失败路径：mutate 内 refreshState 回权威顺序
+    if (dragSkippedStructural) {
+      dragSkippedStructural = false;
+      update(store.getState()); // 拖拽期间被跳过的结构重建补一次（state 本体无 changed → 全量）
+    }
   };
 
   /** 兄弟行 FLIP：逻辑位差反演 → 瞬时位移 → 回流后释放过渡归零；被拖行不参与（其 1:1 跟随指针） */
@@ -365,31 +370,49 @@ export function createList({ store }) {
     return row;
   };
 
-  const update = (snapshot) => {
-    if (disposed || dragActive) return; // 拖拽中冻结重绘：replaceChildren 会打断手势（结束后由 endDrag 路径重绘）
-    const ui = snapshot?.ui ?? {};
-    const business = snapshot?.business ?? { symbols: [] };
-    const quotes = snapshot?.quotes ?? {};
-    const privacy = business.settings?.privacyMode === true;
-    const market = MARKETS.includes(ui.lastMarket) ? ui.lastMarket : "cn";
-    // 展示序 = sort 升序（compareBySort：sort → addedAt → id 兜底）；过滤保持相对序
-    const rows = business.symbols.filter((s) => s.market === market).sort(compareBySort);
-    const shown = ui.holdingsOnly ? rows.filter((s) => s.quantity != null && s.quantity > 0) : rows;
-
-    for (const [m, { button, countSpan }] of tabButtons) {
-      const count = business.symbols.filter((s) => s.market === m).length;
-      if (button.firstChild) button.firstChild.nodeValue = t(`market.${m}`); // 语言实时跟随（骨架静态文案重套 t()）
-      button.className = `skc-tab${m === market ? " skc-tab-active" : ""}`;
-      countSpan.textContent = String(count);
-      countSpan.hidden = count === 0;
+  /** quotes tick 行内动态域原位改写。dragMode=true 时零节点增删（仅文本，tailCol 徽标不动）。 */
+  const patchRowDynamic = (row, s, ui, quotes, privacy, dragMode) => {
+    const q = quotes[s.id];
+    const price = q?.status === "ok" ? q.price : null;
+    const pct = q?.changePercent ?? null;
+    const priceCol = row.querySelector(".skc-row-price");
+    if (!priceCol) return;
+    const priceSpan = priceCol.children[0];
+    const pctSpan = priceCol.children[1];
+    if (priceSpan) {
+      priceSpan.textContent = price != null ? fmtPrice(price) : q ? (q.status === "error" ? t("list.quote-failed") : "—") : "…";
+      priceSpan.className = trendClass(pct);
     }
+    if (pctSpan) {
+      pctSpan.textContent = fmtPct(pct);
+      pctSpan.className = `skc-pct ${trendClass(pct)}`;
+    }
+    const hasPos = s.quantity != null && s.quantity > 0;
+    if (ui.holdingsOnly && hasPos) {
+      // holdingsOnly 尾巴列（skc-row-pnl）：文本原位写——列类型由全量重建保证，patch 不换列
+      const m = q?.metrics;
+      const tail = row.querySelector(".skc-row-pnl");
+      if (!tail) return;
+      const amt = tail.children[0];
+      const pctEl = tail.children[1];
+      if (amt) {
+        amt.textContent = privacy ? MASK : m?.pnl != null ? `${m.pnl > 0 ? "+" : ""}${fmtAmount(m.pnl)}` : "—";
+        amt.className = `skc-pnl-amt ${trendClass(m?.pnl)}`;
+      }
+      if (pctEl) {
+        pctEl.textContent = privacy ? MASK : m?.pnlPct != null ? fmtPct(m.pnlPct) : "—";
+        pctEl.className = `skc-pnl-pct ${trendClass(m?.pnl)}`;
+      }
+    } else if (!dragMode) {
+      // target 徽标列重建（涉及节点增删，拖拽中跳过——徽标随下次全量/非拖拽 patch 刷新）
+      const tail = row.querySelector(".skc-row-target");
+      if (!tail) return;
+      tail.replaceChildren();
+      appendTargetBadges(tail, q?.target, s.market, q?.quoteTime);
+    }
+  };
 
-    if (market !== prevMarket && !ui.panelOpen) rowsEl.scrollTop = 0;
-    prevMarket = market;
-
-    // 轮询重绘会整段替换行节点：先记下键盘焦点所在的行，重绘后归还给同 id 的新行
-    // （否则 Tab 停在行上的焦点每 15s 丢失；第三轮 2026-11-10）
-    const focusedId = rowsEl.getRootNode?.().activeElement?.dataset?.id ?? null;
+  const rebuildRows = (shown, ui, quotes, privacy) => {
     rowsEl.replaceChildren();
     if (shown.length === 0) {
       // 教学式空态：自选空给「添加」图形引导；持仓空纯文案
@@ -408,8 +431,63 @@ export function createList({ store }) {
       return;
     }
     for (const s of shown) rowsEl.append(buildRow(s, ui, quotes, privacy));
-    if (focusedId != null) {
-      [...rowsEl.children].find((node) => node.dataset?.id === focusedId)?.focus({ preventScroll: true });
+  };
+
+  const update = (snapshot) => {
+    if (disposed) return;
+    const ui = snapshot?.ui ?? {};
+    const business = snapshot?.business ?? { symbols: [] };
+    const quotes = snapshot?.quotes ?? {};
+    const privacy = business.settings?.privacyMode === true;
+    const changed = snapshot?.changed; // undefined = 全量（订阅回放/语言切换/旧快照）
+    const market = MARKETS.includes(ui.lastMarket) ? ui.lastMarket : "cn";
+    // 展示序 = sort 升序（compareBySort：sort → addedAt → id 兜底）；过滤保持相对序
+    const rows = business.symbols.filter((s) => s.market === market).sort(compareBySort);
+    const shown = ui.holdingsOnly ? rows.filter((s) => s.quantity != null && s.quantity > 0) : rows;
+
+    for (const [m, { button, countSpan }] of tabButtons) {
+      const count = business.symbols.filter((s) => s.market === m).length;
+      if (button.firstChild) button.firstChild.nodeValue = t(`market.${m}`); // 语言实时跟随（骨架静态文案重套 t()）
+      button.className = `skc-tab${m === market ? " skc-tab-active" : ""}`;
+      countSpan.textContent = String(count);
+      countSpan.hidden = count === 0;
+    }
+
+    if (market !== prevMarket && !ui.panelOpen) rowsEl.scrollTop = 0;
+    prevMarket = market;
+
+    // keyed 行复用判序：全量 / 结构变化（business 或 ui 结构键）→ 整区重建；quotes-only tick → 行内动态域原位写
+    const structural = changed === undefined
+      || changed.business === true
+      || (Array.isArray(changed.ui) ? changed.ui.some((k) => k === "lastMarket" || k === "holdingsOnly") : true);
+
+    if (dragActive) {
+      // 拖拽中（§12.24 patch-only 修订）：仅文本 patch、零节点增删/重排——几何快照假设不变；
+      // 结构重建跳过并标记，endDrag 补一次全量（外部 rev 变化撞上拖拽的罕见路径）
+      if (!structural && changed?.quotes instanceof Set) {
+        for (const s of shown) {
+          if (!changed.quotes.has(s.id)) continue;
+          const row = rowById(s.id);
+          if (row) patchRowDynamic(row, s, ui, quotes, privacy, true);
+        }
+      } else {
+        dragSkippedStructural = true;
+      }
+      return;
+    }
+
+    if (ui.view !== "list" && !structural) return; // detail 期间不白做（新鲜度：backToList 即时 pollQuotes 保证最新）
+
+    if (structural) {
+      rebuildRows(shown, ui, quotes, privacy);
+      return;
+    }
+    // quotes-only tick：行内动态域原位写（零节点增删，行身份/焦点天然保留）
+    if (!(changed.quotes instanceof Set)) return; // 防御：契约外形状不乱动
+    for (const s of shown) {
+      if (!changed.quotes.has(s.id)) continue;
+      const row = rowById(s.id);
+      if (row) patchRowDynamic(row, s, ui, quotes, privacy, false);
     }
   };
 

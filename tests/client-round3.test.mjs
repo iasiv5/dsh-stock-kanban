@@ -277,31 +277,36 @@ test("i18n · 第三轮新增 key zh/en 双侧存在", () => {
   }
 });
 
-test("list · 轮询重绘保留键盘焦点（焦点行被替换后归还给同 id 的新行）", () => {
+test("list · 行情 tick 行节点身份不变、焦点不被打断（keyed 行复用；第三轮身份语义翻转）", () => {
   const g = withGlobals(async () => okJson({}));
   let list = null;
   try {
     const h = g.h;
     list = createList({ store: { setLastMarket() {}, pollQuotes() {}, openDetail() {}, setHoldingsOnly() {} } });
     h.document.body.append(list.el);
-    const snap = SNAP({
-      business: {
-        rev: 1, settings: { privacyMode: false }, driverKind: null, loaded: true,
-        symbols: [
-          { id: "cn:sh600519", market: "cn", code: "sh600519", name: "贵州茅台", quantity: null, avgCost: null },
-          { id: "cn:sz000001", market: "cn", code: "sz000001", name: "平安银行", quantity: null, avgCost: null },
-        ],
-      },
-      ui: { ...SNAP().ui, showAdd: false },
-    });
-    list.update(snap);
+    const business = {
+      rev: 1, settings: { privacyMode: false }, driverKind: null, loaded: true,
+      symbols: [
+        { id: "cn:sh600519", market: "cn", code: "sh600519", name: "贵州茅台", quantity: null, avgCost: null },
+        { id: "cn:sz000001", market: "cn", code: "sz000001", name: "平安银行", quantity: null, avgCost: null },
+      ],
+    };
+    list.update(SNAP({ business, ui: { ...SNAP().ui, showAdd: false } }));
     const second = list.el.querySelectorAll(".skc-row")[1];
     second.focus();
     assert.equal(h.document.activeElement, second, "前置：第二行获得焦点");
-    list.update(snap); // 轮询重绘
+    // quotes-only tick：changed 切片带该行 id，结构未变（渲染切片广播 Task 2）
+    const snap2 = SNAP({
+      business,
+      quotes: { "cn:sz000001": { id: "cn:sz000001", status: "ok", price: 12.34, changePercent: 1.1, quoteTime: "15:00:00" } },
+      changed: { quotes: new Set(["cn:sz000001"]), business: false, ui: [], quoteMetaError: false },
+      ui: { ...SNAP().ui, showAdd: false },
+    });
+    list.update(snap2);
     const again = list.el.querySelectorAll(".skc-row")[1];
-    assert.notEqual(again, second, "行节点已被替换");
-    assert.equal(h.document.activeElement, again, "焦点归还同 id 的新行");
+    assert.equal(again, second, "行情 tick 行节点身份不变（keyed 复用，不再销毁重建）");
+    assert.equal(h.document.activeElement, second, "键盘焦点不被打断（焦点抢救补丁退役后由身份复用天然保证）");
+    assert.equal(again.querySelector(".skc-row-price")?.children[0]?.textContent, "12.34", "行内价格已原位更新");
   } finally {
     list?.dispose();
     g.restore();
