@@ -369,3 +369,16 @@ test("panel · 骨架静态文案语言实时跟随（12.9 语义在骨架化后
     h.cleanup();
   }
 });
+
+test("styles · 对话框不透明地板（12.8/12.21：覆盖层盖在自家列表文字上，qw 玻璃配方会让下层字透出）", () => {
+  const s = FLOAT_STYLE_TEXT;
+  const ruleStart = s.indexOf(".skc-dialog{");
+  assert.ok(ruleStart >= 0, "对话框规则在位");
+  const rule = s.slice(ruleStart, s.indexOf("}", ruleStart) + 1);
+  assert.ok(rule.includes("rgb(from var(--skc-base) r g b / 1)"), "不透明地板垫底（相对颜色语法强制 alpha=1）");
+  assert.ok(rule.includes("color-mix(in srgb,var(--skc-surface) 97%,transparent)"), "surface 顶涂在位");
+  // 面板本体保持 qw 毛玻璃（86% 单层）——浮在页面上，观感与可读性分治
+  const panelStart = s.indexOf(".skc-panel{");
+  const panelRule = s.slice(panelStart, s.indexOf("}", panelStart) + 1);
+  assert.ok(panelRule.includes("color-mix(in srgb,var(--skc-base) 86%,transparent)"), "面板本体保持 qw 毛玻璃 86%");
+});

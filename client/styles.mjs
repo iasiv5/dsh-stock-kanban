@@ -221,8 +221,12 @@ export const FLOAT_STYLE_TEXT = `
 .skc-quota-merge-on{color:var(--dsw-alias-brand-primary,#5b8def);font-weight:600}
 
 /* 对话框（覆盖层 = 令牌叠涂地板 + blur：玻璃皮肤令牌半透明也不破可读性） */
-.skc-dialog{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;gap:10px;padding:12px;overflow-y:auto;background:var(--skc-surface);background:color-mix(in srgb,var(--skc-base) 86%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 8%,transparent);scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .skc-dialog{background:var(--skc-surface)} }
+/* 对话框（添加/设置覆盖层）：不透明地板（12.8/12.21 教训）——覆盖层盖在自家列表
+   文字上方，qw 玻璃配方（86% 单层）会让下层文字透出（手机高密度屏尤甚，玻璃皮肤
+   下有效 alpha 仅 ~47%）。地板取 surface 全实底（相对颜色语法，玻璃皮肤令牌半透明
+   也强制 alpha=1），blur 只做深度不做可读性依赖。面板本体仍是 qw 毛玻璃（浮在
+   页面上，衬底是低密度页面内容，观感优先）。 */
+.skc-dialog{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;gap:10px;padding:12px;overflow-y:auto;background:color-mix(in srgb,var(--skc-surface) 97%,transparent);background:linear-gradient(var(--skc-surface),var(--skc-surface)),rgb(from var(--skc-base) r g b / 1);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 8%,transparent);scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
 .skc-dialog[hidden]{display:none}
 .skc-dialog-head{display:flex;align-items:center;gap:8px;padding-bottom:2px}
 .skc-add-results{display:flex;flex-direction:column;gap:3px;max-height:180px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--skc-hairline-strong) transparent}
