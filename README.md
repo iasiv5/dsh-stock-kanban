@@ -21,7 +21,7 @@ DSH 插件：多市场盯盘与持仓查看。悬浮胶囊 + A 股 / 港股 / �
 # 开发态链接安装（正式部署可 npm pack 后 add 包）
 dsh plugin --profile web add "link:/path/to/dsh-stock-kanban"
 # 或使用 tarball：
-# npm pack && dsh plugin --profile web add ./dsh-stock-kanban-0.1.0.tgz
+# npm pack && dsh plugin --profile web add ./dsh-stock-kanban-0.2.0.tgz
 # 随后重启 DSH 服务，使 host 端路由生效：
 sudo systemctl restart deepseek-harness.service
 ```
