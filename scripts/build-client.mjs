@@ -13,7 +13,7 @@ const result = await esbuild.build({
   format: "cjs",
   target: "es2022",
   write: false,
-  minify: false,
+  minify: true,
   legalComments: "none",
   loader: { ".mjs": "js" },
   resolveExtensions: [".mjs", ".js"],
@@ -22,9 +22,10 @@ const result = await esbuild.build({
 
 const body = result.outputFiles[0].text;
 
-// 版本注入断言（2026-11-10 retro）：define 链路断了会静默回落 "dev"（设置页版本号错），
-// 在构建期就炸出来。
-if (!body.includes(`APP_VERSION = true ? "${version}"`)) {
+// 版本注入断言（2026-11-10 retro；minify 适配 2026-11-11）：define 链路断了会静默回落 "dev"
+// （设置页版本号错），在构建期就炸出来。检查两点，均 minify 免疫（字符串字面量内容不受压缩影响）：
+//   ① 版本字面量在 = define 已注入；② __APP_VERSION__ 标识符不在 = 没有未替换残留。
+if (!body.includes(`"${version}"`) || body.includes("__APP_VERSION__")) {
   throw new Error(`build: 版本注入断言失败（期望 ${version}）——esbuild define 链路异常`);
 }
 
