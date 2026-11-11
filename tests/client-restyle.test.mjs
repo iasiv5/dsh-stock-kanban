@@ -407,6 +407,6 @@ test("qseg · [hidden] 兜底：qdot 与 divider 的 display 声明必须带配�
   );
   assert.ok(
     FLOAT_STYLE_TEXT.includes(".skc-qseg-divider[hidden]{display:none}"),
-    "skc-qseg-divider 缺自身 [hidden] 兜底——同上",
+    "skc-qseg-divider 缺 [hidden] 兜底",
   );
 });
