@@ -2,6 +2,7 @@
 // vanilla 重写后客户端零 react 引用：不再需要构建期 react external。
 // __APP_VERSION__：package.json 版本注入（设置页页尾版本号；2026-11-10）。
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import esbuild from "esbuild";
 
 const { version } = JSON.parse(await readFile("package.json", "utf8"));
@@ -29,7 +30,13 @@ if (!body.includes(`"${version}"`) || body.includes("__APP_VERSION__")) {
   throw new Error(`build: 版本注入断言失败（期望 ${version}）——esbuild define 链路异常`);
 }
 
-const output = "window.__ModuleLoader__.load({\n"
+// 构建指纹（2026-11-11 retro）：body sha 前 12 位注入 wrapper——页面侧可判「跑的是哪份构建」。
+// 背景：CSS 特征串指纹对纯逻辑改造无判别力（渲染切片广播战役实录：首轮实拍测的是旧构建）；
+// cdp-shot 据此做「页面指纹 == 本地产物指纹」硬比对。
+const bundleSha = createHash("sha256").update(body).digest("hex").slice(0, 12);
+const shaLine = `window.__DSH_PLUGIN_BUNDLE_SHA__=window.__DSH_PLUGIN_BUNDLE_SHA__||{};window.__DSH_PLUGIN_BUNDLE_SHA__["dsh-stock-kanban"]="${bundleSha}";\n`;
+
+const output = shaLine + "window.__ModuleLoader__.load({\n"
   + '\tid: "dsh-stock-kanban",\n'
   + "\tfactory: (require) => {\n"
   + "\t\tvar module = { exports: {} };\n"
