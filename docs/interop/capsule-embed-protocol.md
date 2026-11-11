@@ -32,7 +32,7 @@ The host merges only if `capabilities ⊇ {hide-pill, anchored-panel}` AND the u
 | Event | Direction | `detail` | Semantics |
 |---|---|---|---|
 | `dsh-quota-watch:embed-engage` | Host → window | `{ v: 1 }` | Guest hides its capsule pill **only** (float host and panel stay fully functional) and pauses its own client polling chain |
-| `dsh-quota-watch:embed-heartbeat` | Host → window | `{ v: 1 }` | Host sends every 5 s while merged. Guest self-restores (unhide pill + resume polling) after 3 consecutive missed beats (15 s) — orphan protection against a host that vanished without disengage (disabled, crashed, HMR) |
+| `dsh-quota-watch:embed-heartbeat` | Host → window | `{ v: 1 }` | Host sends every 5 s while merged. Guest self-restores (unhide pill + resume polling) when no beat arrives within a single 15 s watchdog timer (0.1.39: one timer, not a 3-beat count) — orphan protection against a host that vanished without disengage (disabled, crashed, HMR). A heartbeat received while standalone doubles as re-engage: the guest re-enters embedded directly (a standalone guest can only receive beats from a host that still considers the merge active; the host clears its heartbeat timer before dispatching disengage, so no stale beat can re-embed after a legitimate teardown) |
 | `dsh-quota-watch:embed-disengage` | Host → window | `{ v: 1 }` | Guest restores pill + polling immediately (user toggled merge off, or host tears down: dispose also sends it) |
 | `dsh-quota-watch:open-panel` | Host → window | `{ v: 1, anchor: { left, top, width, height, right, bottom } }` | Dispatched on quota-segment tap (right/bottom are additive; guests ignore unknown fields); guest opens its panel anchored per its own `placePanel` semantics near the supplied viewport rect; its native toggle semantics are preserved (panel open → the same click path closes it) |
 
@@ -49,6 +49,7 @@ The host polls `GET api/dsh-quota-watch/overview` (document-relative, same-origi
 | Capable, user merge off | Never engage (or disengage); coexist |
 | Capable, merged | Group active; heartbeat running |
 | Host vanishes while merged | Guest heartbeat timeout (15 s) → self-restore pill + polling |
+| Standalone guest receives a heartbeat | Re-enter embedded directly (split-brain self-heal; 0.1.39 semantics) |
 
 ## 7. Versioning
 
