@@ -707,3 +707,26 @@ test("visibilitychange：回前台立即拉取、后台不拉", async () => {
     s.h.cleanup();
   }
 });
+
+test("guest 替换：重新握手并重新 engage", async () => {
+  const s = setup();
+  try {
+    const g1 = addGuest(s.h);
+    await sleep(30);
+    replyCaps(s.h, ["hide-pill", "anchored-panel"]);
+    await sleep(30);
+    const engageCount = s.dispatched.filter((t) => t === `${NS}:embed-engage`).length;
+    assert.ok(engageCount >= 1, "首个 guest 正常 engage");
+    g1.remove();
+    addGuest(s.h);
+    await sleep(30);
+    replyCaps(s.h, ["hide-pill", "anchored-panel"]);
+    await sleep(30);
+    const engageCount2 = s.dispatched.filter((t) => t === `${NS}:embed-engage`).length;
+    assert.ok(engageCount2 > engageCount, "guest 替换后重新派发 embed-engage");
+    assert.notEqual(s.stack.querySelector('[data-seg="quota"]'), null, "额度段重新在位");
+  } finally {
+    s.embed.dispose();
+    s.h.cleanup();
+  }
+});

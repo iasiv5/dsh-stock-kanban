@@ -312,6 +312,8 @@ export function createQuotaEmbed({
     const found = doc.querySelector(GUEST_SELECTOR);
     if (found && found !== guestEl) {
       guestEl = found;
+      capable = false; // R1/计划 A Task 3：替换后的 guest 必须重新收一次 embed-engage，重置握手位
+      if (engaged) stopEngage(true); // 旧 guest 已不在，disengage 广播无害
       probe();
     } else if (!found && guestEl !== null) {
       guestEl = null;
