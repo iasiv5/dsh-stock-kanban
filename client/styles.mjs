@@ -360,6 +360,8 @@ export const FLOAT_STYLE_TEXT = `
 .skc-qsep{opacity:.5} /* 分隔点对齐 qw .dqw-capsule-sep */
 .skc-qseg-divider{display:inline-block;width:1px;height:14px;background:var(--skc-hairline-strong);border-radius:1px}
 .skc-qdot{display:inline-block;width:6px;height:6px;border-radius:999px;background:var(--skc-warn)}
+.skc-qdot[hidden]{display:none}
+.skc-qseg-divider[hidden]{display:none}
 .skc-capsule [data-seg="stock"]{display:inline-flex;align-items:center;gap:6px}
 [data-seg="quota"]{cursor:pointer}
 .skc-capsule [data-seg]{flex-shrink:0} /* 分区不参与 flex 压缩：文案宽度恒为内容宽（2026-11-10 溢出修复） */

@@ -399,3 +399,14 @@ test("styles · 对话框不透明地板（12.8/12.21：覆盖层盖在自家列
   const panelRule = s.slice(panelStart, s.indexOf("}", panelStart) + 1);
   assert.ok(panelRule.includes("color-mix(in srgb,var(--skc-base) 86%,transparent)"), "面板本体保持 qw 毛玻璃 86%");
 });
+
+test("qseg · [hidden] 兜底：qdot 与 divider 的 display 声明必须带配套隐藏规则", () => {
+  assert.ok(
+    FLOAT_STYLE_TEXT.includes(".skc-qdot[hidden]{display:none}"),
+    "skc-qdot 缺自身 [hidden] 兜底——现行仅靠 .skc-capsule [hidden] 外层兜底，段移出胶囊即复发",
+  );
+  assert.ok(
+    FLOAT_STYLE_TEXT.includes(".skc-qseg-divider[hidden]{display:none}"),
+    "skc-qseg-divider 缺自身 [hidden] 兜底——同上",
+  );
+});
