@@ -1156,6 +1156,27 @@ test("分区：键盘 Enter 开股票面板时带股票段矩形", async () => {
   }
 });
 
+test("分区：胶囊根命中就近归属——gap 点击按 x 就近开对应卡", async () => {
+  const s = await setupCapsuleWithQuota();
+  try {
+    s.capsule.el.querySelector('[data-seg="stock"]').getBoundingClientRect =
+      () => ({ left: 0, top: 0, right: 100, bottom: 26, width: 100, height: 26 });
+    s.capsule.el.querySelector('[data-seg="quota"]').getBoundingClientRect =
+      () => ({ left: 107, top: 0, right: 227, bottom: 26, width: 120, height: 26 });
+    const capEl = s.capsule.el;
+    s.h.firePointer(capEl, "pointerdown", { x: 120, y: 13 }); // 更近额度段中心 167（股票段中心 50）
+    s.h.firePointer(capEl, "pointerup", { x: 120, y: 13 });
+    assert.equal(s.opened.length, 1, "gap 内靠近额度段的点击派发 open-panel");
+    assert.equal(s.calls.length, 0, "不误走股票 toggle");
+    s.h.firePointer(capEl, "pointerdown", { x: 90, y: 13 }); // 更近股票段中心 50
+    s.h.firePointer(capEl, "pointerup", { x: 90, y: 13 });
+    assert.equal(s.calls.length, 1, "gap 内靠近股票段的点击走股票 toggle");
+    assert.equal(s.opened.length, 1, "open-panel 不新增");
+  } finally {
+    disposeCapsuleWithQuota(s);
+  }
+});
+
 /* ---------------- S6b：面板开着时再点胶囊（Q14；Q15=A；Step 1 先红） ---------------- */
 
 /** 最小 store 桩：panelOpen 语义与 store.mjs 一致（togglePanel/closePanel 通知订阅者），不触发网络 */

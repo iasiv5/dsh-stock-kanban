@@ -140,7 +140,9 @@ export function attachFloatDrag({ el, host, doc, win, storage, onTap, readInsets
     unbindGesture();
     doc.body.style.userSelect = "";
     if (!moved) {
-      onTap(downTarget); // 点击（未拖动的 pointerup）：分流依据是 pointerdown 的目标（S6），不读 pointerup 的 target
+      // 点击（未拖动的 pointerup）：分流依据是 pointerdown 的目标（S6），不读 pointerup 的 target；
+      // 第二参带 pointerdown 坐标（轻点时与 up 坐标差 < slop），供胶囊根命中的就近归属（计划 A Task 4）
+      onTap(downTarget, { x: originX, y: originY });
       return;
     }
     const point = clampFrame(
@@ -322,11 +324,27 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel,
 
   /* ------------------------------------------------ 拖拽管线（S3 共享化：attachFloatDrag） */
 
-  /** 轻点分流（S6，ADR 0003 第 4 条）：命中额度段 → 注入的 onQuotaTap；否则股票 toggle 并传股票段矩形 */
-  const routeTap = (target) => {
+  /** 轻点分流（S6，ADR 0003 第 4 条）：命中额度段 → 注入的 onQuotaTap；未命中任何段
+   *  （胶囊 flex gap / padding）时按 x 坐标就近归属股票段 / 额度段（计划 A Task 4）；
+   *  否则股票 toggle 并传股票段矩形 */
+  const routeTap = (target, point) => {
     if (target?.closest?.('[data-seg="quota"]')) {
       if (typeof onQuotaTap === "function") onQuotaTap();
       return;
+    }
+    if (point && target && !target.closest?.('[data-seg="stock"]')) {
+      const quotaSeg = el.querySelector('[data-seg="quota"]');
+      const stockSeg = el.querySelector('[data-seg="stock"]') ?? el;
+      const qr = quotaSeg && !quotaSeg.hidden ? quotaSeg.getBoundingClientRect() : null;
+      const sr = stockSeg.getBoundingClientRect();
+      if (qr && sr && qr.width > 0 && sr.width > 0) {
+        const qd = Math.abs(point.x - (qr.left + qr.width / 2));
+        const sd = Math.abs(point.x - (sr.left + sr.width / 2));
+        if (qd < sd) {
+          if (typeof onQuotaTap === "function") onQuotaTap();
+          return;
+        }
+      }
     }
     toggle(stockRect());
   };
