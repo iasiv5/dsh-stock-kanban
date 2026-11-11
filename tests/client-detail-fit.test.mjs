@@ -156,6 +156,22 @@ test("窗口高度变化：resize 后图表高度随之重算（680 → 520：16
   }
 });
 
+test("编辑中 resize：图表随视口重算，输入框身份不变（软键盘保活——移动端键盘弹出即 resize）", async () => {
+  const s = setupDetail({ height: 680 });
+  try {
+    await s.load();
+    const input = s.detail.el.querySelector('input[data-field="quantity"]');
+    assert.ok(input, "数量输入在位");
+    input.focus();
+    s.h.setViewport(s.h.window, 1100, 520);
+    s.h.window.dispatchEvent(new s.h.window.Event("resize"));
+    assert.equal(s.detail.el.querySelector('input[data-field="quantity"]'), input, "resize 只重画图表区，输入框身份不变（键盘不跳）");
+    assert.equal(s.chartH(), 140, "图表仍随视口重算（520 → 140）");
+  } finally {
+    s.restore();
+  }
+});
+
 const SNAP_PANEL = (view) => ({
   business: { rev: 1, settings: { privacyMode: false }, symbols: [], driverKind: null, loaded: true },
   quotes: {},

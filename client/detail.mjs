@@ -828,11 +828,13 @@ export function createDetail({ store, win }) {
     paintLive();
   };
 
-  /* 窗口高度变化：图表高度随视口重算（详情可见时骨架重建；行情与图表数据沿用会话内缓存，不重新拉取。
-     与现状等价的已知取舍：编辑中 resize 仍走重建——评审建议 b：实拍场景③顺带观察，仅记录不处理） */
+  /* 窗口高度变化：仅图表区随视口重算（paintChartArea，图表高度随视口收缩语义）。
+     头部/表单/输入框一律不动——移动端软键盘弹出即触发 window resize（竖屏 sheet 尤甚，
+     横屏键盘多走 pan 不触发），整段重建会当场销毁聚焦输入框 → 软键盘立跳（§12.17 契约；
+     2026-11-11 主人实机复测：竖屏四个输入框必现）。行情与图表数据沿用会话内缓存，不重新拉取。 */
   const onWinResize = () => {
     if (disposed || !snapshot?.ui?.panelOpen || snapshot?.ui?.view !== "detail" || !symbolOf()) return;
-    renderSkeleton();
+    paintChartArea();
   };
   winRef()?.addEventListener?.("resize", onWinResize);
 

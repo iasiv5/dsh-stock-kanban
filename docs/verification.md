@@ -458,9 +458,11 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 - 下发与活体取证（know-how 037 路径）：新 `lib/client.js` 下发到本机安装副本（旧件备份 `.dsh-research/render-slice-probe/backup/`），宿主未重启（client-only），页面硬刷新后指纹三串在/死串不在。**A/B 对照**：旧构建面板开 15s tick 行节点全换（`NEW,NEW` @ 14806ms）；新构建同窗口 17.5s 行签名全程不变（`w0,w1`）且详情输入框身份保持（tokensKept 2/2、inputIdentityPreserved true；tick 时点休市价格静态 = 空切片零重绘路径真实走到）。探针与日志留证 `.dsh-research/render-slice-probe/`。
 - cdp-shot（新构建）：面板 360 挂载；双层叠哨兵 `hiddenAttr` + `displayNone` 双 true；三视口（桌面面板/窄屏 sheet/详情）+ 设置 + 胶囊特写截图留证 `/tmp/skc-shots/202611-10T2357-*`；console 1 error = `favicon.ico` 404（硬刷新浏览器自动请求，非插件资源，无害；旧构建轮未触发因其未整页刷新）。
 
+**§12.25 追记（同日，主人实机复测反馈 → 已修复）**：评审建议 b 观察项应验——**移动端详情编辑软键盘立跳**（竖屏四个输入框必现、横屏不现）：根因 `onWinResize` 在 window resize（竖屏 sheet 下键盘弹出必然触发；横屏键盘多走 pan 不触发）时整段 `renderSkeleton()`，聚焦输入框当场销毁。旧版同路径也是整段重建，此前被 15s 轮询跳的主噪音掩盖，tick 修好后浮出。修复：resize 降级为**仅图表区重画**（paintChartArea——该 handler 的存在意义即图表高度随视口收缩），头部/表单/输入框不动。回归钉：client-detail-fit「编辑中 resize：输入框身份不变 + 图表仍随视口重算」。289/289/0 全绿；观察项 ③ 就此闭环，待主人竖屏复测确认。
+
 **未验证项与降级**（未验证不冒充已验证）：
 
 1. 拖拽中 tick（场景②）与 picker 排序（场景④）未在真实浏览器复演，以 jsdom 身份断言为锚（`client-render-identity`，§12.23 DOM 契约口径），待实机复核；
 2. 移动端软键盘/IME 真机行为待主人设备确认（同 §12.17 口径）；
-3. 编辑中 resize/旋转是否引发骨架重建（detail onWinResize 与现状等价，评审建议 b 观察项）留待实机观察；
+3. ~~编辑中 resize/旋转是否引发骨架重建~~ → **已复现并修复**（见 §12.25 追记），待主人竖屏复测确认；
 4. 主机侧插件安装副本现携带未发版构建——回滚路径：`npm 0.2.1` 重装或恢复 `backup/client.old.js`；仓库侧回滚：revert 上述 commit 链。
