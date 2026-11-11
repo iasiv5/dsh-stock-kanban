@@ -678,3 +678,32 @@ test("pull 超时：挂死请求按传输错误降级且链路继续", async () 
     s.h.cleanup();
   }
 });
+
+test("visibilitychange：回前台立即拉取、后台不拉", async () => {
+  let fetchCount = 0;
+  const s = setup({
+    fetchImpl: async () => {
+      fetchCount += 1;
+      return okResponse(overviewPayload());
+    },
+    pollMs: 60000,
+  });
+  try {
+    addGuest(s.h);
+    await sleep(30);
+    replyCaps(s.h, ["hide-pill", "anchored-panel"]);
+    await sleep(40);
+    const base = fetchCount; // engage 首拉
+    Object.defineProperty(s.h.document, "visibilityState", { value: "hidden", configurable: true });
+    s.h.document.dispatchEvent(new s.h.window.Event("visibilitychange"));
+    await sleep(40);
+    assert.equal(fetchCount, base, "后台不触发拉取");
+    Object.defineProperty(s.h.document, "visibilityState", { value: "visible", configurable: true });
+    s.h.document.dispatchEvent(new s.h.window.Event("visibilitychange"));
+    await sleep(40);
+    assert.equal(fetchCount, base + 1, "回前台立即拉取一次");
+  } finally {
+    s.embed.dispose();
+    s.h.cleanup();
+  }
+});

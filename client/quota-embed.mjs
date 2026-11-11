@@ -205,6 +205,20 @@ export function createQuotaEmbed({
     }
   };
 
+  /* ---------------- 可见性（R1/计划 A Task 2：回前台立即拉取，对齐 qw 独立态语义） ---------------- */
+
+  const refreshNow = () => {
+    if (pollTimer !== null) {
+      win.clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+    return pull();
+  };
+  const onVisibilityChange = () => {
+    if (engaged && doc.visibilityState === "visible") refreshNow();
+  };
+  doc.addEventListener("visibilitychange", onVisibilityChange);
+
   /* ---------------- 生命周期 ---------------- */
 
   const armHeartbeat = () => {
@@ -246,7 +260,7 @@ export function createQuotaEmbed({
     el.setAttribute("aria-expanded", "false");
     dispatch("embed-engage", { v: 1 });
     armHeartbeat();
-    pull();
+    refreshNow();
   };
 
   const stopEngage = (sendDisengage) => {
@@ -357,6 +371,7 @@ export function createQuotaEmbed({
     if (disposed) return;
     disposed = true;
     observer.disconnect();
+    doc.removeEventListener("visibilitychange", onVisibilityChange);
     if (probeTimer !== null) win.clearTimeout(probeTimer);
     stopEngage(true); // 拆除补发 embed-disengage（S2，ADR 0003 第 7 条）
     win.removeEventListener(`${NS}:embed-capabilities`, onCapabilities);
