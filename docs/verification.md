@@ -466,3 +466,26 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 2. 移动端软键盘/IME 真机行为待主人设备确认（同 §12.17 口径）；
 3. ~~编辑中 resize/旋转是否引发骨架重建~~ → **已复现并修复**（见 §12.25 追记），待主人竖屏复测确认；
 4. 主机侧插件安装副本现携带未发版构建——回滚路径：`npm 0.2.1` 重装或恢复 `backup/client.old.js`；仓库侧回滚：revert 上述 commit 链。
+
+## 12.26 合并胶囊额度段可靠性修复（2026-11-11；实施计划 `docs/plans/2026-11-11-quota-segment-reliability-implementation-plan.md`，独立评审 3 轮通过后执行）
+
+背景：主人报「额度那一半偶尔点不出二级卡片 / 额度信息更新不及时」。诊断（同日会话）+ 双计划独立评审（评审台账 `.dsh-research/plan-review-scratch/ledger.md`），六个 checkpoint commit：
+
+1. `ad07a16` 拉取链挂超时——`pullTimeoutMs`（默认 15s）+ `buildTimeoutSignal`（默认 `win.AbortSignal.timeout`），单请求挂死不再冻结整条自排程链，超时走既有传输错误降级（stale title + 续排）；测试基建同步：quota-embed setup 默认 stub `buildTimeoutSignal: () => undefined`、client-dom S6 两处骨架同批注入（评审 R1-1：jsdom 的 timeout 定时器拖住 Node 事件循环 15s）；
+2. `dd1f796` visibilitychange——回前台且 engaged 时清在排定时器立即拉取（对齐 qw 独立态 `onVisibilityChange` 语义），dispose 退订；
+3. `549ba6a` guest 替换重握手——`syncGuest` 在 guest 元素变化时重置 `capable` 并 stopEngage(true)，新 guest 立即收到 embed-engage（旧 capable 守卫早退致分脑的宿主侧修复）；
+4. `94fa257` routeTap 就近归属——胶囊根命中（flex gap/padding）按 x 就近归属股票/额度段，`attachFloatDrag.onTap` 加宽第二参 `{x,y}`（向后兼容）；
+5. `6a3e70c` qdot/divider 自身 `[hidden]` 配套规则（契约固化，防御性——现行 `styles.mjs:71 .skc-capsule [hidden]` 已兜底，主人确认未实际见过「琥珀点常显」症状（2026-11-11 拍板），症状从修复清单除名，任务按契约保留）；
+6. 本节（0.2.3 版本收口）。
+
+**验证**：
+
+- 逐任务红→绿（TDD）：T1 红 fetchCount 停 1 → 绿 23/0；T2 红 visible 不拉 → 绿 24/0；T3 红 engage 1→1 → 绿 25/0；T4 红 opened=0/calls=2 → 绿（client-dom 50/0 + drag 5/0 + capsule-drag-close 3/0）；T5 红（规则串缺失）→ 绿 16/0。全部日志留证 `.dsh-research/exec-scratch-20261111/`。
+- 全量：`npm test` **294/294/0**（基线 289 + 新增 5：超时降级 1、可见性 1、guest 替换 1、就近归属 1、qseg 契约 1）。
+- 构建：`npm run build` 逐任务通过（版本注入断言 0.2.3 内置）；lib/client.js 仅本节 commit 收口。
+
+**未验证项与降级**（未验证不冒充已验证）：
+
+1. 症状级活体验证（挂死拉取、后台节流、guest 替换的分脑/恢复时序、gap 点击）未在真实浏览器复演——jsdom 行为断言为锚，待装机 0.2.3 后实机观察；
+2. 心跳分脑的访客侧根治在姊妹计划（dsh-quota-watch 0.1.39），本仓 `549ba6a` 为宿主侧加速兜底，联合效果待双插件同装后验证；
+3. 回滚路径：revert 上述 commit 链或 `npm 0.2.2` 重装。
