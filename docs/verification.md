@@ -489,3 +489,5 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 1. 症状级活体验证（挂死拉取、后台节流、guest 替换的分脑/恢复时序、gap 点击）未在真实浏览器复演——jsdom 行为断言为锚，待装机 0.2.3 后实机观察；
 2. 心跳分脑的访客侧根治在姊妹计划（dsh-quota-watch 0.1.39），本仓 `549ba6a` 为宿主侧加速兜底，联合效果待双插件同装后验证；
 3. 回滚路径：revert 上述 commit 链或 `npm 0.2.2` 重装。
+
+**§12.26 追记（2026-11-12，S-1 落地——pull 代际戳/序列守卫）**：评审 I-2/S-1 建议项实施——`pull()` 加 `pullSequence` 代际戳：迟到请求（被更新代际取代）不写回，三路全守（成功 paint 不覆盖新数据 / 404 藏段不误触 / catch 仅在仍为最新代际时打 stale title 与排程，取代者负责续排无链停顿）。修法借鉴 qw `forceGeneration/normalSequence` 水印先例（评审 S-1 归档素材）。回归钉：client-quota-embed 两条新用例「迟到的失败请求不误标 stale / 迟到的成功请求不覆盖新数据」——红复演经修正夹具在旧实现（stash 基线）坐实双红因（首跑夹具误以 rej 代 res，探针 `.dsh-research/exec-scratch-20261111/s1-debug.mjs` 抓栈定责后修正）；绿 27/0，全量 296/296/0。版本维持 0.2.3（未发版增量，lib 已随源重建保持产物新鲜，下次发版 bump 0.2.4）。

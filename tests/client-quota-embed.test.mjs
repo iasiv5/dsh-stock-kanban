@@ -730,3 +730,57 @@ test("guest 替换：重新握手并重新 engage", async () => {
     s.h.cleanup();
   }
 });
+
+test("并发拉取：迟到的失败请求不误标 stale（S-1）", async () => {
+  const pending = [];
+  const s = setup({
+    fetchImpl: () => new Promise((res, rej) => pending.push({ res, rej })),
+    pollMs: 60000,
+  });
+  try {
+    addGuest(s.h);
+    await sleep(30);
+    replyCaps(s.h, ["hide-pill", "anchored-panel"]);
+    await sleep(40);
+    Object.defineProperty(s.h.document, "visibilityState", { value: "visible", configurable: true });
+    s.h.document.dispatchEvent(new s.h.window.Event("visibilitychange"));
+    await sleep(40);
+    assert.equal(pending.length, 2, "两次拉取都在飞");
+    pending[1].res(okResponse(overviewPayload()));
+    await sleep(40);
+    assert.equal(s.embed.el.title, "", "新拉成功渲染，title 干净");
+    pending[0].rej(new Error("aborted")); // 旧请求迟到失败
+    await sleep(40);
+    assert.equal(s.embed.el.title, "", "迟到的失败请求不得误标 stale（S-1）");
+  } finally {
+    s.embed.dispose();
+    s.h.cleanup();
+  }
+});
+
+test("并发拉取：迟到的成功请求不覆盖新数据（S-1）", async () => {
+  const pending = [];
+  const s = setup({
+    fetchImpl: () => new Promise((res) => pending.push(res)),
+    pollMs: 60000,
+  });
+  try {
+    addGuest(s.h);
+    await sleep(30);
+    replyCaps(s.h, ["hide-pill", "anchored-panel"]);
+    await sleep(40);
+    Object.defineProperty(s.h.document, "visibilityState", { value: "visible", configurable: true });
+    s.h.document.dispatchEvent(new s.h.window.Event("visibilitychange"));
+    await sleep(40);
+    assert.equal(pending.length, 2, "两次拉取都在飞");
+    pending[1](okResponse(overviewPayload({ glm: 12.5 }))); // 新请求先回
+    await sleep(40);
+    assert.equal(s.embed.el.querySelector(".skc-qval").textContent, "GLM 13%", "新数据已渲染");
+    pending[0](okResponse(overviewPayload({ glm: 88 }))); // 旧数据迟到
+    await sleep(40);
+    assert.equal(s.embed.el.querySelector(".skc-qval").textContent, "GLM 13%", "迟到旧数据不得覆盖（S-1）");
+  } finally {
+    s.embed.dispose();
+    s.h.cleanup();
+  }
+});

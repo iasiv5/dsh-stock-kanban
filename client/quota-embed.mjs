@@ -105,6 +105,7 @@ export function createQuotaEmbed({
   let probeTimer = null;
   let heartTimer = null;
   let pollTimer = null;
+  let pullSequence = 0; // S-1：拉取代际戳——迟到请求不写回（paint / 404 藏段 / stale title 均以最新代际为准）
 
   /* ---------------- 段（S5：段即根，直接并入胶囊） ---------------- */
 
@@ -178,6 +179,7 @@ export function createQuotaEmbed({
 
   const pull = async () => {
     if (disposed || !engaged) return;
+    const sequence = ++pullSequence;
     try {
       // R1-1：单请求挂死不得冻结整条自排程链——超时 abort 落入下方 catch（stale title + 续排）
       const signal = buildTimeoutSignal(pullTimeoutMs);
@@ -186,6 +188,7 @@ export function createQuotaEmbed({
         ...(signal ? { signal } : {}),
       });
       if (disposed || !engaged) return;
+      if (sequence !== pullSequence) return; // S-1：迟到请求不写回（paint/404/stale 皆免）
       if (res.status === 404) {
         el.hidden = true; // 路由缺席：藏段 + 慢重试（降级语义）
         schedulePoll(retryMs);
@@ -197,8 +200,9 @@ export function createQuotaEmbed({
       paintOverview(data);
       schedulePoll(pollMs);
     } catch {
-      // 传输错误：保留上次渲染，正常节奏重试（与访客自身语义一致）；pill 标注过期（quota.stale）
-      if (!disposed && engaged) {
+      // 传输错误：保留上次渲染，正常节奏重试（与访客自身语义一致）；pill 标注过期（quota.stale）。
+      // S-1：被更新代际取代的请求不打 stale title、不排程（取代者负责续排），防止迟到超时误标
+      if (!disposed && engaged && sequence === pullSequence) {
         el.title = t("quota.stale");
         schedulePoll(pollMs);
       }
