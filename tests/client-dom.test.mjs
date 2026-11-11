@@ -1060,6 +1060,7 @@ async function setupCapsuleWithQuota() {
     pollMs: 10000,
     retryMs: 10000,
     heartbeatMs: 80,
+    buildTimeoutSignal: () => undefined, // R1-1：同 client-quota-embed setup，避免 jsdom 超时定时器拖住事件循环
   });
   const guest = h.document.createElement("div");
   guest.setAttribute("data-dsh-quota-watch-float", "");
@@ -1265,6 +1266,7 @@ async function setupStockPanelWithQuota() {
     pollMs: 10000,
     retryMs: 10000,
     heartbeatMs: 80,
+    buildTimeoutSignal: () => undefined, // R1-1：同 client-quota-embed setup，避免 jsdom 超时定时器拖住事件循环
   });
   const guest = h.document.createElement("div");
   guest.setAttribute("data-dsh-quota-watch-float", "");

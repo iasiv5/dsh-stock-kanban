@@ -55,7 +55,7 @@ function overviewPayload({ glm = 12.5, copilotRemaining = 24 } = {}) {
   };
 }
 
-function setup({ fetchImpl, withCapsule = false } = {}) {
+function setup({ fetchImpl, withCapsule = false, ...opts } = {}) {
   const h = createDomHarness();
   h.setViewport(h.window, 1024, 768);
   const host = h.document.createElement("div");
@@ -92,6 +92,10 @@ function setup({ fetchImpl, withCapsule = false } = {}) {
     retryMs: 10000,
     heartbeatMs: 80,
     onCapabilityChange: (v) => caps.push(v),
+    // R1-1：本仓 jsdom 的 AbortSignal.timeout 会拖住 Node 事件循环 15s——默认 stub，
+    // 超时用例经 ...opts 注入真实现（buildTimeoutSignal）。
+    buildTimeoutSignal: () => undefined,
+    ...opts,
   });
   return { h, host, stack, shadow, embed, dispatched, caps, fetches, capsule };
 }
@@ -641,6 +645,36 @@ test("位置继承：无 qw 位置记录 → 采纳跳过", async () => {
   } finally {
     s.embed.dispose();
     s.capsule?.dispose();
+    s.h.cleanup();
+  }
+});
+
+test("pull 超时：挂死请求按传输错误降级且链路继续", async () => {
+  let fetchCount = 0;
+  const s = setup({
+    fetchImpl: (_url, opts = {}) => {
+      fetchCount += 1;
+      return new Promise((_resolve, reject) => {
+        opts.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+      });
+    },
+    pollMs: 40,
+    pullTimeoutMs: 30,
+    buildTimeoutSignal: (ms) => {
+      const ctl = new AbortController();
+      setTimeout(() => ctl.abort(), ms);
+      return ctl.signal;
+    },
+  });
+  try {
+    addGuest(s.h);
+    await sleep(30);
+    replyCaps(s.h, ["hide-pill", "anchored-panel"]);
+    await sleep(220); // ≥ pullTimeoutMs + 2×pollMs
+    assert.ok(fetchCount >= 3, `超时后链路继续拉取（实际 ${fetchCount} 次）`);
+    assert.equal(s.embed.el.title, t("quota.stale"), "挂死期间段标注过期");
+  } finally {
+    s.embed.dispose();
     s.h.cleanup();
   }
 });

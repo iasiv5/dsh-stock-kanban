@@ -4,7 +4,8 @@
  * （embed-probe / embed-capabilities，500ms 无回复即共存不隐藏）→ engage /
  * 5s heartbeat / disengage 生命周期 → overview 拉取与 quota pill 渲染 →
  * 降级矩阵（缺席/legacy/设置关/合并/宿主消失）。
- * 数据通道：document-relative GET api/dsh-quota-watch/overview（qw 同款拉法）；
+ * 数据通道：document-relative GET api/dsh-quota-watch/overview（qw 同款拉法，单请求挂
+ * pullTimeoutMs 超时，超时/传输错误均保留上次渲染 + 正常节奏续排）；
  * 404 → 藏段 + 慢重试（retryMs）；传输错误 → 保留上次渲染 + 正常节奏（pollMs）。
  * 阈值语义与 guest 逐字对齐（warn >80≤95 / danger >95 / pulse >95，spec §9）；
  * percent 计算是 qw glmRowModel/copilotRowModel 的私有拷贝（GLM=5h 窗口，
@@ -86,6 +87,9 @@ export function createQuotaEmbed({
   target,
   host,
   fetchImpl = fetch,
+  pullTimeoutMs = 15000,
+  buildTimeoutSignal = (ms) =>
+    typeof win.AbortSignal?.timeout === "function" ? win.AbortSignal.timeout(ms) : undefined,
   probeTimeoutMs = 500,
   pollMs = 30000,
   retryMs = 60000,
@@ -175,7 +179,12 @@ export function createQuotaEmbed({
   const pull = async () => {
     if (disposed || !engaged) return;
     try {
-      const res = await fetchImpl(OVERVIEW_URL, { headers: { accept: "application/json" } });
+      // R1-1：单请求挂死不得冻结整条自排程链——超时 abort 落入下方 catch（stale title + 续排）
+      const signal = buildTimeoutSignal(pullTimeoutMs);
+      const res = await fetchImpl(OVERVIEW_URL, {
+        headers: { accept: "application/json" },
+        ...(signal ? { signal } : {}),
+      });
       if (disposed || !engaged) return;
       if (res.status === 404) {
         el.hidden = true; // 路由缺席：藏段 + 慢重试（降级语义）
