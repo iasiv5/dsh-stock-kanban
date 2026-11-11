@@ -173,7 +173,7 @@ if (fp === "NO_HOST") { console.error("胶囊未挂载"); process.exit(1); }
 // ①b 构建指纹硬比对（2026-11-11 retro）：页面运行的 client 必须 ≡ 本地产物。
 // 背景：CSS 特征串对纯逻辑改造无判别力（渲染切片广播战役实录：首轮实拍测的是旧构建还判了全绿）。
 const localSha = (readFileSync(new URL("../lib/client.js", import.meta.url), "utf8")
-  .match(/__DSH_PLUGIN_BUNDLE_SHA__\]\s*=\s*"([0-9a-f]{12})"/) ?? [])[1] ?? null;
+  .match(/"dsh-stock-kanban"\]\s*=\s*"([0-9a-f]{12})"/) ?? [])[1] ?? null;
 const shaMatch = fp.bundleSha != null && fp.bundleSha === localSha;
 console.log("bundle-sha:", JSON.stringify({ page: fp.bundleSha, local: localSha, match: shaMatch }));
 if (!shaMatch) {
