@@ -125,7 +125,7 @@ npm test        # 全离线 mock，不依赖外网
 - `docs/ui-redesign.md`：界面设计契约与分轮变更记录
 - `docs/verification.md`：验证记录，以及未验证项与降级
 - `docs/tech-notes.md`：DSH 接口与技术核查记录
-- `docs/adr/`：架构决策记录（0001–0003）
+- `docs/adr/`：架构决策记录（0001–0005）
 - `docs/interop/capsule-embed-protocol.md`：与 quota-watch 的 CEP v1 协议规格
 - `docs/reuse-mapping.md`：参考项目的复用与改造清单
 - `docs/data-source-probe.md`：行情数据源探测记录

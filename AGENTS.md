@@ -4,7 +4,7 @@ DSH 插件（盯盘胶囊 + 面板 + 分时/K 线）。运行时零 npm 依赖�
 
 ## 每轮生效
 
-- clone 后一次性：`git config core.hooksPath .githooks`（pre-push 跑全套 `npm test`，红灯不得落进远端历史）。
+- clone 后一次性：`git config core.hooksPath .githooks`（pre-push 跑全套 `npm test` + 产物新鲜度 build+diff `lib/client.js`，红灯不得落进远端历史）。
 - build/test 前：`test -d node_modules`，缺失先 `npm ci`——**`dsh plugin add/remove` 会清掉 workspace 的 node_modules**（2026-10-27、2026-11-10 两次实录）；同时确认无 chrome 进程（headless 曾把 npm test 22s→700s）。
 - 改 `client/` 后必跑 `npm run build`（esbuild 打包 `lib/client.js`；`__APP_VERSION__` 由 package.json 注入，设置页页尾展示，构建脚本自带注入断言）。渲染层改动再跑 `scripts/cdp-shot.mjs`（纪律见其头注：chrome 一律后台起跑、假活 `--down` 重启、重活前进程清零）。
 - 发版链：bump → build → `chore(release)` → tag → push → `../../01_docs/dsh-intall-know-how/tools/release-monitor.sh <owner/repo> <tag> <npm包> <版本>`（两阶段轮询，铁律见 know-how 018：窗口内不重推 tag）。

@@ -16,3 +16,10 @@ if [ "$chrome_count" != "0" ]; then
   exit 1
 fi
 npm test --silent
+# 产物新鲜度（2026-11-12 retro）：版本脚注构建期注入 lib/client.js，bump 后必须重建——
+# 本地化 CI 同名门禁（rebuild + diff），防「本地全绿、CI freshness 挂」的空发布循环。
+npm run build --silent
+if ! git diff --exit-code lib/client.js; then
+  echo "pre-push: lib/client.js 与源码构建不一致——提交重建产物后再推" >&2
+  exit 1
+fi
