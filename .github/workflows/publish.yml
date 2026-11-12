@@ -24,5 +24,14 @@ jobs:
       # OIDC 发布要求 runner 的 npm >= 11.5.1；setup-node 自带的可能更旧
       - name: Ensure npm >= 11.5.1
         run: npm install -g npm@latest
+      # 产物新鲜度门禁（2026-11-12 retro：qw 同款守卫）——发布 tarball 必须来自当前源码
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+      - name: Verify committed artifact freshness (rebuild + diff)
+        run: |
+          npm run build
+          git diff --exit-code lib/client.js
       - name: Publish to npm
         run: npm publish --provenance --access public
