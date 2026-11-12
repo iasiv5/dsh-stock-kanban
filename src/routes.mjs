@@ -1,6 +1,6 @@
 /**
  * HTTP 路由：业务状态 / 标的 CRUD / 行情 / K线 / 分时 / 搜索 / 导入导出。
- * 全部 exact 路由，POST 强制同源 + JSON + 体积上限；响应 no-store。
+ * 全部 exact 路由先过官方信任检查（trust 壳），POST 再强制同源 + JSON + 体积上限；响应 no-store。
  * 日志不输出持仓数值与备份内容（只记 id 与动作）。
  */
 
@@ -49,8 +49,8 @@ async function readJsonBody(req, maxBytes) {
   }
 }
 
-/** 变更路由公共壳：同源校验 + rev CAS + 错误映射 */
-function mutation(handler) {
+/** 变更路由公共壳：同源校验 + rev CAS + 错误映射（默认 64KiB；import 用 512KiB） */
+function mutation(handler, maxBytes = MUTATION_BODY_MAX) {
   return async (req, res) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", "POST");
@@ -63,7 +63,7 @@ function mutation(handler) {
     }
     let body;
     try {
-      body = await readJsonBody(req, IMPORT_BODY_MAX);
+      body = await readJsonBody(req, maxBytes);
     } catch (e) {
       sendJson(res, e.status ?? 400, { error: String(e.message ?? e) });
       return;
@@ -85,22 +85,31 @@ function mutation(handler) {
 /** 依赖注入（host.mjs 装配） */
 let deps = null;
 
-export function createRoutes({ store, quotes, logger }) {
+export function createRoutes({ store, quotes, logger, trust }) {
   deps = { store, quotes, logger: logger ?? console };
+  /** 官方信任检查壳：rejection 非 undefined → 以该状态码直接拒绝（401/403），读路由不豁免 */
+  const withTrust = (handler) => async (req, res) => {
+    const rejection = typeof trust === "function" ? trust(req) : undefined;
+    if (rejection !== undefined) {
+      sendJson(res, rejection, { error: "untrusted" });
+      return;
+    }
+    await handler(req, res);
+  };
   return [
-    { path: `${PREFIX}/state`, handler: stateRoute },
-    { path: `${PREFIX}/symbols/add`, handler: mutation(addSymbolRoute) },
-    { path: `${PREFIX}/symbols/update`, handler: mutation(updateSymbolRoute) },
-    { path: `${PREFIX}/symbols/reorder`, handler: mutation(reorderSymbolRoute) },
-    { path: `${PREFIX}/symbols/remove`, handler: mutation(removeSymbolRoute) },
-    { path: `${PREFIX}/settings`, handler: mutation(settingsRoute) },
-    { path: `${PREFIX}/search`, handler: searchRoute },
-    { path: `${PREFIX}/quotes`, handler: quotesRoute },
-    { path: `${PREFIX}/kline`, handler: klineRoute },
-    { path: `${PREFIX}/minute`, handler: minuteRoute },
-    { path: `${PREFIX}/export`, handler: exportRoute },
-    { path: `${PREFIX}/import`, handler: mutation(importRoute) },
-    { path: `${PREFIX}/health`, handler: healthRoute },
+    { path: `${PREFIX}/state`, handler: withTrust(stateRoute) },
+    { path: `${PREFIX}/symbols/add`, handler: withTrust(mutation(addSymbolRoute)) },
+    { path: `${PREFIX}/symbols/update`, handler: withTrust(mutation(updateSymbolRoute)) },
+    { path: `${PREFIX}/symbols/reorder`, handler: withTrust(mutation(reorderSymbolRoute)) },
+    { path: `${PREFIX}/symbols/remove`, handler: withTrust(mutation(removeSymbolRoute)) },
+    { path: `${PREFIX}/settings`, handler: withTrust(mutation(settingsRoute)) },
+    { path: `${PREFIX}/search`, handler: withTrust(searchRoute) },
+    { path: `${PREFIX}/quotes`, handler: withTrust(quotesRoute) },
+    { path: `${PREFIX}/kline`, handler: withTrust(klineRoute) },
+    { path: `${PREFIX}/minute`, handler: withTrust(minuteRoute) },
+    { path: `${PREFIX}/export`, handler: withTrust(exportRoute) },
+    { path: `${PREFIX}/import`, handler: withTrust(mutation(importRoute, IMPORT_BODY_MAX)) },
+    { path: `${PREFIX}/health`, handler: withTrust(healthRoute) },
   ];
 }
 

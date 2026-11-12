@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { Store } from "../src/store.mjs";
 import { createQuoteService } from "../src/quotes.mjs";
 import { createRoutes } from "../src/routes.mjs";
+import { createTrustGuard } from "../src/access.mjs";
 
 /* 路由层测试：真实 HTTP 服务器 + mock 上游（不依赖网络） */
 
@@ -15,14 +16,14 @@ const SYM = {
   name: "贵州茅台", addedAt: "2026-01-01T00:00:00.000Z", sort: 1,
 };
 
-async function startServer() {
+async function startServer({ trust, logger } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "sk-routes-"));
   process.env.DSH_STOCK_KANBAN_FILE = join(dir, "data.json");
   const store = new Store({}, { info() {}, warn() {} });
   await store.init();
   await store.addSymbol(SYM);
   const quotes = createQuoteService({});
-  const routes = createRoutes({ store, quotes, logger: { info() {}, warn() {} } });
+  const routes = createRoutes({ store, quotes, logger: logger ?? { info() {}, warn() {} }, trust });
   const server = http.createServer((req, res) => {
     const route = routes.find((r) => r.path === (req.url ?? "").split("?")[0]);
     if (!route) { res.writeHead(404); res.end("not found"); return; }
@@ -210,4 +211,77 @@ test("路由：reorder 200 重编号 / 422 非排列与非法市场 / ifRev 冲�
     assert.equal(conflict.status, 409);
     assert.equal(conflict.body.error, "rev-conflict");
   } finally { t.close(); }
+});
+
+/* ---------------- 官方信任检查（connection.requestRejection 守卫式委派，2026-11-12） ---------------- */
+
+/** 挂上指定 connection mock 的信任围栏后启动同一套路由 */
+function trustServer(conn, logger) {
+  return startServer({ trust: createTrustGuard({ get: () => conn }, logger) });
+}
+
+test("路由：信任检查拒绝 → 401/403 原样下发（error=untrusted）", async () => {
+  for (const status of [401, 403]) {
+    const t = await trustServer({ requestRejection: () => status });
+    try {
+      const res = await t.j("/stock-kanban/state");
+      assert.equal(res.status, status);
+      assert.equal(res.body.error, "untrusted");
+    } finally { t.close(); }
+  }
+});
+
+test("路由：信任检查放行 → 业务照常；写路由仍受同源校验", async () => {
+  const restore = await mockUpstream();
+  const t = await trustServer({ requestRejection: () => undefined });
+  try {
+    const res = await t.j("/stock-kanban/state");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.rev, 1);
+    const cross = await t.j("/stock-kanban/settings", { method: "POST", headers: { "content-type": "application/json", origin: "http://evil.example", "sec-fetch-site": "cross-site" }, body: JSON.stringify({ ifRev: t.store.rev, privacyMode: true }) });
+    assert.equal(cross.status, 403);
+    assert.equal(cross.body.error, "origin-rejected");
+  } finally { t.close(); restore(); }
+});
+
+test("路由：connection 服务缺席 → fail-closed 403，warn 只发一次", async () => {
+  const warns = [];
+  const t = await trustServer(undefined, { warn: (m) => warns.push(String(m)) });
+  try {
+    const r1 = await t.j("/stock-kanban/state");
+    const r2 = await t.j("/stock-kanban/health");
+    assert.equal(r1.status, 403);
+    assert.equal(r2.status, 403);
+    assert.equal(r1.body.error, "untrusted");
+    assert.equal(warns.length, 1);
+    assert.match(warns[0], /fail-closed/);
+  } finally { t.close(); }
+});
+
+test("路由：requestRejection 抛错 → fail-closed 403", async () => {
+  const t = await trustServer({ requestRejection: () => { throw new Error("boom"); } });
+  try {
+    const res = await t.j("/stock-kanban/state");
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error, "untrusted");
+  } finally { t.close(); }
+});
+
+test("路由：读路由不豁免（export/health/quotes 同样过信任检查）", async () => {
+  const t = await trustServer({ requestRejection: () => 403 });
+  try {
+    assert.equal((await t.j("/stock-kanban/export")).status, 403);
+    assert.equal((await t.j("/stock-kanban/health")).status, 403);
+    assert.equal((await t.j("/stock-kanban/quotes?ids=cn:sh600519")).status, 403);
+  } finally { t.close(); }
+});
+
+test("路由：非 import 变更默认 64KiB 体积上限（413）", async () => {
+  const restore = await mockUpstream();
+  const t = await trustServer({ requestRejection: () => undefined });
+  try {
+    const big = JSON.stringify({ ifRev: t.store.rev, privacyMode: true, pad: "x".repeat(70 * 1024) });
+    const res = await t.j("/stock-kanban/settings", { method: "POST", headers: { "content-type": "application/json", origin: t.base, "sec-fetch-site": "same-origin" }, body: big });
+    assert.equal(res.status, 413);
+  } finally { t.close(); restore(); }
 });

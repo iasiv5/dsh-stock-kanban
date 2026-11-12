@@ -1,28 +1,35 @@
 /**
- * 请求访问控制（模式参考 dsh-quota-watch / Bob-Bo1 stock-watch，MIT）。
+ * 请求访问控制（模式参考 dsh-quota-watch、dsh-m host.ts 守卫式委派，MIT）。
  *
- * - 读路由：同 DSH 源即可（外层 ingress 已有认证墙；与其它插件路由一致）；
- * - 写路由：强制同源（sec-fetch-site + Origin/Host 双校验），防跨站驱动变更。
+ * - 全部路由：官方信任检查 connection.requestRejection（Connection 指纹围栏，
+ *   DNS rebinding 免疫）；服务缺席/抛错一律 fail-closed 403（warn 一次）。
+ * - 写路由：官方检查之外再强制同源（sec-fetch-site + Origin/Host 双校验），纵深防御。
  */
 
-function isIPv4Loopback(address) {
-  const parts = address.split(".");
-  return parts.length === 4 && parts[0] === "127" && parts.every((p) => /^\d{1,3}$/.test(p) && Number(p) <= 255);
-}
-
-export function isLoopbackRequest(req) {
-  const remote = req.socket?.remoteAddress ?? "";
-  const normalized = String(remote).toLowerCase().replace(/^::ffff:/, "");
-  const loopback = normalized === "::1" || isIPv4Loopback(normalized);
-  if (!loopback) return false;
-  const host = req.headers?.host;
-  if (typeof host !== "string" || host === "") return false;
-  try {
-    const hostname = new URL(`http://${host}`).hostname.toLowerCase();
-    return hostname === "localhost" || hostname === "[::1]" || isIPv4Loopback(hostname) || hostname === "127.0.0.1";
-  } catch {
-    return false;
-  }
+/** 官方信任检查的守卫式委派：返回 401 | 403 | undefined（undefined = 放行） */
+export function createTrustGuard(ctx, logger = console) {
+  let warned = false;
+  const warnOnce = (err) => {
+    if (warned) return;
+    warned = true;
+    logger?.warn?.("stock-kanban: 官方 connection.requestRejection 不可用，全路由 fail-closed 403");
+    if (err) logger?.warn?.(err);
+  };
+  return (req) => {
+    try {
+      // 非抛式服务查询（cordis Local 对未注入属性的直接读取会抛，不得用作探测）。
+      const connection = ctx?.get?.("connection");
+      const reject = connection?.requestRejection;
+      if (typeof reject !== "function") {
+        warnOnce(undefined);
+        return 403;
+      }
+      return reject.call(connection, { headers: req.headers }) ?? undefined;
+    } catch (err) {
+      warnOnce(err);
+      return 403;
+    }
+  };
 }
 
 export function isSameOriginRequest(req) {

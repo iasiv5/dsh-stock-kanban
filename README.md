@@ -78,7 +78,7 @@ sudo systemctl restart deepseek-harness.service
 - 不同 DSH 实例（如本机 desktop 与远端 web）的数据互相独立，迁移用手动导出 / 导入。
 - 备份文件是 JSON 明文，包含持仓数据，请自行妥善保管。导入为覆盖模式，会替换当前全部数据。
 - 行情请求只携带市场代码，**不发送任何持仓数据**给行情提供方。
-- 写操作路由强制同源校验（Origin / Sec-Fetch-Site），并限制请求体积。
+- 全部路由经 DSH 官方信任检查（`connection.requestRejection`，检查服务缺席时 fail-closed 403）；写操作路由另做同源校验（Origin / Sec-Fetch-Site），并限制请求体积。
 - 多页面一致：每次变更带版本号（rev）。旧页面用过期数据提交时会收到 409，并提示「数据已被其他页面更新，已刷新，请重试」，不静默覆盖。
 
 ## 行情来源与限制
