@@ -491,3 +491,17 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 3. 回滚路径：revert 上述 commit 链或 `npm 0.2.2` 重装。
 
 **§12.26 追记（2026-11-12，S-1 落地——pull 代际戳/序列守卫）**：评审 I-2/S-1 建议项实施——`pull()` 加 `pullSequence` 代际戳：迟到请求（被更新代际取代）不写回，三路全守（成功 paint 不覆盖新数据 / 404 藏段不误触 / catch 仅在仍为最新代际时打 stale title 与排程，取代者负责续排无链停顿）。修法借鉴 qw `forceGeneration/normalSequence` 水印先例（评审 S-1 归档素材）。回归钉：client-quota-embed 两条新用例「迟到的失败请求不误标 stale / 迟到的成功请求不覆盖新数据」——红复演经修正夹具在旧实现（stash 基线）坐实双红因（首跑夹具误以 rej 代 res，探针 `.dsh-research/exec-scratch-20261111/s1-debug.mjs` 抓栈定责后修正）；绿 27/0，全量 296/296/0。版本维持 0.2.3（未发版增量，lib 已随源重建保持产物新鲜，下次发版 bump 0.2.4）。
+
+## 12.27 合并态卡片新鲜度根治（2026-11-12；修复在姊妹仓 dsh-quota-watch 0.1.41，本仓仅协议文档同步）
+
+背景：主人实机复测「胶囊里 GLM 18% 是最新的，一级卡片和二级卡片里的信息都是 out-of-date」（双红框截图：胶囊 18% vs 两卡 50%/重置 11:15）。诊断定谳：合并态（CEP poll-pause）下 qw 客户端整条轮询链被停（`startPolling` 的 `embedded` 硬门控 + engage `stopPolling`），而一级/二级卡片渲染自 qw 客户端内存快照——打开卡片零 fetch，快照冻在嵌入时刻；sk 侧胶囊段自拉 `/overview` 所以始终新鲜，服务端快照也因 sk 30s 拉取保持新鲜（loopback 直测 5h=19%、updatedAt 当刻）。11-11 双计划修的是点击/分脑/拉取链冻结，未覆盖此洞。
+
+修复（qw 侧，本仓零代码改动）：qw `src/client.mjs` 嵌入门控改为**数据面豁免**——面板/弹卡（openKey）或副栏卡片可见 ⇒ qw 恢复自身节奏拉取（开卡即新：`syncPop`/`syncCardVisibility` → `syncEmbeddedPolling`），全关 ⇒ 恢复停链；在飞 GET 的级联渲染不补发（`ordinaryPollInFlight` 守卫，防微任务级联风暴——首版实现曾因此把事件循环饿死 60s，探针定位后修正）。CEP §4 engage 行同步（本仓 commit 85f414a）。
+
+验证：
+
+- TDD：client-embed 三新用例（开面板立即拉取+开着续排+关后停链 / 卡片可见轮询继续+藏卡面板仍开不停+全关停 / 既有后台停链用例保绿）红→绿 13/13；qw 全量 272/272/0（21s）。小机纪律（本日教训）：3.7G 内存机上测试一律 solo + 硬超时包裹——并发两套 jsdom 套件曾把宿主挤挂，Hermes 杀进程自愈并已入册 dsh-runtime-ops skill。
+- 发版链：0.1.41 三处锁步 + build → `fix(client)` bdc6818 + `chore(release)` cad3fc7 → tag 推送（pre-push 全量套件 + 新鲜度门禁过）→ release-monitor 两阶段：workflow success + npm 三键 200（13:00:16 上架）→ `dshm_upgrade` 装机 0.1.41。
+- **活体验证**（chromium-1234 驱动本机宿主页，探针 `.dsh-research/exec-scratch-20261112/probe-qw-0141.mjs`）：`guestVersion 0.1.41`（免重启生效）；合并态 qw pill 隐藏、sk 段 `GLM 48%·Copilot 68%` 与服务器同值；**open-panel 后 overview GET +1（旧代码为 0）且面板渲染 48% === 服务器当前值**；关面板后台 2.5s 零新增请求。
+
+**未验证项与降级**：主人实机手感（浏览器刷新后开卡即新）待确认；`dshm_upgrade` activation 报 restart-required 系保守判定——本轮 diff 纯客户端文件，活体 guestVersion 已证免重启。
