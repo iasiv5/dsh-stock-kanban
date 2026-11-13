@@ -15,6 +15,7 @@
  *     HKD，展示即按错误币种估值；
  *   - 上游异常显式标记：smartbox 响应格式异常、OKX 清单不可用、本地池加载失败均带 error；
  *   - OKX 清单失败进入 60 秒冷却，并发请求合并为一次上游调用，不再每次等满超时。
+ *   - cn 混合搜索（ADR-0006）：池优先凑满 30 条不打上游；smartbox 补充 GP-A 正股（拼音缩写、刷新间隙的新上市）。
  */
 
 import { readFile } from "node:fs/promises";
@@ -116,6 +117,9 @@ export function parseSmartbox(text) {
       // 用交易所后缀直接预置 EM secid，省一次探测
       eastmoney.seedUSSecid(us.ticker, us.suffix);
       rows.push({ code: us.ticker, name, market: "us", kind: type === "ETF" ? "etf" : "stock", source: "smartbox" });
+    } else if ((marketTag === "sh" || marketTag === "sz" || marketTag === "bj") && type.startsWith("GP")) {
+      // GP / GP-A：A股正股（2026-11-14 实测 smartbox 返回 GP-A 且带拼音缩写；bj 暂无返回，放行备用）
+      rows.push({ code: marketTag + code, name, market: "cn", kind: "stock", source: "smartbox" });
     } else if ((marketTag === "sh" || marketTag === "sz") && type === "ETF") {
       rows.push({ code: marketTag + code, name, market: "cn", kind: "etf", source: "smartbox" });
     }
@@ -284,6 +288,14 @@ export async function search(market, query) {
       poolHits(etfs.rows, (c) => normalizeInputCode("cn", c), "etf"),
     );
     for (const row of merged) push(row);
+    // 池子已凑满上限则不打上游（与 hk 同口径）；smartbox 补充拼音缩写与刷新间隙的新上市标的（ADR-0006）
+    if (rows.length < MAX_ROWS) {
+      try {
+        for (const row of await fetchSmartbox(needle)) push(row);
+      } catch {
+        error = "smartbox-unavailable";
+      }
+    }
   } else if (market === "hk") {
     matchCatalog();
     const pool = await loadPool("hk_stocks.json");

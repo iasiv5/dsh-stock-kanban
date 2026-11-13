@@ -37,26 +37,50 @@ test("搜索只返回本市场：smartbox 全市场混排不得串进当前 Tab�
 });
 
 test("搜索：名称按 NFKC+去空白匹配（池内「万 科Ａ」可被「万科」「万科a」命中）", async () => {
-  const plain = await search("cn", "万科");
-  assert.ok(plain.rows.some((r) => r.id === "cn:sz000002"), JSON.stringify(plain.rows.map((r) => r.id)));
-  const latin = await search("cn", "万科a");
-  assert.ok(latin.rows.some((r) => r.id === "cn:sz000002"));
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  try {
+    const plain = await search("cn", "万科");
+    assert.ok(plain.rows.some((r) => r.id === "cn:sz000002"), JSON.stringify(plain.rows.map((r) => r.id)));
+    const latin = await search("cn", "万科a");
+    assert.ok(latin.rows.some((r) => r.id === "cn:sz000002"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("搜索：股票与 ETF 交错合并，数字查询不让 ETF 被饿死", async () => {
-  const r = await search("cn", "300");
-  assert.ok(r.rows.some((x) => x.kind === "etf"), "结果中应含 ETF");
-  assert.ok(r.rows.length <= 30);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  try {
+    const r = await search("cn", "300");
+    assert.ok(r.rows.some((x) => x.kind === "etf"), "结果中应含 ETF");
+    assert.ok(r.rows.length <= 30);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("搜索：精确代码排第一（600519 → 贵州茅台）", async () => {
-  const r = await search("cn", "600519");
-  assert.equal(r.rows[0].id, "cn:sh600519");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  try {
+    const r = await search("cn", "600519");
+    assert.equal(r.rows[0].id, "cn:sh600519");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("身份：sh52/53/55 基金号段纳入白名单（池内科创债等 ETF 不再被静默丢弃）", async () => {
-  const r = await search("cn", "551520");
-  assert.equal(r.rows[0].id, "cn:sh551520");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  try {
+    const r = await search("cn", "551520");
+    assert.equal(r.rows[0].id, "cn:sh551520");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("搜索：港股人民币柜台（8xxxx，报价 CNY）不展示，港币正股保留", async () => {
@@ -180,3 +204,34 @@ test("直连：美股全链传输失败报 quote-unavailable，不误报 symbol-
     globalThis.fetch = originalFetch;
   }
 });
+
+test("parseSmartbox：A股正股 GP/GP-A 收录为 cn stock（sh/sz/bj），指数与基金仍过滤（ADR-0006）", () => {
+  const body = 'v_hint="sh~600000~浦发银行~pfyh~GP-A^sz~300750~宁德时代~ndsd~GP^bj~920000~安徽凤凰~ahfh~GP-A^sh~000001~上证指数~szzs~ZS^jj~000001~华夏成长~hxczhh~KJ"';
+  const rows = parseSmartbox(body);
+  assert.deepEqual(rows.map((r) => [r.market, r.kind, r.code]), [
+    ["cn", "stock", "sh600000"],
+    ["cn", "stock", "sz300750"],
+    ["cn", "stock", "bj920000"],
+  ]);
+});
+
+test("搜索 cn：池子未凑满时 smartbox 补充（拼音查询池内无命中）；上游挂时池结果仍在并标错", async () => {
+  const originalFetch = globalThis.fetch;
+  const body = 'v_hint="sz~000001~平安银行~payh~GP-A"';
+  globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => Buffer.from(body, "utf8") });
+  try {
+    const r = await search("cn", "payh");
+    assert.ok(r.rows.some((x) => x.id === "cn:sz000001" && x.source === "smartbox"), JSON.stringify(r));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  globalThis.fetch = async () => { throw new Error("down"); };
+  try {
+    const r = await search("cn", "600519");
+    assert.equal(r.rows[0].id, "cn:sh600519");
+    assert.equal(r.error, "smartbox-unavailable");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
