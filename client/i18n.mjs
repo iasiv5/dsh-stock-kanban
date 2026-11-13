@@ -193,6 +193,10 @@ const zh = {  "market.cn": "A 股",
   "err.smartbox-unavailable": "港股/美股搜索源暂时连不上",
   "err.okx-unavailable": "加密货币清单暂不可用，仅显示本地币种",
   "err.pool-unavailable": "本地标的池加载失败",
+  "err.invalid-format": "代码格式无效",
+  "err.invalid-order": "排序结果无效，请刷新后重试",
+  "err.method-not-allowed": "请求方法不被允许",
+  "err.untrusted": "请求未通过信任检查",
 };
 
 const en = {
@@ -366,6 +370,10 @@ const en = {
   "err.smartbox-unavailable": "HK/US search source unreachable",
   "err.okx-unavailable": "Crypto list unavailable; showing local coins only",
   "err.pool-unavailable": "Local symbol pool failed to load",
+  "err.invalid-format": "Invalid code format",
+  "err.invalid-order": "Invalid order; refresh and retry",
+  "err.method-not-allowed": "Method not allowed",
+  "err.untrusted": "Request failed the trust check",
 };
 
 const DICTS = { zh, en };
