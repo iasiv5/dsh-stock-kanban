@@ -190,6 +190,9 @@ const zh = {  "market.cn": "A 股",
   "err.rev-conflict": "版本冲突",
   "err.origin-rejected": "跨源请求被拒绝",
   "err.unknown-market": "未知市场",
+  "err.smartbox-unavailable": "港股/美股搜索源暂时连不上",
+  "err.okx-unavailable": "加密货币清单暂不可用，仅显示本地币种",
+  "err.pool-unavailable": "本地标的池加载失败",
 };
 
 const en = {
@@ -360,6 +363,9 @@ const en = {
   "err.rev-conflict": "Version conflict",
   "err.origin-rejected": "Cross-origin request rejected",
   "err.unknown-market": "Unknown market",
+  "err.smartbox-unavailable": "HK/US search source unreachable",
+  "err.okx-unavailable": "Crypto list unavailable; showing local coins only",
+  "err.pool-unavailable": "Local symbol pool failed to load",
 };
 
 const DICTS = { zh, en };

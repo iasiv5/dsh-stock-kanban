@@ -76,8 +76,8 @@ export function isValidCode(market, code) {
   if (!re.test(value)) return false;
   if (market === "crypto") return parseCryptoCode(code) !== null;
   if (market === "cn") {
-    // 号段白名单：沪 60/68（股）50/51/56/58（基金）；深 00/30（股）12/15/16/18（基金/债券）；北交所 43/83/87/88/92 开头
-    return /^(sh(60|68|50|51|56|58)|sz(00|30|12|15|16|18)|bj(43|83|87|88|92))/.test(value);
+    // 号段白名单：沪 60/68（股）50/51/52/53/55/56/58（基金）；深 00/30（股）12/15/16/18（基金/债券）；北交所 43/83/87/88/92 开头
+    return /^(sh(60|68|50|51|52|53|55|56|58)|sz(00|30|12|15|16|18)|bj(43|83|87|88|92))/.test(value);
   }
   return true;
 }
@@ -114,7 +114,7 @@ export function normalizeInputCode(market, rawCode) {
   if (market === "cn") {
     if (/^(sh|sz|bj)/.test(lower)) return lower;
     if (/^\d{4,6}$/.test(lower)) {
-      if (/^(60|68|50|51|56|58)/.test(lower)) return "sh" + lower;
+      if (/^(60|68|50|51|52|53|55|56|58)/.test(lower)) return "sh" + lower;
       if (/^(00|30|12|15|16|18)/.test(lower)) return "sz" + lower;
       if (/^(43|83|87|88|92)/.test(lower)) return "bj" + lower;
     }

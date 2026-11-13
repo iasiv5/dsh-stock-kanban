@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { search, resolveDirect } from "../src/markets/search.mjs";
+import { search, resolveDirect, parseSmartbox } from "../src/markets/search.mjs";
 
 /* 指数目录（P0-2，2026-11-13）：catalog 匹配零网络；直连主备源切换。 */
 
@@ -16,6 +16,93 @@ test("搜索：指数目录本地匹配（名称/别名/小写代码），上游
     assert.ok(us.rows.some((r) => r.id === "us:IXIC"));
     const byCode = await search("us", "inx");
     assert.ok(byCode.rows.some((r) => r.id === "us:INX"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("搜索只返回本市场：smartbox 全市场混排不得串进当前 Tab（2026-11-13 实录：美股 Tab 搜「1」出现港股「长和 00001」）", async () => {
+  const originalFetch = globalThis.fetch;
+  // smartbox 对任意关键字返回港股/美股/ETF 混排（t=all），形态对照 parseSmartbox 的 v_hint 解析
+  const mixed = 'v_hint="hk~00001~CHANGHE~changhe~GP^us~AAPL~APPLE~apple~GP^sh~510300~HS300ETF~hs300~ETF"';
+  globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => Buffer.from(mixed, "utf8") });
+  try {
+    const us = await search("us", "1");
+    assert.deepEqual(us.rows.map((r) => r.code), ["AAPL"]);
+    const hk = await search("hk", "zzz");
+    assert.deepEqual(hk.rows.map((r) => r.market), ["hk"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("搜索：名称按 NFKC+去空白匹配（池内「万 科Ａ」可被「万科」「万科a」命中）", async () => {
+  const plain = await search("cn", "万科");
+  assert.ok(plain.rows.some((r) => r.id === "cn:sz000002"), JSON.stringify(plain.rows.map((r) => r.id)));
+  const latin = await search("cn", "万科a");
+  assert.ok(latin.rows.some((r) => r.id === "cn:sz000002"));
+});
+
+test("搜索：股票与 ETF 交错合并，数字查询不让 ETF 被饿死", async () => {
+  const r = await search("cn", "300");
+  assert.ok(r.rows.some((x) => x.kind === "etf"), "结果中应含 ETF");
+  assert.ok(r.rows.length <= 30);
+});
+
+test("搜索：精确代码排第一（600519 → 贵州茅台）", async () => {
+  const r = await search("cn", "600519");
+  assert.equal(r.rows[0].id, "cn:sh600519");
+});
+
+test("身份：sh52/53/55 基金号段纳入白名单（池内科创债等 ETF 不再被静默丢弃）", async () => {
+  const r = await search("cn", "551520");
+  assert.equal(r.rows[0].id, "cn:sh551520");
+});
+
+test("搜索：港股人民币柜台（8xxxx，报价 CNY）不展示，港币正股保留", async () => {
+  const originalFetch = globalThis.fetch;
+  const body = 'v_hint="hk~80700~TXKG-R~txkgr~GP^hk~00700~TXKG~txkg~GP"';
+  globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => Buffer.from(body, "utf8") });
+  try {
+    const r = await search("hk", "腾讯控股");
+    assert.ok(!r.rows.some((x) => x.id === "hk:hk80700"), JSON.stringify(r.rows.map((x) => x.id)));
+    assert.ok(r.rows.some((x) => x.id === "hk:hk00700"), JSON.stringify(r.rows.map((x) => x.id)));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("解析：美股点号类别股（BRK.A/BRK.B）不再误写成 BRK；普通代码保留", () => {
+  const rows = parseSmartbox('v_hint="us~brk.a.n~BERK-A~bkxe~GP^us~brk.b.n~BERK-B~bkxeb~GP^us~aapl.oq~APPLE~pg~GP"');
+  assert.deepEqual(rows.map((r) => r.code), ["AAPL"]);
+});
+
+test("搜索：smartbox 响应缺少结果标记（错误页/改版）→ 明确 error，不当作无匹配", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => Buffer.from("<html>blocked</html>", "utf8") });
+  try {
+    const r = await search("us", "aapl");
+    assert.equal(r.error, "smartbox-unavailable");
+    assert.deepEqual(r.rows, []);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("搜索：OKX 清单不可用 → 本地币种仍返回并标记 okx-unavailable；冷却期内不重复请求上游", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new Error("down");
+  };
+  try {
+    const first = await search("crypto", "btc");
+    assert.equal(first.error, "okx-unavailable");
+    assert.ok(first.rows.some((r) => r.code === "BTC-USDT"));
+    const second = await search("crypto", "eth");
+    assert.equal(second.error, "okx-unavailable");
+    assert.equal(calls, 1, "冷却期内不应再次请求 OKX");
   } finally {
     globalThis.fetch = originalFetch;
   }

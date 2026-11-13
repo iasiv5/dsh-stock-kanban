@@ -301,6 +301,48 @@ test("add · 搜索重绘不重建输入框（手机软键盘保活：节点身�
   }
 });
 
+test("add · 切换市场清空上一市场结果：加载期间不残留他市场的行，结果区只渲染当前市场（2026-11-13 串台修复）", async () => {
+  const h = createDomHarness();
+  const prev = { document: globalThis.document, window: globalThis.window, localStorage: globalThis.localStorage, fetch: globalThis.fetch };
+  globalThis.document = h.document;
+  globalThis.window = h.window;
+  globalThis.localStorage = h.localStorage;
+  const hkRow = { id: "hk:hk00001", market: "hk", code: "hk00001", name: "长和", kind: "stock" };
+  const usRow = { id: "us:AAPL", market: "us", code: "AAPL", name: "苹果", kind: "stock" };
+  // 港股即时返回；美股延迟返回且夹带一条港股行——渲染层须只显示当前市场（纵深防御）
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("market=us")) {
+      await sleepMs(250);
+      return { ok: true, status: 200, json: async () => ({ rows: [hkRow, usRow], error: null }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ rows: [hkRow], error: null }) };
+  };
+  try {
+    const store = { addSymbol: async () => ({ ok: true }), setToast: () => {}, setShowAdd: () => {} };
+    const add = createAdd({ store });
+    add.update(SK_SNAPSHOT({ ui: { ...SK_SNAPSHOT().ui, showAdd: true, lastMarket: "hk" } }));
+    const input = add.el.querySelector('input[data-field="query"]');
+    input.value = "1";
+    input.dispatchEvent(new h.window.Event("input", { bubbles: true }));
+    await sleepMs(400); // 防抖 300ms + 港股即时返回
+    const rowIds = () => [...add.el.querySelectorAll(".skc-add-row")].map((n) => n.dataset.id);
+    assert.deepEqual(rowIds(), ["hk:hk00001"], "港股 Tab 显示港股结果");
+    // 切到美股 Tab：加载期间不得残留港股行（否则可点击加入错市场的行）
+    const usTab = add.el.querySelectorAll(".skc-tab")[2];
+    usTab.dispatchEvent(new h.window.MouseEvent("click", { bubbles: true }));
+    assert.deepEqual(rowIds(), [], "切换后加载期间结果区为空");
+    await sleepMs(400);
+    assert.deepEqual(rowIds(), ["us:AAPL"], "美股结果区只渲染美股行");
+    add.dispose();
+  } finally {
+    for (const [k, v] of Object.entries(prev)) {
+      if (v === undefined) delete globalThis[k];
+      else globalThis[k] = v;
+    }
+    h.cleanup();
+  }
+});
+
 test("detail · 行情 tick：输入框身份不变（身份保活取代跳绘守卫），失焦亦不重建", async () => {
   const t = withGlobalsAndFetch();
   try {

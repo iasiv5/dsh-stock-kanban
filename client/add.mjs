@@ -159,6 +159,9 @@ export function createAdd({ store }) {
     tab.textContent = t(`market.${m}`);
     tab.addEventListener("click", () => {
       market = m;
+      // 切换市场即清空上一市场的结果：加载期间不残留他市场的行（否则可点击加入错市场的行）
+      results = null;
+      searchError = null;
       if (query.trim()) doSearch(query, m);
       else render();
     });
@@ -322,7 +325,7 @@ export function createAdd({ store }) {
     if (searching) {
       statusEl.append(hintEl(t("add.searching")));
     } else if (searchError) {
-      statusEl.append(errorEl(t("add.search-error", { e: searchError })));
+      statusEl.append(errorEl(t("add.search-error", { e: tErr(searchError) })));
     } else if (results && results.length === 0) {
       statusEl.append(guideEl(t("add.no-match", { q: query.trim() })));
     } else if (!results) {
@@ -333,7 +336,8 @@ export function createAdd({ store }) {
     const focusedId = resultsEl.getRootNode?.().activeElement?.dataset?.id ?? null;
     resultsEl.replaceChildren();
     if (results && results.length > 0) {
-      for (const row of results) resultsEl.append(resultRow(row, known));
+      // 纵深防御：只渲染当前市场的行（服务端已有市场门禁，此处防止回归时串台）
+      for (const row of results) if (row.market === market) resultsEl.append(resultRow(row, known));
     }
     if (focusedId != null) {
       [...resultsEl.children].find((node) => node.dataset?.id === focusedId && !node.disabled)?.focus({ preventScroll: true });
