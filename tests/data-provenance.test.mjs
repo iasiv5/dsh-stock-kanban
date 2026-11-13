@@ -4,18 +4,24 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { canonicalJson, sortRows } from "../scripts/refresh-pools.mjs";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const DATA = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
 
-test("标的池是上游原样快照：data/SHA256SUMS 的字节指纹与文件一致（改格式或内容须同步更新清单与 NOTICE.md）", () => {
-  const entries = readFileSync(join(ROOT, "data", "SHA256SUMS"), "utf8")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.split(/\s+/));
-  assert.equal(entries.length, 3, "清单应列出三个标的池文件");
-  for (const [want, name] of entries) {
-    const got = createHash("sha256").update(readFileSync(join(ROOT, "data", name))).digest("hex");
-    assert.equal(got, want, name + " 的字节指纹与清单不一致：若是有意刷新，请更新 data/SHA256SUMS 与 NOTICE.md");
+test("标的池由生成器产出：manifest 的哈希、条目数、排序与规范格式与文件逐一一致", () => {
+  const manifest = JSON.parse(readFileSync(join(DATA, "manifest.json"), "utf8"));
+  assert.equal(manifest.schema, 1);
+  assert.ok(Date.parse(manifest.generatedAt) > 0, "generatedAt 必须是有效时间");
+  for (const [file, meta] of Object.entries(manifest.files)) {
+    const text = readFileSync(join(DATA, file), "utf8");
+    const digest = createHash("sha256").update(Buffer.from(text, "utf8")).digest("hex");
+    assert.equal(digest, meta.sha256, file + " 与 manifest 哈希不一致：请经 scripts/refresh-pools.mjs 重新生成");
+    const rows = JSON.parse(text);
+    assert.equal(rows.length, meta.records, file + " 条目数与 manifest 不一致");
+    assert.deepEqual(rows, sortRows(rows), file + " 未按代码升序");
+    assert.equal(text, canonicalJson(rows), file + " 不是生成器的规范格式（2 空格缩进）");
+    for (const source of meta.sources) {
+      assert.ok(manifest.sources.some((s) => s.id === source), file + " 引用了未登记的来源 " + source);
+    }
   }
 });

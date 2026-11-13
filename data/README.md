@@ -1,30 +1,40 @@
-# data/ — 标的池（上游原样快照）
+# data/ — 标的池（生成器产出）
 
-本目录三个 JSON 是搜索用的本地候选池（代码与名称），由 `src/markets/search.mjs` 读取。
+本目录的 `a_stocks.json` / `etf_stocks.json` / `hk_stocks.json` 是添加标的对话框的本地候选池（代码 + 简称），由 `src/markets/search.mjs` 读取。**只能由 `scripts/refresh-pools.mjs` 生成，不得手改**；每次生成都更新 `manifest.json`（来源、原始响应哈希、文件 sha256），由 `tests/data-provenance.test.mjs` 逐项校验。
 
-## 来源（2026-11-13 核对）
+## 来源架构（生成器 v3）
 
-- 来源未在本仓库或两份上游 README 里明确记录：两份上游（`Justin-Mai/dsh-stock-view`、`Awu12277/dsh-stock-watch`，MIT，版权声明见 NOTICE.md）的 README 只描述用途与条目数（Awu12277 写明 A 股 5549、港股 2791、ETF 1650），没有抓取来源、日期或刷新方法。
-- 本仓库的三个文件与本机两份上游副本（`.dsh-research/Justin-Mai-dsh-stock-view`、`.dsh-research/Awu12277-dsh-stock-watch`）字节完全相同；SHA-256 见 `SHA256SUMS`，由 `tests/data-provenance.test.mjs` 校验。
-- 全仓库搜索文件名，只命中文档与 `src/markets/search.mjs`：没有生成或下载脚本。git 历史中这三个文件只在初始导入提交 20736d7（2026-11-07）出现过，之后未改动。
-- 条目数核对：含 `code` 键的行，`hk_stocks.json` 为 2791、`etf_stocks.json` 为 1650，与 Awu12277 README 声称的数量一致（两者均为每条 4 行的多行格式）。A 股文件为单行，无法按行数核对，README 声称的 5549 只未验证。
-- 抓取时间未知，数据可能已过期。
+列表与行情同源优先，官方清单对账，最后统一过报价校验：
 
-## 格式
+1. **行情侧列表（主）**：上交所 yunhq（股票 / ETF）、北交所 920 号段腾讯报价枚举；深股 / 深 ETF / 港股用东方财富 clist，不可达时回落官方清单（报告标注 fallback）。
+2. **官方清单（对账 + 回落）**：上交所股票 JSON（上市 + ST，剔除退市）、深交所报表 1110（A 股）/ 1945（ETF）、港交所 ListOfSecurities.xlsx（**HKD 计价**的 Equity 与 ETP；窝轮、牛熊证、债券、人民币柜台在此剔除）。
+3. **报价校验（兜底）**：全部候选经腾讯行情确认「有名称且价格 > 0」，失败率 > 2% 整体失败。
 
-- `a_stocks.json`：单行压缩 JSON（218,711 字节）。
-- `hk_stocks.json`、`etf_stocks.json`：多行 JSON。
-- 这是上游的格式，不是本仓库的选择。
+任一来源失败且无回落、对账差异 > 1%、条目数越界（BOUNDS）、缩量 > 5%，均 fail-closed 不落盘。
 
-## 规则
+## 如何刷新
 
-1. 不改格式，不改内容。`npm test` 里的 `tests/data-provenance.test.mjs` 校验字节指纹，任何就地修改都会红灯。
-2. 修正单条数据要留痕：不要就地编辑。应在 NOTICE.md 记录偏离上游的条目与原因，更新 `SHA256SUMS`，并作为独立提交。
-3. 整体刷新：用新快照整体替换，更新 `SHA256SUMS`，并在 NOTICE.md 记录新来源（含 commit 与日期）。若要规范化格式，作为独立提交，写明转换规则（JSON 规范化，语义不变）。
-4. 检索这三个文件时用 count 或 files_with_matches 模式。content 模式在单行的 `a_stocks.json` 上，单次命中可返回约 3.6 万字节。
+```bash
+node scripts/refresh-pools.mjs             # dry-run：抓取、对账、校验、打印差异报告，不写文件
+node scripts/refresh-pools.mjs --apply     # 全部校验通过后写入 data/*.json 与 manifest.json
+npm test                                   # provenance 守卫校验 manifest 与文件一致
+```
 
-## 已知数据质量（与上游一致，不在此修正）
+- 刷新后：核对报告 diff（added / removed / renamed 样本）→ `npm test` → 数据文件作为**独立 chore(data) 提交**；用户拿到新数据要随插件发版。
+- 缩量超过 5% 需 `--accept-shrink` 显式确认（先读差异报告）。
+- 节奏与责任人：无自动定时；行情异常、新号段 / 新板块、季度例行时由 Agent 或主人手动触发。
 
-- 名称含空格与全角字母（如「万 科Ａ」）：搜索侧已做 NFKC + 去空白匹配。
-- 港股人民币柜台（代码 8xxxx，如 80700「腾讯控股-R」）：搜索侧不展示（报价币种为 CNY，身份模型仅支持 HKD）。
-- 基金号段 sh52 / sh53 / sh55 的 78 只 ETF（如 sh551520「科创债ETF汇添富」）：身份白名单已放行（`src/identity.mjs`），未在数据层修正。
+## 历史与迁移（2026-11-13 首次生成器刷新）
+
+- 旧文件是上游快照（`Justin-Mai/dsh-stock-view`、`Awu12277/dsh-stock-watch`，MIT，版权见 NOTICE.md），初始导入 20736d7，抓取时间与来源不明；2026-11-13 起由生成器接管，`SHA256SUMS` 由 manifest 取代删除。
+- 北交所（920 号段）为新覆盖：旧池无北交所，旧 BSE 8xxxxx 代码从未入池。
+- 港股池改为 HKD 口径：25 只人民币柜台（hk8xxxx，如 hk80700）移出——搜索侧此前已排除，行为不变。
+- ETF 名称改用交易所官方简称（如 510050「50ETF」）；只影响搜索展示，不改已存自选。
+- 旧池含已退市代码（如 000024 招商地产、PT 系），已清除；自选里若存有退市码，行情报错属预期。
+
+## 已知数据质量
+
+- 名称含空格与全角字母已按 NFKC + 去空白规范化（「万 科Ａ」→「万 科A」）；搜索匹配不受影响。
+- 少数港股腾讯无报价（如 hk02953、hk08561）会被报价校验剔除，宁缺毋滥。
+- 备用行情列表源（已验证、未接线）：新浪 Market_Center——sz_a 2905、etf_hq_fund 938 可用；港股 qbgg_hk 需鉴权不可用。东方财富 clist 本机 502 时，深股 / 深 ETF / 港股回落官方清单。
+- 基金号段 sh52 / sh53 / sh55 的 78 只 ETF：身份白名单已放行（`src/identity.mjs`）。
