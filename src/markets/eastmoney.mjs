@@ -92,8 +92,8 @@ export function peekUSSecid(ticker) {
   return SECID_CACHE.get(String(ticker ?? "").toUpperCase()) ?? null;
 }
 
-/** AAPL → secid（"105.AAPL"）；美股指数走预置；确认不存在缓存 null；探测失败返回 null */
-export async function resolveUSSecid(code) {
+/** AAPL → secid（"105.AAPL"）；美股指数走预置；确认不存在缓存 null；默认探测失败返回 null，严格模式抛出 SECID_TRANSPORT */
+export async function resolveUSSecid(code, { strict = false } = {}) {
   const ticker = String(code ?? "").replace(/^us/i, "").toUpperCase().split(".")[0];
   if (!ticker) return null;
   if (INDEX_SECID[ticker]) return INDEX_SECID[ticker];
@@ -113,6 +113,12 @@ export async function resolveUSSecid(code) {
     }
   }
   // 三交易所都明确应答且均无此代码，才确认不存在并负缓存；有任何传输失败则下次重新探测
+  if (transportFailures > 0 && strict) {
+    // 严格模式（详情/分时/K 线/快照路径）：传输失败不得伪装成「无此代码」，抛出供提供方级退避计数
+    const err = new Error("secid-transport");
+    err.code = "SECID_TRANSPORT";
+    throw err;
+  }
   if (transportFailures === 0) SECID_CACHE.set(ticker, null);
   return null;
 }
@@ -156,7 +162,7 @@ export async function fetchBatchSnapshots(codes) {
     if (typeof direct === "string") {
       secidOf.set(code, direct);
     } else if (direct === null) {
-      const secid = await resolveUSSecid(code);
+      const secid = await resolveUSSecid(code, { strict: true });
       if (secid) secidOf.set(code, secid);
     }
     /* undefined：EM 不服务（hkHSI 等）→ 缺席，交下一源 */
@@ -182,10 +188,10 @@ export async function fetchBatchSnapshots(codes) {
 const SNAP_FIELDS = "f43,f44,f45,f46,f47,f48,f57,f58,f60,f124,f169,f170";
 
 /** 单标的完整快照（cn/hk 备源与 us 主源共用；详情页高低开收全字段 + f124 时间戳） */
-export async function fetchQuote(code) {
+export async function fetchQuote(code, opts = {}) {
   const direct = directSecid(code);
   let secid = typeof direct === "string" ? direct : null;
-  if (direct === null) secid = await resolveUSSecid(code);
+  if (direct === null) secid = await resolveUSSecid(code, { strict: opts?.strict === true });
   if (!secid) return null;
   const j = await emJson(EM_PUSH + "/api/qt/stock/get?secid=" + encodeURIComponent(secid) + "&fields=" + SNAP_FIELDS + "&invt=2&fltt=2");
   const d = j?.data;
@@ -214,7 +220,12 @@ const LIMIT_OF_PERIOD = { day: 180, week: 150, month: 120 };
 
 /** K线（fqt=1 前复权；美股指数经预置 secid 同路径）。行 CSV：date,open,close,high,low,volume,… */
 export async function fetchKline(code, period = "day") {
-  const secid = await resolveUSSecid(code);
+  let secid;
+  try {
+    secid = await resolveUSSecid(code, { strict: true });
+  } catch (e) {
+    return { candles: [], adjust: null, error: "fetch-failed", errorDetail: String(e.message ?? e).slice(0, 80) };
+  }
   if (!secid) return { candles: [], adjust: null, error: "not-found" };
   const klt = KLT_OF_PERIOD[period] ?? "101";
   const lmt = LIMIT_OF_PERIOD[period] ?? 180;
@@ -244,7 +255,12 @@ export async function fetchKline(code, period = "day") {
 
 /** 分时（当日）。trends 行 "YYYY-MM-DD HH:mm",price,…（北京时间为轴） */
 export async function fetchMinuteDetail(code) {
-  const secid = await resolveUSSecid(code);
+  let secid;
+  try {
+    secid = await resolveUSSecid(code, { strict: true });
+  } catch (e) {
+    return { date: null, prevClose: null, points: [], error: "fetch-failed", errorDetail: String(e.message ?? e).slice(0, 80) };
+  }
   if (!secid) return { date: null, prevClose: null, points: [], error: "not-found" };
   const url = EM_HIS + "/api/qt/stock/trends2/get?secid=" + encodeURIComponent(secid)
     + "&fields1=f1,f2,f3,f4,f5,f6,f7,f8&fields2=f51,f53&iscr=0&ndays=1";

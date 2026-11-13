@@ -152,7 +152,7 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
    * 详情路径的提供方守卫（2026-11-13）：与批量路径共用提供方状态（失败计数 / 指数退避）。
    * 退避期内直接抛错、不打上游；有行情的成功结果按 ttlMs 短缓存，详情轮询（15 秒）不重复打上游。
    * 修复前：详情路径绕过退避与缓存，头部报价每次轮询都直接打 Yahoo（429 因而持续），且 fullAdapter 缺 tencent-us。
-   * 注：东方财富 secid 探测的传输失败由 resolveUSSecid 静默吞掉并返回 null，此处计不到失败（见 docs/verification.md §12.31）。
+   * 东方财富 secid 探测的传输失败经严格模式抛出（§12.32），与快照失败一并计入退避。
    */
   const fullCache = new Map();
   async function guardedFull(name, code, fn) {
@@ -188,7 +188,7 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
       return { quote, quoteTime: quote ? tencentQuoteTime(quote) : null };
     },
     eastmoney: async (code) => {
-      const quote = await emQuote(code);
+      const quote = await emQuote(code, { strict: true });
       return { quote, quoteTime: quote?.quoteTimeMs ?? null };
     },
     yahoo: async (code) => {
