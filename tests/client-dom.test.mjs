@@ -548,6 +548,26 @@ test("charts · 分时轴锚定常规时段（§12.34）：A股数据止于 11:0
   }
 });
 
+test("charts · 分时轴自适应外扩不重叠（§12.34 实拍）：港股数据至 16:08，标注 09:30/13:00/16:08，无 16:00", () => {
+  const h = createDomHarness();
+  const prevGlobals = { document: globalThis.document };
+  globalThis.document = h.document;
+  try {
+    const t0 = Date.parse("2026-11-13T01:30:00Z") / 1000; // 香港 09:30
+    const pts = [];
+    for (let m = 570; m <= 968; m++) {
+      if (m > 720 && m < 780) continue; // 午休无数据点
+      pts.push({ t: t0 + (m - 570) * 60, p: 10, v: 5 });
+    }
+    const el = buildMinuteChart({ points: pts, prevClose: null }, { market: "hk", width: 280, height: 190 });
+    const texts = [...el.querySelectorAll("text")].map((x) => x.textContent);
+    assert.deepEqual(texts, ["09:30", "13:00", "16:08"], "衔接窗起点 16:00 不标注，终点 16:08 标注");
+  } finally {
+    globalThis.document = prevGlobals.document;
+    h.cleanup();
+  }
+});
+
 test("charts · buildCandleChart：maVisible 关 MA5 时无 MA5 线", () => {
   const h = createDomHarness();
   const prevGlobals = { document: globalThis.document };

@@ -82,7 +82,12 @@ export function buildMinuteChart(svgData, opts = {}) {
     };
     xOf = (i) => pad + xPos(minuteOf(points[i].t)) * innerW;
     const lbl = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-    axisLabels = eff.map(([a]) => ({ text: lbl(a), r: xPos(a) }));
+    // 相邻窗（午休衔接/自适应延伸）的起点与上一窗终点同刻：只保留一个标注，避免右缘重叠（§12.34 实拍）
+    axisLabels = [];
+    eff.forEach(([a], k) => {
+      if (k > 0 && a === eff[k - 1][1]) return;
+      axisLabels.push({ text: lbl(a), r: xPos(a) });
+    });
     axisLabels.push({ text: lbl(eff[eff.length - 1][1]), r: 1 });
   }
   const yOf = (v) => pad + priceH - ((v - min) / (max - min)) * priceH;

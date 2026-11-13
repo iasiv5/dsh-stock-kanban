@@ -28,8 +28,8 @@ function appendText(parent, className, text) {
 
 /** 触价/休市/过期标记（语义与 React 版一致） */
 function appendTargetBadges(container, target, market) {
-  if (!target || target.status === "no-targets") return;
-  if (target.buyTriggered || target.sellTriggered) {
+  // 未设目标价/无行情不再提前返回（§12.34 实拍）：休市标注整列一致，由 targetBadgeKind 统一判定
+  if (target?.buyTriggered || target?.sellTriggered) {
     if (target.buyTriggered) {
       const b = appendText(container, "skc-badge skc-badge-buy", "B");
       b.title = t("detail.buy-target", { ccy: "" });
