@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { INDEX_CATALOG, indexOfCode, isValidCode, makeIdentity, normalizeCode, normalizeInputCode } from "../identity.mjs";
 import * as tencent from "./tencent.mjs";
 import * as eastmoney from "./eastmoney.mjs";
+import * as tencentUs from "./tencent-us.mjs";
 import * as yahoo from "./yahoo.mjs";
 import * as okx from "./okx.mjs";
 
@@ -246,20 +247,38 @@ export async function resolveDirect(market, code) {
       }
     }
   } else if (market === "us") {
-    // 主源 EM，push2 不可达网络交 Yahoo 备源（P0-1/P0-3；顺带补行情时间戳）
+    // 主源 EM，push2 不可达网络交腾讯美股/Yahoo 备源（P0-1/P0-3；顺带补行情时间戳）
+    // 链序与 quotes.mjs CHAINS.us 一致：东方财富 → 腾讯美股 → Yahoo。2026-11-13 补腾讯美股腿——
+    // EM push2 502 + Yahoo 429 期间，美股/美股指数直连添加全线误报 symbol-not-found（搜索来自
+    // 零网络目录可见，点加号取价校验两级全灭），而列表刷新链已有腾讯美股可用
+    let transportFailed = false;
     try {
       quote = await eastmoney.fetchQuote(identity.code);
     } catch {
+      transportFailed = true;
       quote = null;
+    }
+    if (!quote) {
+      try {
+        const rows = await tencentUs.fetchBatchSnapshots([identity.code]);
+        quote = rows.get(identity.code) ?? null;
+      } catch {
+        transportFailed = true;
+        quote = null;
+      }
     }
     if (!quote) {
       try {
         const rows = await yahoo.fetchBatchSnapshots([identity.code]);
         quote = rows.get(identity.code) ?? null;
       } catch {
+        transportFailed = true;
         quote = null;
       }
     }
+    // 提供方传输故障 ≠ 代码不存在：全链传输失败时明确报 quote-unavailable（客户端映射
+    // 「行情暂不可用，稍后再试」），不得落进 symbol-not-found（「未找到该标的」误导排查）
+    if (!quote && transportFailed) return { ok: false, error: "quote-unavailable" };
   } else if (market === "crypto") {
     try {
       quote = await okx.fetchQuote(identity.code);

@@ -51,3 +51,45 @@ test("直连：指数经腾讯主源校验（hkHSI → kind index）；腾讯挂
     globalThis.fetch = originalFetch;
   }
 });
+
+test("直连：美股添加校验链 EM 502 → 腾讯美股顶上（2026-11-13 补腿回归：IXIC 指数）", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("push2")) throw new Error("HTTP 502"); // EM 主源（本机 2026-11-13 实测 https/http 均 502）
+    if (u.includes("finance.yahoo.com")) throw new Error("HTTP 429"); // Yahoo 限流（本机实测 Edge: Too Many Requests）
+    if (u.includes("qt.gtimg.cn/q=usIXIC")) {
+      // 形态对照 providers-tencent-us.test.mjs；名称中文按 GBK 通道会乱码，只断言链路结果不断言名称内容
+      const text = 'v_usIXIC="200~nasdaq~.IXIC~25366.09~25466.19~25092.11~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~2026-11-12 17:15:59~-100.10~-0.39~25597.23~25068.00~x~1~1~0~0~x~0~0~0~0~x~0~0~0~0~0~0";';
+      return { ok: true, arrayBuffer: async () => Buffer.from(text, "utf8") };
+    }
+    throw new Error("unexpected " + u);
+  };
+  try {
+    const ixic = await resolveDirect("us", "IXIC");
+    assert.equal(ixic.ok, true);
+    assert.equal(ixic.kind, "index");
+    assert.equal(ixic.identity.id, "us:IXIC");
+    assert.ok(String(ixic.name).length > 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("直连：美股全链传输失败报 quote-unavailable，不误报 symbol-not-found", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("push2")) throw new Error("HTTP 502");
+    if (u.includes("finance.yahoo.com")) throw new Error("HTTP 429");
+    if (u.includes("qt.gtimg.cn")) throw new Error("HTTP 503");
+    throw new Error("unexpected " + u);
+  };
+  try {
+    const dead = await resolveDirect("us", "IXIC");
+    assert.equal(dead.ok, false);
+    assert.equal(dead.error, "quote-unavailable");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
