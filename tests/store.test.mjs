@@ -157,3 +157,22 @@ test("存储：reorderSymbols 非排列拒绝不推进 rev；顺序未变幂等�
   assert.equal(same.changed, false);
   assert.equal(store.rev, revBefore); // 幂等：不推进 rev、不落盘
 });
+
+import { writeFileSync } from "node:fs";
+
+test("存储：历史「指数码当股票」记录升级翻 index 时告警剥除计数（评审轮2 P5）", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "sk-store-"));
+  const file = join(dir, "data.json");
+  process.env.DSH_STOCK_KANBAN_FILE = file;
+  const legacy = { ...SYM, id: "cn:sh000001", market: "cn", code: "sh000001", kind: "stock", name: "上证指数", quantity: 100, avgCost: 3000, buyTarget: 3500, sellTarget: 4500 };
+  writeFileSync(file, JSON.stringify({ symbols: { "cn:sh000001": legacy }, global: { rev: 5, settings: { privacyMode: false }, updatedAt: "2026-01-01T00:00:00.000Z" } }));
+  const warns = [];
+  const store = new Store({}, { info() {}, warn: (m) => warns.push(String(m)) });
+  await store.init();
+  const sym = store.getSymbol("cn:sh000001");
+  assert.equal(sym.kind, "index");
+  assert.equal(sym.quantity, null);
+  assert.equal(sym.buyTarget, null);
+  assert.equal(store.rev, 5);
+  assert.ok(warns.some((w) => w.includes("1 条历史记录")));
+});

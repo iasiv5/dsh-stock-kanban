@@ -165,11 +165,22 @@ export class Store {
         snapshot = { tables: { [TABLE]: {} }, global: null };
       }
       const table = snapshot.tables?.[TABLE];
+      let indexStripped = 0;
       if (table && typeof table === "object") {
         for (const [id, record] of Object.entries(table)) {
+          // P0-2 迁移告警（2026-11-13 评审轮2）：历史「指数码当股票」记录带持仓/目标价时，
+          // normalize 按指数规格剥除业务字段（不可逆）——升级时明确告警计数，不静默。
+          const hadBiz = record && typeof record === "object"
+            && (record.quantity != null || record.avgCost != null || record.buyTarget != null || record.sellTarget != null);
           const clean = normalizeSymbolRecord(record);
-          if (clean && clean.id === id) this.#symbols.set(id, clean);
+          if (clean && clean.id === id) {
+            if (hadBiz && clean.kind === "index") indexStripped += 1;
+            this.#symbols.set(id, clean);
+          }
         }
+      }
+      if (indexStripped > 0) {
+        this.#log?.warn?.("stock-kanban: " + indexStripped + " 条历史记录被判定为指数（P0-2 目录），持仓/目标价已按规格剥除；如需保留请用升级前备份回滚");
       }
       this.#global = normalizeGlobal(snapshot.global);
       return this;

@@ -424,11 +424,22 @@ async function diagRoute(req, res) {
     }
     try {
       const body = await readJsonBody(req, MUTATION_BODY_MAX);
-      const rows = Array.isArray(body?.rows)
-        ? body.rows.slice(0, 200).filter((r) => r && typeof r === "object" && typeof r.ev === "string")
+      const rawRows = Array.isArray(body?.rows)
+        ? body.rows.slice(0, 200).filter((r) => r && typeof r === "object" && typeof r.ev === "string" && String(r.ev).trim() !== "")
         : [];
-      for (const row of rows) note({ ...row, src: "client" });
-      sendJson(res, 200, { ok: true, stored: rows.length });
+      // 客户端行二次过滤（2026-11-13 评审轮2 P3）：ev 强制归入 client. 命名空间——服务端
+      // 保留事件族（provider./route./store./host.）不可被客户端伪造注入诊断日志、绕不过
+      // route.status 门；时间戳权威在宿主侧（diag.append 展开序），src 恒覆写 client。
+      const reserved = /^(provider\.|route\.|store\.|host\.)/;
+      const rows = [];
+      let rejectedReserved = 0;
+      for (const raw of rawRows) {
+        const ev = String(raw.ev).trim().replace(/^client\./, "");
+        if (reserved.test(ev)) { rejectedReserved += 1; continue; }
+        rows.push({ ...raw, ev: "client." + ev, src: "client" });
+      }
+      for (const row of rows) note(row);
+      sendJson(res, 200, { ok: true, stored: rows.length, rejected: rejectedReserved });
     } catch (e) {
       sendJson(res, e.status ?? 400, { error: String(e?.message ?? e) });
     }

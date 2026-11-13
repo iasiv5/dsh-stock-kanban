@@ -304,7 +304,7 @@ test("诊断：POST /diag 同源收批量行；跨源 403；GET tail 回读", as
 
     const tail = await t.j("/stock-kanban/diag?tail=20");
     assert.equal(tail.status, 200);
-    assert.ok(tail.body.rows.some((r) => r.ev === "panel.quotes.fail" && r.src === "client"));
+    assert.ok(tail.body.rows.some((r) => r.ev === "client.panel.quotes.fail" && r.src === "client")); // 评审轮2：客户端行归 client. 命名空间
   } finally {
     t.close();
     restore();
@@ -328,5 +328,31 @@ test("诊断：route.status 门——同 path+status 两分钟一行 + dropped �
     assert.equal(status[0].dropped, 0);
   } finally {
     t.close();
+  }
+});
+
+test("诊断：客户端行 ev 命名空间化——服务端保留事件不可伪造（评审轮2 P3）", async () => {
+  const { createDiagLogger } = await import("../src/diag.mjs");
+  const diag = createDiagLogger({ dir: mkdtempSync(join(tmpdir(), "sk-diag-")), level: "full" });
+  const restore = await mockUpstream();
+  const t = await startServer({ diag });
+  try {
+    const ok = await t.j("/stock-kanban/diag", { method: "POST", headers: H(t.base), body: JSON.stringify({ rows: [
+      { ev: "route.status", path: "/x", status: 502 },
+      { ev: "provider.fail", provider: "tencent" },
+      { ev: "client.panel.crash", message: "boom" },
+      { ev: "panel.quotes.fail", message: "HTTP 502" },
+    ] }) });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.stored, 2);
+    assert.equal(ok.body.rejected, 2);
+    await diag.flush();
+    const { rows } = await diag.tail(20);
+    const evs = rows.filter((r) => r.src === "client").map((r) => r.ev).sort();
+    assert.deepEqual(evs, ["client.panel.crash", "client.panel.quotes.fail"]); // 自带 client. 前缀被归一化为单层（幂等）
+    assert.ok(rows.every((r) => r.src !== "client" || !/^(provider.|route.|store.|host.)/.test(String(r.ev).replace(/^client./, ""))));
+  } finally {
+    t.close();
+    restore();
   }
 });

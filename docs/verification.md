@@ -513,7 +513,7 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 1. **P0-1 多源降级链**（src/quotes.mjs 重写）：cn/hk 腾讯→东方财富、us 东方财富→Yahoo、crypto OKX 单源；链内逐源补位（含 EM 静默丢行场景），整链失败才标 error；**保留本仓提供方级指数退避**（对参考实现的修正——lens 无退避，死源会随轮询反复被打；本仓退避使源静默期零上游调用）。getQuoteFull 同构分链（cn/hk 腾讯→EM、us EM→Yahoo）。
 2. **P0-2 指数目录**（src/identity.mjs INDEX_CATALOG 10 只）：kind='index' 仅由目录代码裁决，目录外传 kind=index 降级 stock（防绕过持仓校验，model 层 normalize 剥除业务字段 + patch 显式拒绝 index-no-position）；detail 页指数不渲染持仓/目标价表单（占位说明 + i18n 双语）；搜索走目录本地匹配（零网络，上游全挂也搜得到）；直连添加走主备源双链校验。
 3. **P0-3 美股行情时间戳**：EM ulist/stock/get 补 f124 → quoteTimeMs；Yahoo chart meta.regularMarketTime（备源路径）——美股新鲜度从「按拉取时间判定」改为「按行情时间判定」（此前目标价 30 分钟门对美股实际失真）。
-4. **P1-6 诊断闭环**（src/diag.mjs + routes + 客户端上报）：按天 JSONL（~/.dsh/stock-kanban/，超限轮转 .1），diagLevel off/errors（默认）/full（零依赖手写 config：diagLevel/diagDir/diagLogMaxBytes，钳位 64KiB–16MiB）；route.status 门（同 path+status 两分钟一行，dropped 窗口内累计、随下一行补记）；provider.fail（仅真实上游失败，含退避参数；退避快速失败不发）；store.conflict（409 计数）；客户端批量上报（挂载 / 行情失败迁移去重，≥40 行或 2s 或页面隐藏 sendBeacon）；GET/POST /stock-kanban/diag（同源 + 64KiB + ≤200 行，全路由过官方信任检查）。
+4. **P1-6 诊断闭环**（src/diag.mjs + routes + 客户端上报）：按天 JSONL（~/.dsh/stock-kanban/，超限轮转 .1），diagLevel off/errors（默认）/full（零依赖手写 config：diagLevel/diagDir/diagLogMaxBytes，钳位 64KiB–16MiB）；route.status 门（同 path+status 两分钟一行，dropped 窗口内累计、随下一行补记）；provider.fail（仅真实上游失败，含退避参数；退避快速失败不发）；store.conflict（409 计数）；客户端批量上报（挂载 / 行情失败迁移去重，≥40 行或 2s 或页面隐藏 sendBeacon）；POST /stock-kanban/diag（同源 + 64KiB + ≤200 行 + ev 归入 client. 命名空间、服务端保留事件族 provider./route./store./host. 拒收并计数）；GET tail 仅信任壳（与读路由惯例一致）；全路由过官方信任检查。
 
 **验证**：
 
@@ -537,3 +537,19 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
    评审问「是否升阻断」：执行方意见维持**重要**——失真仅限备源路径的当日涨跌幅展示字段；价格与行情时间戳（目标价新鲜度判定依据）不受影响；已当场修复。如主人认为备源常开期的展示失真应按阻断归档，改口径即可，不影响代码。
 
 修复 commit 见 git log；复跑命令（solo）：node scripts/run-tests.mjs tests/providers-yahoo.test.mjs tests/quotes-service.test.mjs。
+
+**§12.28 追记（2026-11-13 评审轮 2，评审 Agent reviewer-lens-adopt 终批复核）**：
+
+批次1 三项（P1 README 指数分时列 / P2 Yahoo 涨跌幅口径 / P4 用例分解勘误）已修复并经评审亲跑复核通过（commit 6e33393；yahoo 夹具红灯复演红→绿）。P2 严重度两方观点已归档待主人裁（D1，执行方维持「重要」）。
+
+本轮接受并修复：
+
+- **P3 diag 日志完整性**（重要）：① diag.append 展开序改为 row 在前、服务端时钟 t 在后——客户端自带 t 不可覆盖宿主时间戳；② POST /diag 客户端行 ev 强制归入 client. 命名空间，服务端保留事件族（provider./route./store./host.）拒收并以 rejected 计数返回——客户端不可伪造 provider.fail/route.status、绕不过 route.status 门；③ src 恒覆写 client。D3 执行方立场：不做逐字段白名单（客户端事件字段 legitimately 多样，白名单锁死扩展），「命名空间化 + 保留族拒收 + 服务端时间戳权威」三件套闭合伪造审计线向量。
+- **P5 迁移告警**（建议，D2 处置=不接受静默）：store.init 检测「历史记录被 P0-2 目录翻为 index 且原带持仓/目标价」时 warn 一次带计数（提示可用升级前备份回滚）；剥除行为本身是 P0-2 规格不变。
+- **§12.28 措辞修正**：GET tail 仅信任壳（与读路由惯例一致），POST 才有同源+体积+行数上限——原文「GET/POST 同源」过宽已改。
+
+P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既有显式取舍：退避期内不打上游是限流纪律（quotes.mjs 注释明示），备源新鲜度换上游保护——记录为已知取舍，不改。
+
+新增回归钉：diag.test「服务端时间戳权威」、routes.test「客户端行 ev 命名空间化——保留事件不可伪造」（既有 diag POST 断言同步改 client.panel.quotes.fail）、store.test「指数迁移告警计数」。
+
+范围外建议（评审提出，未实施，留档）：push2+push2his 同域故障时美股 K线/分时降级面补 capability-matrix 一句；search.mjs 未使用 import normalizeKind 清理；client/diag visibilitychange 监听无 dispose（无害）。

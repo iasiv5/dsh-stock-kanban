@@ -51,7 +51,8 @@ export function createDiagLogger({ dir, maxBytes = 1048576, level = "errors", no
     if (!enabled || !row || typeof row !== "object") return queue;
     if (theLevel === "off") return queue;
     if (theLevel === "errors" && !isErrorEvent(row.ev)) return queue;
-    const line = JSON.stringify({ t: now().toISOString(), ...row }) + "\n";
+    // 服务端时间戳权威（2026-11-13 评审轮2 P3）：row 展开在前、t 在后——客户端自带 t 不可覆盖宿主时钟
+    const line = JSON.stringify({ ...row, t: now().toISOString() }) + "\n";
     queue = queue.then(async () => {
       await ensureDir();
       appended += 1;

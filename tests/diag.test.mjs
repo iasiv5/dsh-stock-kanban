@@ -59,3 +59,13 @@ test("tail 回读上限（新→旧序取尾）", async () => {
   assert.equal(rows.length, 3);
   assert.equal(rows[2].i, 7);
 });
+
+test("append 展开序：服务端时间戳权威，客户端自带 t 被覆盖（评审轮2 P3）", async () => {
+  const d = createDiagLogger({ dir: dir(), level: "full", now: clock });
+  await d.append({ ev: "host.ready", t: "1999-01-01T00:00:00.000Z" });
+  await d.flush();
+  const { rows } = await d.tail(5);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].t, T0.toISOString());
+  assert.equal(rows[0].ev, "host.ready");
+});
