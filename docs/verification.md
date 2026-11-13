@@ -552,4 +552,6 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 
 新增回归钉：diag.test「服务端时间戳权威」、routes.test「客户端行 ev 命名空间化——保留事件不可伪造」（既有 diag POST 断言同步改 client.panel.quotes.fail）、store.test「指数迁移告警计数」。
 
+评审轮 2 收口后全量 npm test **329/329/0**（亲跑 EXIT=0，即代码最后一次改动后的套件；评审 Agent 在副本 review-final=58b8932 亦复跑 329/329/0）。本轮仅改 src/tests/docs，未改 client/，lib/client.js 无需重建；版本仍 0.2.5，未发版（发版与装机均未执行）。
+
 范围外建议（评审提出，未实施，留档）：push2+push2his 同域故障时美股 K线/分时降级面补 capability-matrix 一句；search.mjs 未使用 import normalizeKind 清理；client/diag visibilitychange 监听无 dispose（无害）。
