@@ -151,7 +151,7 @@ export function mountKanban({ doc, win, storage }) {
 
   return () => {
     unsubscribe();
-    try { diag.flush(); } catch { /* 诊断不影响拆卸 */ }
+    try { diag.dispose(); } catch { /* 诊断不影响拆卸 */ }
     store.dispose();
     capsule.dispose();
     quotaEmbed.dispose(); // 挂在 capsule.dispose 之后（S5 装配约定）
