@@ -28,6 +28,7 @@ test("fetchBatchSnapshots：meta → 行；regularMarketTime → quoteTimeMs（�
     assert.ok(q.changeAmount < 0); // 与当日口径同号（修正前 chartPreviousClose 漂移坑会算出 +3% 假涨）
     assert.equal(q.quoteTimeMs, 1794517201000);
     assert.ok(urls[0].includes("/v8/finance/chart/AAPL"));
+    assert.ok(urls[0].includes("range=1d")); // 昨收口径依赖 range=1d（评审轮3 D1：1mo 下 chartPreviousClose 随 range 漂移）
   } finally {
     globalThis.fetch = originalFetch;
   }

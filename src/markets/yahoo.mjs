@@ -31,9 +31,9 @@ function symbolOf(code) {
   return INDEX_SYMBOL[t] ?? t;
 }
 
-/** 单标的 chart 元数据（interval=1d&range=1mo 只为 meta，K 线一根都不必用） */
+/** 单标的 chart 元数据（interval=1d&range=1d：只为 meta；range=1d 时 chartPreviousClose 即昨收，见 metaToQuote 注释） */
 async function chartMeta(code) {
-  const url = CHART_URL + "/" + encodeURIComponent(symbolOf(code)) + "?interval=1d&range=1mo&includePrePost=false";
+  const url = CHART_URL + "/" + encodeURIComponent(symbolOf(code)) + "?interval=1d&range=1d&includePrePost=false";
   const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!res.ok) throw new Error("HTTP " + res.status);
   const json = await res.json();
@@ -48,7 +48,8 @@ function metaToQuote(code, meta) {
   if (price == null || price <= 0) return null;
   // 涨跌幅口径（2026-11-13 评审轮1修正）：meta.regularMarketChangePercent 直读（当日 vs 昨收），
   // 昨收由 price/(1+pct/100) 反推（腾讯分时 prevClose 同款推导先例）。chartPreviousClose 是
-  // range 起点的前收盘、随 range 漂移（实测 range=1mo → 约一个月前收盘），不可当昨收——
+  // range 起点的前收盘、随 range 漂移（实测 range=1mo → 约一个月前收盘）：1mo 下不可当昨收；
+  // 现请求固定 range=1d，此时它即昨收（2026-11-13 实测 1d 前收 355.36 与 pct 反推 355.3597 一致），仅供 pct 缺失时的回落分支使用——
   // 该坑自 dsh-market-lens lib/sources/yahoo.js 原样继承（上游同病）；pct 缺失/≤-100 时才回落。
   const pct = num(meta.regularMarketChangePercent);
   let prevClose = null;
