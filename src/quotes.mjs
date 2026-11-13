@@ -148,6 +148,38 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
     return out;
   }
 
+  /**
+   * 详情路径的提供方守卫（2026-11-13）：与批量路径共用提供方状态（失败计数 / 指数退避）。
+   * 退避期内直接抛错、不打上游；有行情的成功结果按 ttlMs 短缓存，详情轮询（15 秒）不重复打上游。
+   * 修复前：详情路径绕过退避与缓存，头部报价每次轮询都直接打 Yahoo（429 因而持续），且 fullAdapter 缺 tencent-us。
+   * 注：东方财富 secid 探测的传输失败由 resolveUSSecid 静默吞掉并返回 null，此处计不到失败（见 docs/verification.md §12.31）。
+   */
+  const fullCache = new Map();
+  async function guardedFull(name, code, fn) {
+    const s = state.get(name);
+    const key = name + ":" + code;
+    const hit = fullCache.get(key);
+    if (hit && now() - hit.at < ttlMs) return hit.value;
+    if (now() < s.backoffUntil) throw new Error("backoff-" + name);
+    try {
+      const value = await fn(code);
+      s.failures = 0;
+      s.backoffUntil = 0;
+      if (value?.quote) fullCache.set(key, { at: now(), value });
+      return value;
+    } catch (e) {
+      s.failures += 1;
+      const backoff = backoffMs(s);
+      s.backoffUntil = now() + backoff;
+      try {
+        diag?.({ ev: "provider.fail", provider: name, error: String(e?.message ?? e).slice(0, 120), failures: s.failures, backoffMs: backoff });
+      } catch {
+        /* 诊断不得影响行情 */
+      }
+      throw e;
+    }
+  }
+
   /** 详情页完整快照（高低开收全字段；每标的独立请求，按市场链逐源补位） */
   const fullAdapter = {
     tencent: async (code) => {
@@ -164,6 +196,11 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
       const quote = rows.get(String(code).toUpperCase()) ?? null;
       return { quote, quoteTime: quote?.quoteTimeMs ?? null };
     },
+    "tencent-us": async (code) => {
+      const rows = await tencentUsBatch([code]);
+      const quote = rows.get(String(code).toUpperCase()) ?? null;
+      return { quote, quoteTime: quote ? tencentUsQuoteTime(quote) : null };
+    },
     okx: async (code) => {
       const quote = await okxQuote(code);
       return { quote, quoteTime: quote?.quoteTimeMs ?? null };
@@ -176,7 +213,7 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
       const fetchedAt = now();
       for (const name of CHAINS[identity.market] ?? []) {
         try {
-          const { quote, quoteTime } = await fullAdapter[name](identity.code);
+          const { quote, quoteTime } = await guardedFull(name, identity.code, fullAdapter[name]);
           if (quote && quote.price > 0) {
             out.set(identity.id, { id: identity.id, identity, status: "ok", quote, fetchedAt, quoteTime });
             return;
