@@ -17,7 +17,7 @@ DSH 插件（盯盘胶囊 + 面板 + 分时/K 线）。运行时零 npm 依赖�
 - i18n 为 zh/en 双字典，parity 与键位对齐有守卫测试——新文案两字典同步加。
 - 市场注册条目（dsh-m/registry.json）：兼容句与 `verified` 的核对是 **DSH 升级动作**（know-how 008），不挂在插件发版上；插件发版仅在兼容句已腐烂时顺带修正。`verified` 只记实测 DSH 运行时版本，**严禁混入插件自身版本**（铁律 022；本地守卫 `tests/registry-verified.test.mjs`，dsh-m 侧 validate-registry 已门禁化为硬错误；2026-11-13 0.3.0 发版实录曾误填）。
 - 验证记录写 `docs/verification.md`（§12.x 追记式，含未验证项与降级——未验证不冒充已验证）。
-- 产物核证探针用 minify 免疫标记：字符串字面量（版本号等）与 `lib/client.js` 逐字节 diff/cmp；局部标识符会被 minify 混淆（2026-11-12 实录：`pullSequence` 计 0 被误读为代码缺失）。`grep -c` 计 0 即 exit 1，禁入 `&&` 链。
+- 产物核证探针用 minify 免疫标记：字符串字面量（版本号等）与 `lib/client.js` 逐字节 diff/cmp；局部标识符会被 minify 混淆（2026-11-12 实录：`pullSequence` 计 0 被误读为代码缺失）。`grep -c` 计 0 即 exit 1，中文字面量在 lib 内是 `\uXXXX` 转义形态（esbuild minify 默认 charset=ascii），产物判据须用 `grep -cF` 转义定串或 ASCII 标记——BRE 单反斜杠 `\u` 会被吞为 `u`，不可用（2026-11-14 实录：中文新文案字面量判据恒 0，双态检出力以 -F 实证）。`grep -c` 计 0 即 exit 1，禁入 `&&` 链。
 - 探针必须 import 生产解析函数（如 `src/markets/search.mjs` 的 `parseSmartbox`），不得复制正则；现成入口 `scripts/probe-markets.mjs`。（2026-11-13 实录：手写正则的反转义错误被误读为上游格式。）
 - 标的池 `data/*.json` 由 `scripts/refresh-pools.mjs` 生成（`data/manifest.json` 登记来源与哈希，`tests/data-provenance.test.mjs` 校验）：**不得手改**；来源架构与刷新流程见 `data/README.md`。当前为多行规范化格式（2 空格缩进、按代码升序）。
 
