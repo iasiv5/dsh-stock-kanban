@@ -775,6 +775,7 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **健康核验（重启后实测）**：HTTP 200；deepseek-harness ActiveEnterTimestamp = Sat 2026-11-14 02:09:18 CST（与重启时刻吻合）；安装副本 node_modules/dsh-stock-kanban/package.json version 读数 = 0.3.3。
 - **本版内容**：cn 混合搜索（ADR-0006，拼音 payh 走 smartbox）、新标的池（A股 5581 含北交所 357 只 920 号段 / ETF 1720 / 港股 3064 HKD 口径）、i18n 四组文案补齐（含 invalid-format 裸码修复）、仓库外路径守卫可移植化。
 - **未验证（不冒充已验证）**：GUI 复验留待主人——A 股 Tab 搜 `payh` 应命中平安银行（拼音走 smartbox）；北交所 `920000` 应可搜可加；直连填无效格式代码应显示「代码格式无效」而非 `invalid-format`；港股池 HKD 口径与人民币柜台不可见的界面表现。
+- **GUI 复验（2026-11-14 收尾）**：主人确认「测试都OK」，对照上列四项检查点（payh 拼音命中 / 北交所可搜可加 / invalid-format 文案 / HKD 口径与柜台不可见）逐项通过（口头确认，未逐项留痕）——v0.3.3 既定验证面全部闭合。
 
 
 
