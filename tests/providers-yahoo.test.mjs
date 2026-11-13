@@ -34,19 +34,20 @@ test("fetchBatchSnapshots：meta → 行；regularMarketTime → quoteTimeMs（�
   }
 });
 
-test("fetchBatchSnapshots：指数映射 ^DJI/^IXIC；单标的失败独立判错不整批失败", async () => {
+test("fetchBatchSnapshots：指数映射 ^DJI/^IXIC 正确；网络错误整批抛出（触发提供方退避，见 yahoo-ratelimit）", async () => {
   const originalFetch = globalThis.fetch;
+  const seen = [];
   globalThis.fetch = async (url) => {
+    seen.push(String(url));
     if (String(url).includes("%5EDJI")) {
       return { ok: true, json: async () => ({ chart: { result: [{ meta: { ...META, symbol: "^DJI", regularMarketPrice: 52297.09 } }] } }) };
     }
     throw new Error("network-down");
   };
   try {
-    const rows = await fetchBatchSnapshots(["DJI", "IXIC"]);
-    assert.equal(rows.size, 1);
-    assert.equal(rows.get("DJI").price, 52297.09);
-    assert.ok(!rows.has("IXIC"));
+    // 2026-11-13 语义修正：网络错误不再被逐标的吞掉，整批抛出以触发提供方级退避
+    await assert.rejects(() => fetchBatchSnapshots(["DJI", "IXIC"]), /network-down/);
+    assert.ok(seen.some((u) => u.includes("%5EDJI")), "DJI 符号应映射为 %5EDJI");
   } finally {
     globalThis.fetch = originalFetch;
   }

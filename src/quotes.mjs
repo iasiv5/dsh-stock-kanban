@@ -18,6 +18,7 @@
 import { handles as tencentHandles, fetchBatchSnapshots as tencentBatch, quoteTimeOf as tencentQuoteTime } from "./markets/tencent.mjs";
 import { handles as emHandles, fetchBatchSnapshots as emBatch, fetchQuote as emQuote } from "./markets/eastmoney.mjs";
 import { handles as yahooHandles, fetchBatchSnapshots as yahooBatch } from "./markets/yahoo.mjs";
+import { handles as tencentUsHandles, fetchBatchSnapshots as tencentUsBatch, quoteTimeOf as tencentUsQuoteTime } from "./markets/tencent-us.mjs";
 import { handles as okxHandles, fetchBatchSnapshots as okxBatch, fetchQuote as okxQuote } from "./markets/okx.mjs";
 
 const DEFAULT_TTL_MS = 10 * 1000;
@@ -28,7 +29,7 @@ const BACKOFF_MAX_MS = 5 * 60 * 1000;
 const CHAINS = {
   cn: ["tencent", "eastmoney"],
   hk: ["tencent", "eastmoney"],
-  us: ["eastmoney", "yahoo"],
+  us: ["eastmoney", "tencent-us", "yahoo"], // 2026-11-13：东方财富 → 腾讯美股 → Yahoo（Yahoo 429 时仍有备源）
   crypto: ["okx"],
 };
 
@@ -36,6 +37,7 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
   const providers = [
     { name: "tencent", handles: tencentHandles, fetch: tencentBatch, quoteTime: tencentQuoteTime },
     { name: "eastmoney", handles: emHandles, fetch: emBatch, quoteTime: null },
+    { name: "tencent-us", handles: tencentUsHandles, fetch: tencentUsBatch, quoteTime: tencentUsQuoteTime },
     { name: "yahoo", handles: yahooHandles, fetch: yahooBatch, quoteTime: null },
     { name: "okx", handles: okxHandles, fetch: okxBatch, quoteTime: null },
   ];

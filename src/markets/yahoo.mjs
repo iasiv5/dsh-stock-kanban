@@ -38,7 +38,12 @@ async function chartMeta(code) {
   if (!res.ok) throw new Error("HTTP " + res.status);
   const json = await res.json();
   const meta = json?.chart?.result?.[0]?.meta;
-  if (!meta) throw new Error("no-chart-meta");
+  if (!meta) {
+    // 单标的数据缺失（非提供方故障）：带 code 标记，批量函数据此让位而非整批失败
+    const e = new Error("no-chart-meta");
+    e.code = "NO_CHART_META";
+    throw e;
+  }
   return meta;
 }
 
@@ -90,10 +95,21 @@ export async function fetchBatchSnapshots(codes) {
   const out = new Map();
   const list = [...new Set((codes ?? []).map((c) => String(c ?? "").trim().toUpperCase()).filter(Boolean))].slice(0, 20);
   for (const code of list) {
+    // 2026-11-13 修正：HTTP 429/5xx 与网络错误必须整批抛错，才能触发提供方级退避；
+    // 旧实现逐标的吞掉错误，整批返回空 Map，退避永不触发，本机 429 期间每轮轮询都继续打 Yahoo。
+    let meta;
     try {
-      out.set(code, metaToQuote(code, await chartMeta(code)));
+      meta = await chartMeta(code);
+    } catch (e) {
+      // 仅单标的数据缺失（NO_CHART_META）让位；HTTP 与网络错误是提供方故障，整批抛出以触发退避
+      if (e?.code === "NO_CHART_META") continue;
+      throw e;
+    }
+    try {
+      const q = metaToQuote(code, meta);
+      if (q) out.set(code, q);
     } catch {
-      /* 逐标的独立判错：缺席即让位（全链失败由调用方标 error） */
+      /* 单标的数据畸形：缺席即让位（不影响其余标的） */
     }
   }
   return out;
