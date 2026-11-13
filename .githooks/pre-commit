@@ -1,0 +1,9 @@
+#!/bin/sh
+# pre-commit：对暂存区的 .mjs 做语法闸（秒级）。完整测试与产物新鲜度仍在 pre-push。
+files=$(git diff --cached --name-only --diff-filter=ACM -- '*.mjs')
+[ -z "$files" ] && exit 0
+status=0
+for f in $files; do
+  node --check "$f" || status=1
+done
+exit $status
