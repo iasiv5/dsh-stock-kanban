@@ -757,4 +757,14 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **追记更正**：§12.40 第 1 项（宿主重启规则）已于 2026-11-13 晚在 danger-full-access 下落地（`~/.dsh/AGENTS.md` 改为「只用 `dshm_restart`、本轮最后动作」）；DSH 侧 npm 缓存默认值仍未处理。
 - **未验证（不冒充已验证）**：GUI 未复验（数据随下次发版到达用户）；EM clist 恢复后行情侧路径未实测（对账逻辑已由 SH 路径覆盖）；新浪源未接入。
 
+## 12.42 cn 混合搜索（ADR-0006）与搜索源架构落档
+
+- **决策**（与主人 grill 对齐，2026-11-14）：cn = 池 + smartbox 混合；hk 维持混合；us 不建池（smartbox 单点为已接受风险）；crypto 不建池；不加添加时新鲜度闸。目标排序：可靠覆盖 > 一致性 > 维护成本 > 速度。落档：`docs/adr/0006-search-source-architecture.md` + 根 `GLOSSARY.md`（追加 8 术语）。
+- **实现**（src/markets/search.mjs）：parseSmartbox 增 (sh|sz|bj)×GP* 分支收录 A 股正股（实测 smartbox 返回 GP-A 且带拼音缩写；bj 暂无返回，放行备用）；cn 分支照 hk 口径——池满 30 条不打上游，smartbox 补充。
+- **文案**（client/i18n.mjs）：err.smartbox-unavailable 的 zh/en 由「港股/美股…」改为覆盖 cn 的表述；npm run build 重建 lib/client.js。
+- **测试**：parseSmartbox GP-A 用例（ZS/KJ 过滤、bj 放行）+ cn 混合用例（拼音 payh 查询走 smartbox；上游挂时池结果仍在并标错）。全量 npm test 401 项通过。
+- **实测记录**：smartbox「1」返回 10 条含 ZS/KJ（过滤后 GP-A 收录）；smartbox 自身也含死码（sh~600001 邯郸钢铁，2009 年退市仍在列）——在线源并非无死码，添加路径的行情校验与池子的刷新校验仍是必要防线。
+- **未验证（不冒充已验证）**：GUI 未复验拼音搜索；smartbox 对 bj 覆盖为零（返回 N），GP-A 的 bj 分支为前瞻放行。
+
+
 
