@@ -95,7 +95,7 @@ sudo systemctl restart deepseek-harness.service
 | A 股 / ETF | 腾讯 qt.gtimg.cn（批量）；备源：东方财富 ulist | 腾讯 minute/query（proxy 域主、web 域备） | 腾讯 fqkline | **前复权（qfq）** |
 | 港股 | 同上（同批）；备源：同上 | 同上 | 同上 | **不复权**（接口无 qfq 键，图表如实标注） |
 | 美股 | 东方财富 ulist（批量）/ stock/get；备源：腾讯美股 → Yahoo chart（并补行情时间戳） | trends2（北京时间为轴）；EM 不可用回落 Yahoo 1 分钟 | kline klt=101/102/103；EM 不可用回落腾讯美股 fqkline | **前复权（fqt=1）**；EM 不可用回落腾讯美股时为不复权（腾讯美股无复权键，如实标注） |
-| 指数 | 上证/深成/创业板/科创50/沪深300、恒指/恒科走腾讯；道指/纳指/标普走 EM（预置 secid） | 腾讯 minute/query（中/港指数）；EM trends2（美股指数，北京时间为轴） | 腾讯 fqkline（中/港）；EM kline（美股） | 不复权（如实标注） |
+| 指数 | 上证/深成/创业板/科创50/沪深300、恒指/恒科走腾讯；道指/纳指/标普走 EM（预置 secid） | 腾讯 minute/query（中/港指数）；EM trends2（美股指数，北京时间为轴） | 腾讯 fqkline（中/港）；EM kline（美股），EM 不可用回落腾讯裸 kline（us.IXIC 点号格式） | 不复权（如实标注） |
 | 加密货币 | OKX 现货公开 REST（ticker / tickers） | 5m×288 ≈ 24h | candles 1D / 1W / 1M | 无复权概念 |
 
 - **搜索**：A 股 / 港股 / ETF 用本地标的池（`data/*.json`，约 1 万条，来自参考项目）加腾讯 smartbox；美股用 smartbox；加密货币用 OKX 交易对清单；**十大指数（上证/深成/创业板/科创50/沪深300、恒指/恒科、道指/纳指/标普）走本地目录匹配**——上游全挂也搜得到。搜索源不可用时明确提示，不展示虚构结果。指数标的不设持仓与目标价。

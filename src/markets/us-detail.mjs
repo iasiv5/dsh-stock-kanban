@@ -1,7 +1,7 @@
 /**
  * 美股详情图表（分时 / K 线）多源链（2026-11-13）。
  *
- *   K 线：东方财富 push2his（前复权 qfq，主源）-> 腾讯美股 fqkline（备源，未复权，标 none；指数不回落）
+ *   K 线：东方财富 push2his（前复权 qfq，主源）-> 腾讯美股 K 线（备源，未复权，标 none；指数同样回落）
  *   分时：东方财富 trends2（主源）-> Yahoo chart 1 分钟（备源，昨收取 meta.chartPreviousClose；带 429 退避）
  *
  * 为什么要备源：2026-11-13 东方财富 push2/push2his 在本机整体不通（push2his 连接后空回应，push2 返回 502），
@@ -14,7 +14,9 @@
  *   - 腾讯美股分时在休市时返回空数组，开盘时段是否可用未验证，故不纳入分时备源。
  *   - Yahoo 1 分钟图表 2026-11-13 实测 HTTP 200 有收盘序列；但对本机连续请求会返回 429，
  *     因此 429、5xx 或网络错误后 120 秒内不再请求 Yahoo（提供方级退避）。
- *   - 指数（DJI/IXIC/INX）不回落腾讯（腾讯美股指数代码映射未验证）。
+ *   - 指数（DJI/IXIC/INX）同样回落腾讯：fqkline 对指数只回 1 根（实测），须走裸 kline 端点 + 点号格式
+ *     us.IXIC/us.DJI/us.INX，day/week/month 全周期 180/150/120 根实测可用（2026-11-13；此前指数 K 线
+ *     只走 EM，push2his 间歇不可达时整块 fetch-failed，用户实录）。
  *
  * 缓存：成功结果 K 线 5 分钟、分时 30 秒，失败不缓存。无常驻定时器，全部惰性触发。
  */
@@ -23,6 +25,7 @@ import { indexOfCode } from "../identity.mjs";
 
 const TIMEOUT_MS = 10000;
 const TENCENT_KLINE = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=";
+const TENCENT_KLINE_INDEX = "https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param=";
 const TENCENT_SUFFIXES = [".OQ", ".N", ".AM"];
 const TENCENT_COUNT = { day: 180, week: 150, month: 120 };
 const TENCENT_MIN_ROWS = 5;
@@ -66,13 +69,19 @@ async function tencentKline(code, period) {
   const ticker = tickerOf(code);
   const count = TENCENT_COUNT[period] ?? 180;
   const remembered = suffixByTicker.get(ticker);
-  const candidates = remembered ? [remembered] : TENCENT_SUFFIXES;
+  // 指数：裸 kline 端点 + 点号格式 us.IXIC（fqkline 对指数只回 1 根，2026-11-13 实测）；
+  // 个股：fqkline + 交易所后缀逐个探测（无后缀只回 2 根）
+  const isIndex = indexOfCode("us", code) !== null;
+  const candidates = isIndex ? [""] : remembered ? [remembered] : TENCENT_SUFFIXES;
   let lastError = "no-data";
   for (const suffix of candidates) {
-    const sym = "us" + ticker + suffix;
+    const sym = isIndex ? "us." + ticker : "us" + ticker + suffix;
     let json;
     try {
-      const res = await fetch(TENCENT_KLINE + sym + "," + period + ",,," + count + ",qfq", {
+      const klineUrl = isIndex
+        ? TENCENT_KLINE_INDEX + sym + "," + period + ",,," + count
+        : TENCENT_KLINE + sym + "," + period + ",,," + count + ",qfq";
+      const res = await fetch(klineUrl, {
         headers: { accept: "application/json" },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
@@ -164,7 +173,7 @@ async function yahooMinute(code) {
   };
 }
 
-/** K 线：东方财富（前复权）-> 腾讯美股（未复权）；指数只走东方财富 */
+/** K 线：东方财富（前复权）-> 腾讯美股（未复权）；指数同样回落腾讯（原始价，无复权概念） */
 export async function fetchKline(code, period = "day") {
   const per = ["day", "week", "month"].includes(period) ? period : "day";
   const key = "kl:" + code + ":" + per;
@@ -176,9 +185,8 @@ export async function fetchKline(code, period = "day") {
     // README 口径：指数一律不复权（如实标注）——目录命中的美股指数覆写 none（2026-11-13 口径审计）
     return remember(key, indexOfCode("us", code) ? { ...em, adjust: "none" } : em);
   }
-  if (indexOfCode("us", code)) {
-    return { candles: [], adjust: null, error: em.error ?? "no-data", errorDetail: em.errorDetail ?? null };
-  }
+  // 指数不再排除腾讯（2026-11-13 用户实录：push2his 间歇不可达时美股指数 K 线整块 fetch-failed）——
+  // 腾讯美股 K 线为原始价，指数无复权概念，标 none 与「不复权（如实标注）」口径一致
   const tx = await tencentKline(code, per);
   if (tx.candles.length) return remember(key, tx);
   const error = em.error === "fetch-failed" || tx.error === "fetch-failed" ? "fetch-failed" : (tx.error ?? em.error ?? "no-data");

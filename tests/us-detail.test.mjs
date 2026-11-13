@@ -66,15 +66,18 @@ test("K线：后缀逐个探测（.OQ 行数不足则试 .N），成功后记住
   }
 });
 
-test("指数（DJI）不回落腾讯：东方财富不通时直接返回 fetch-failed", async () => {
+test("指数（DJI）EM 不通时回落腾讯裸 kline（us.DJI 点号格式，原始价标 none）", async () => {
   const orig = globalThis.fetch;
   resetUsDetailForTests();
   try {
-    const calls = installFetch([]);
+    const calls = installFetch([
+      ["param=us.DJI,day", () => ok({ code: 0, data: { "us.DJI": { day: DAY_ROWS } } })],
+    ]);
     const r = await fetchKline("DJI", "day");
-    assert.equal(r.candles.length, 0);
-    assert.equal(r.error, "fetch-failed");
-    assert.ok(!calls.some((u) => u.includes("gtimg")));
+    assert.equal(r.error, null);
+    assert.equal(r.adjust, "none");
+    assert.equal(r.candles.length, 5);
+    assert.ok(calls.some((u) => u.includes("kline/kline?param=us.DJI")), "指数应走裸 kline 端点点号格式");
   } finally {
     globalThis.fetch = orig;
   }
