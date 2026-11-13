@@ -5,6 +5,7 @@
  *   - 时间输入：周一至周五 + 时段表（当地墙钟）。法定节假日、提前收市与长假均不建模，按工作日处理。
  *   - 行情输入：服务端 targets 给出的行情状态（ok / stale / no-data）。
  * 合并结果：行情过期时，时段内「旧」、时段外「休」；无行情「无」；行情正常不显示。
+ * 休市标注是市场事实（§12.34）：无论是否设目标价，休市时段一律标「休」，保证整列一致。
  *
  * 时段表依据交易所公开规则（来源见 docs/verification.md §12.33）：
  *   cn  Asia/Shanghai     09:30–11:30、13:00–15:00
@@ -17,6 +18,13 @@ const SESSION_WINDOWS = {
   cn: { tz: "Asia/Shanghai", windows: [[570, 690], [780, 900]] },
   hk: { tz: "Asia/Hong_Kong", windows: [[570, 720], [780, 960]] },
   us: { tz: "America/New_York", windows: [[240, 1200]] },
+};
+
+/** 分时图 x 轴锚定的常规时段窗（分钟；§12.34，仅图表轴使用，与轮询窗口无关）：美股取常规 09:30–16:00，扩展时段数据由轴自适应外扩 */
+export const CHART_WINDOWS = {
+  cn: { tz: "Asia/Shanghai", windows: [[570, 690], [780, 900]] },
+  hk: { tz: "Asia/Hong_Kong", windows: [[570, 720], [780, 960]] },
+  us: { tz: "America/New_York", windows: [[570, 960]] },
 };
 
 /** 轮询节奏（毫秒）：任一标的市场开市 → 展开 15 秒 / 收起 30 秒；全部休市 → 60 秒 */
@@ -47,10 +55,12 @@ export function isMarketOpen(market, now) {
  * @returns {null|'stale'|'closed'|'no-data'}
  */
 export function targetBadgeKind(target, market, now) {
-  if (!target || target.status === "no-targets") return null;
-  if (target.status === "no-data") return "no-data";
-  if (target.status === "stale") return isMarketOpen(market, now) ? "stale" : "closed";
-  return null;
+  if (target?.status === "no-data") return "no-data";
+  // 休市是市场事实，与是否设目标价无关（§12.34）：休市一律标「休」（整列一致）；开市时不产生噪声
+  const closed = !isMarketOpen(market, now);
+  if (!target || target.status === "no-targets") return closed ? "closed" : null;
+  if (target.status === "stale") return closed ? "closed" : "stale";
+  return closed ? "closed" : null;
 }
 
 /** 轮询间隔（毫秒）：任一标的市场开市（或含加密）即按开市节奏；全部休市降频为 60 秒 */

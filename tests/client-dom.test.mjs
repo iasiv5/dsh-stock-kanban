@@ -527,6 +527,27 @@ test("charts · buildMinuteChart 返回 NS 直建 SVG（价格 polyline + 昨收
   }
 });
 
+test("charts · 分时轴锚定常规时段（§12.34）：A股数据止于 11:00，轴首尾仍为 09:30–15:00，线未到右缘", () => {
+  const h = createDomHarness();
+  const prevGlobals = { document: globalThis.document };
+  globalThis.document = h.document;
+  try {
+    const t0 = Date.parse("2026-11-13T01:30:00Z") / 1000; // 北京 09:30
+    const pts = Array.from({ length: 91 }, (_, i) => ({ t: t0 + i * 60, p: 10 + (i % 5) * 0.01, v: 5 }));
+    const el = buildMinuteChart({ points: pts, prevClose: null }, { market: "cn", width: 280, height: 190 });
+    const texts = [...el.querySelectorAll("text")].map((x) => x.textContent);
+    assert.equal(texts[0], "09:30", "轴首 = 开市时间");
+    assert.equal(texts[texts.length - 1], "15:00", "轴尾 = 收市时间（不随数据止点漂移）");
+    assert.ok(texts.includes("13:00"), "午休边界 13:00 标注");
+    const xs = el.querySelector("polyline").getAttribute("points").split(" ").map((s) => Number(s.split(",")[0]));
+    const maxX = Math.max(...xs);
+    assert.ok(maxX < 280 * 0.6, `数据止于 11:00 时线未到右缘（max x=${maxX.toFixed(1)}）`);
+  } finally {
+    globalThis.document = prevGlobals.document;
+    h.cleanup();
+  }
+});
+
 test("charts · buildCandleChart：maVisible 关 MA5 时无 MA5 线", () => {
   const h = createDomHarness();
   const prevGlobals = { document: globalThis.document };

@@ -53,6 +53,14 @@ test("轮询节奏：任一市场开市时展开 15 秒 / 收起 30 秒；全部
   assert.equal(pollIntervalMs({ panelOpen: true, markets: ["cn", "crypto"], now: CN_SAT }), 15000);
 });
 
+test("复合标签：休市对整列一致——未设目标价/无行情的标的休市时也标「休」", () => {
+  assert.equal(targetBadgeKind({ status: "no-targets" }, "us", US_FRI_NIGHT), "closed");
+  assert.equal(targetBadgeKind(undefined, "cn", CN_SAT), "closed");
+  assert.equal(targetBadgeKind({ status: "no-targets" }, "cn", CN_FRI_IN), null);
+  assert.equal(targetBadgeKind({ status: "wait" }, "us", US_FRI_NIGHT), "closed");
+  assert.equal(targetBadgeKind({ status: "wait" }, "us", US_FRI_IN), null);
+});
+
 test("图表静默刷新：仅开市时每 60 秒一次；休市不刷新", () => {
   assert.equal(CHART_REFRESH_MS, 60000);
   assert.equal(chartRefreshDue("cn", CN_FRI_IN - 61000, CN_FRI_IN), true);

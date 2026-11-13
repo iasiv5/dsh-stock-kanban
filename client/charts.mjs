@@ -8,6 +8,7 @@
 
 import { computeMa, niceBounds } from "./chartmath.mjs";
 import { t } from "./i18n.mjs";
+import { CHART_WINDOWS } from "../src/sessions.mjs";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const UP = "#e5484d"; // A股惯例红涨
@@ -52,7 +53,38 @@ export function buildMinuteChart(svgData, opts = {}) {
   const withBase = points.map((p) => p.p).concat(Number.isFinite(prevClose) && prevClose > 0 ? [prevClose] : []);
   const [min, max] = niceBounds(Math.min(...withBase), Math.max(...withBase));
   const innerW = width - pad * 2;
-  const xOf = (i) => pad + (i / (points.length - 1)) * innerW;
+  // §12.34 分时轴：有常规时段窗的市场把 x 轴锚定在开市/收市（按时间比例定位，午休压缩），
+  // 数据超出常规窗时自适应外扩；无窗市场（加密等）保持按数据序号定位
+  const axisCfg = CHART_WINDOWS[opts.market ?? ""];
+  let xOf = (i) => pad + (i / (points.length - 1)) * innerW;
+  let axisLabels = null;
+  if (axisCfg) {
+    const hmFmt = new Intl.DateTimeFormat("en-GB", { timeZone: axisCfg.tz, hour12: false, hour: "2-digit", minute: "2-digit" });
+    const minuteOf = (ts) => {
+      const s = hmFmt.format(new Date(ts * 1000));
+      return (Number(s.slice(0, 2)) % 24) * 60 + Number(s.slice(3, 5));
+    };
+    const eff = axisCfg.windows.map(([a, b]) => [a, b]);
+    const dFirst = minuteOf(points[0].t);
+    const dLast = minuteOf(points[points.length - 1].t);
+    if (dFirst < eff[0][0]) eff.unshift([dFirst, eff[0][0]]);
+    const lastEnd = eff[eff.length - 1][1];
+    if (dLast > lastEnd) eff.push([lastEnd, dLast]);
+    const total = eff.reduce((s, [a, b]) => s + (b - a), 0) || 1;
+    const xPos = (m) => {
+      let acc = 0;
+      for (const [a, b] of eff) {
+        if (m <= a) return acc / total;
+        if (m < b) return (acc + (m - a)) / total;
+        acc += b - a;
+      }
+      return 1;
+    };
+    xOf = (i) => pad + xPos(minuteOf(points[i].t)) * innerW;
+    const lbl = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    axisLabels = eff.map(([a]) => ({ text: lbl(a), r: xPos(a) }));
+    axisLabels.push({ text: lbl(eff[eff.length - 1][1]), r: 1 });
+  }
   const yOf = (v) => pad + priceH - ((v - min) / (max - min)) * priceH;
   const maxVol = Math.max(...points.map((p) => p.v ?? 0), 1);
   const volTop = pad + priceH + pad;
@@ -78,9 +110,20 @@ export function buildMinuteChart(svgData, opts = {}) {
   const kids = [
     svgEl("polyline", { points: pricePts, fill: "none", stroke: up ? UP : DOWN, "stroke-width": 1.5 }),
     svgEl("polyline", { points: avgPts, fill: "none", stroke: YELLOW, "stroke-width": 1 }),
-    svgEl("text", { x: 2, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, timeLabel(points[0].t)),
-    svgEl("text", { x: width / 2 - 16, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, timeLabel(points[Math.floor(points.length / 2)].t)),
-    svgEl("text", { x: width - 30, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, timeLabel(points[points.length - 1].t)),
+    ...(axisLabels
+      ? axisLabels.map(({ text, r }, k, arr) => {
+          const raw = pad + r * innerW;
+          const mid = k > 0 && k < arr.length - 1;
+          const x = mid ? raw : k === 0 ? 2 : width - 30;
+          const attrs = { x: Math.max(2, Math.min(width - 30, x)), y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 };
+          if (mid) attrs["text-anchor"] = "middle";
+          return svgEl("text", attrs, text);
+        })
+      : [
+          svgEl("text", { x: 2, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, timeLabel(points[0].t)),
+          svgEl("text", { x: width / 2 - 16, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, timeLabel(points[Math.floor(points.length / 2)].t)),
+          svgEl("text", { x: width - 30, y: height - 2, style: AXIS_TEXT_STYLE, "font-size": 11 }, timeLabel(points[points.length - 1].t)),
+        ]),
   ];
   if (baseY != null) {
     kids.splice(2, 0, svgEl("line", {

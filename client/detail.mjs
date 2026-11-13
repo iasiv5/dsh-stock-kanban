@@ -15,7 +15,7 @@ import { iconEl } from "./icons.mjs";
 import { t, tErr, getLang } from "./i18n.mjs";
 import { checkTargetRelation } from "../src/identity.mjs";
 import { positionMetrics } from "../src/portfolio.mjs";
-import { chartRefreshDue, targetBadgeKind } from "../src/sessions.mjs";
+import { chartRefreshDue, isMarketOpen, targetBadgeKind } from "../src/sessions.mjs";
 
 const PERIODS = [
   { key: "minute", label: () => t("detail.period.minute") },
@@ -361,6 +361,12 @@ export function createDetail({ store, win }) {
       caption.textContent = t("detail.chart.loading");
       loading.append(price, vol, caption);
       box.append(loading);
+    } else if (chartErrorText && period === "minute" && !isMarketOpen(symbol.market, Date.now())) {
+      // 休市时的分时获取失败（源退避等）不是故障：给安静的休市提示，不标红（§12.34）
+      const closed = document.createElement("div");
+      closed.className = "skc-chart-empty";
+      closed.textContent = t("detail.chart.closed");
+      box.append(closed);
     } else if (chartErrorText) {
       const err = document.createElement("div");
       err.className = "skc-chart-empty skc-chart-error";
@@ -369,7 +375,7 @@ export function createDetail({ store, win }) {
     } else if (period === "minute") {
       box.append(buildMinuteChart(
         { points: chart.data?.points ?? [], prevClose: chart.data?.prevClose ?? chart.prevClose ?? null },
-        { dark: false, width: chartWidth(), height: chartHeight(viewportHeight()) },
+        { dark: false, market: symbol.market, width: chartWidth(), height: chartHeight(viewportHeight()) },
       ));
     } else {
       box.append(buildCandleChart(chart.data ?? [], { maVisible: ui.maVisible, dark: false, width: chartWidth(), height: chartHeight(viewportHeight()) }));

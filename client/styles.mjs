@@ -213,7 +213,7 @@ export const FLOAT_STYLE_TEXT = `
 .skc-seg-stack{display:grid}
 .skc-seg-stack > form{grid-area:1 / 1;min-width:0}
 .skc-seg-stack > form.is-off{visibility:hidden}
-.skc-index-note{padding:0 2px 4px}
+.skc-index-note{padding:10px 2px 0} /* §12.34：与图表框拉开间距（备注紧贴图框下缘） */
 /* 全局兜底：hidden 属性必须真隐藏（.skc-btn 等类的 display 会盖过 UA 的 [hidden]；第六轮 2026-11-10） */
 [hidden]{display:none!important}
 .skc-form-actions{grid-column:1 / -1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
