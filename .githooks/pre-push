@@ -9,10 +9,10 @@ if [ ! -d node_modules ]; then
   echo "pre-push: node_modules 缺失（dsh plugin add/remove 已知副作用）→ 先 npm ci 再推" >&2
   exit 1
 fi
-chrome_count=$(pgrep -c chrome 2>/dev/null || true)
+chrome_count=$(pgrep -cf 'chrome-[c]ft|chrome-[c]home' 2>/dev/null || true) # 只计 headless 测试 Chrome（CFT 安装目录 / home 重定向）；桌面浏览器 chrome 不拦（2026-11-13 retro：宿主桌面 chrome 14 进程曾误拦发版推送）
 chrome_count=${chrome_count:-0}
 if [ "$chrome_count" != "0" ]; then
-  echo "pre-push: 检测到 $chrome_count 个 chrome 进程（headless 曾把 npm test 22s→700s）→ 先收尾再推" >&2
+  echo "pre-push: 检测到 $chrome_count 个 headless chrome 进程（headless 曾把 npm test 22s→700s）→ 先收尾再推" >&2
   exit 1
 fi
 npm test --silent
