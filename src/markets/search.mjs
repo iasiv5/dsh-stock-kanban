@@ -8,7 +8,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { INDEX_CATALOG, indexOfCode, isValidCode, makeIdentity, normalizeCode, normalizeInputCode, normalizeKind } from "../identity.mjs";
+import { INDEX_CATALOG, indexOfCode, isValidCode, makeIdentity, normalizeCode, normalizeInputCode } from "../identity.mjs";
 import * as tencent from "./tencent.mjs";
 import * as eastmoney from "./eastmoney.mjs";
 import * as yahoo from "./yahoo.mjs";
