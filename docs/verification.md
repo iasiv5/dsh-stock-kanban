@@ -766,5 +766,16 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **实测记录**：smartbox「1」返回 10 条含 ZS/KJ（过滤后 GP-A 收录）；smartbox 自身也含死码（sh~600001 邯郸钢铁，2009 年退市仍在列）——在线源并非无死码，添加路径的行情校验与池子的刷新校验仍是必要防线。
 - **未验证（不冒充已验证）**：GUI 未复验拼音搜索；smartbox 对 bj 覆盖为零（返回 N），GP-A 的 bj 分支为前瞻放行。
 
+## 12.43 v0.3.3 发版实录（含 CI 红灯一次往返）
+
+- **发版链**：bump 0.3.3 + lib 重建（419a17a chore(release)，__APP_VERSION__ 注入）→ 轻量 tag v0.3.3 → push。
+- **CI 红灯一次**：首次发布工作流失败（RUN 43477989591，31s）。根因：tests/agents-paths.test.mjs 环境依赖——`../01_docs/…` 在本机 workspace 存在、CI 检出目录无父级兄弟；0.3.2 发布时该守卫尚未入库，0.3.3 首次携带即暴露（本地 pre-push 全绿属环境假象）。修复 e57b60d：仓库外路径仅在宿主 workspace 存在首段兄弟目录时校验（本机保留死路径检出力，CI 可移植跳过）。npm 注册表确认无 0.3.3 残留（404，工作流死在测试步、npm 未受理）→ 删远端 tag、修复 HEAD 重打轻量 tag，无 018 窗口冲突。
+- **第二次工作流成功**（RUN 43478911947，18:04Z）→ npm 三键入账：per-version 200、dist-tags.latest=0.3.3、published_at 2026-11-13T18:07:00Z → RELEASE_LIVE=yes（monitor 后台 job，日志 /tmp/rel-0-3-3.log，diag /tmp/rel-0-3-3-diag.log）。
+- **装机与重启**：dshm_upgrade → 0.3.3（needsRestart=true）→ dshm_restart（当轮最后动作）→ 主人确认重启完成。
+- **健康核验（重启后实测）**：HTTP 200；deepseek-harness ActiveEnterTimestamp = Sat 2026-11-14 02:09:18 CST（与重启时刻吻合）；安装副本 node_modules/dsh-stock-kanban/package.json version 读数 = 0.3.3。
+- **本版内容**：cn 混合搜索（ADR-0006，拼音 payh 走 smartbox）、新标的池（A股 5581 含北交所 357 只 920 号段 / ETF 1720 / 港股 3064 HKD 口径）、i18n 四组文案补齐（含 invalid-format 裸码修复）、仓库外路径守卫可移植化。
+- **未验证（不冒充已验证）**：GUI 复验留待主人——A 股 Tab 搜 `payh` 应命中平安银行（拼音走 smartbox）；北交所 `920000` 应可搜可加；直连填无效格式代码应显示「代码格式无效」而非 `invalid-format`；港股池 HKD 口径与人民币柜台不可见的界面表现。
+
+
 
 
