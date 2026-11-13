@@ -59,3 +59,36 @@ test("resolveUSSecid：部分传输失败不负缓存（一交易所超时、其
     globalThis.fetch = originalFetch;
   }
 });
+
+test("resolveUSSecid：push2 探测域全挂时降级 push2his kline 探测（探测域与数据域分离，2026-11-13）", async () => {
+  const originalFetch = globalThis.fetch;
+  const emCalls = [];
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    emCalls.push(u);
+    if (u.includes("push2.eastmoney.com")) throw new Error("HTTP 502"); // 探测域（stock/get）全挂
+    // push2his（数据域）活着：105.ZZTESTG 命中，其余候选明确无此代码
+    const secid = new URL(u).searchParams.get("secid");
+    if (secid === "105.ZZTESTG") return ok({ data: { code: "ZZTESTG", klines: ["2026-11-12,1.0"] } });
+    return ok({ data: {} });
+  };
+  try {
+    assert.equal(await resolveUSSecid("ZZTESTG"), "105.ZZTESTG");
+    assert.ok(emCalls.some((u) => u.includes("push2his.eastmoney.com") && u.includes("secid=105.ZZTESTG")), "应有 push2his 降级探测");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("resolveUSSecid：push2 与 push2his 全传输失败 → strict 抛 SECID_TRANSPORT；默认模式恢复后可解析", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("HTTP 502"); };
+  try {
+    await assert.rejects(() => resolveUSSecid("ZZTESTH", { strict: true }), (e) => e.code === "SECID_TRANSPORT");
+    assert.equal(await resolveUSSecid("ZZTESTH"), null); // 默认模式：传输失败不判不存在、不负缓存
+    globalThis.fetch = async (url) => (String(url).includes("secid=105.ZZTESTH") ? ok({ data: { f57: "ZZTESTH" } }) : ok({ data: {} }));
+    assert.equal(await resolveUSSecid("ZZTESTH"), "105.ZZTESTH");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

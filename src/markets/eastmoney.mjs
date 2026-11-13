@@ -112,6 +112,24 @@ export async function resolveUSSecid(code, { strict = false } = {}) {
       /* 试下一个交易所 */
     }
   }
+  // push2 探测域全传输失败时，降级用 push2his kline 轻探测（2026-11-13 本机实录：push2 域 502
+  // 而 push2his 数据域可达，secid 解析假死导致美股 K 线/分时整链不可用）。命中即缓存返回；
+  // push2his 应答但无该代码视为该候选「明确无」；降级探测自身传输失败同样计入传输失败
+  // （不得负缓存、strict 抛 SECID_TRANSPORT）
+  if (transportFailures > 0) {
+    for (const ex of US_EXCHANGES) {
+      const secid = ex + "." + ticker;
+      try {
+        const j = await emJson(EM_HIS + "/api/qt/stock/kline/get?secid=" + encodeURIComponent(secid) + "&klt=101&fqt=1&lmt=2&end=20500101&fields1=f1,f2,f3&fields2=f51,f52", 8000);
+        if (j?.data?.code) {
+          SECID_CACHE.set(ticker, secid);
+          return secid;
+        }
+      } catch {
+        transportFailures += 1;
+      }
+    }
+  }
   // 三交易所都明确应答且均无此代码，才确认不存在并负缓存；有任何传输失败则下次重新探测
   if (transportFailures > 0 && strict) {
     // 严格模式（详情/分时/K 线/快照路径）：传输失败不得伪装成「无此代码」，抛出供提供方级退避计数

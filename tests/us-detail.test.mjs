@@ -138,3 +138,19 @@ test("K线成功结果缓存：TTL 内同周期重复请求不再打上游", asy
     globalThis.fetch = orig;
   }
 });
+
+test("指数（IXIC）EM 成功时 adjust 覆写 none（EM fqt=1 对指数无操作，徽标如实标不复权）", async () => {
+  const orig = globalThis.fetch;
+  resetUsDetailForTests();
+  try {
+    installFetch([
+      ["push2his.eastmoney.com", () => ok({ data: { code: "NDX", klines: ["2026-11-06,1,2,3,4,5", "2026-11-13,2,3,4,5,6"] } })],
+    ]);
+    const r = await fetchKline("IXIC", "day");
+    assert.equal(r.error, null);
+    assert.equal(r.adjust, "none");
+    assert.equal(r.candles.length, 2);
+  } finally {
+    globalThis.fetch = orig;
+  }
+});

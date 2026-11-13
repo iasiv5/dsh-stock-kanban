@@ -171,7 +171,11 @@ export async function fetchKline(code, period = "day") {
   const hit = cached(key, CACHE_TTL.kline);
   if (hit) return hit;
   const em = await eastmoney.fetchKline(code, per);
-  if (em.candles?.length) return remember(key, em);
+  if (em.candles?.length) {
+    // EM fqt=1 对指数是无操作（指数无复权概念），但 EM 侧 kline 恒标 qfq 会误显「前复权」徽标；
+    // README 口径：指数一律不复权（如实标注）——目录命中的美股指数覆写 none（2026-11-13 口径审计）
+    return remember(key, indexOfCode("us", code) ? { ...em, adjust: "none" } : em);
+  }
   if (indexOfCode("us", code)) {
     return { candles: [], adjust: null, error: em.error ?? "no-data", errorDetail: em.errorDetail ?? null };
   }
