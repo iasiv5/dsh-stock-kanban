@@ -581,3 +581,23 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **回滚**：若服务重启后异常，先回到注册表安装：`dsh plugin --profile web add dsh-stock-kanban@0.2.5 --registry=https://registry.npmjs.org/`，再重启。
 - **发版 0.3.0**：待主人手动验证通过后执行，本段不包含。
 
+## 12.30 美股详情图表多源备源（2026-11-13；修复详情页「加载失败：行情获取失败 (fetch failed)」）
+
+现象：美股卡片恢复后（12.29 重启生效），详情页分时与日 K 报 fetch failed。根因：东方财富 push2his 在本机当时整体不通（curl 报 Empty reply from server，HTTP=000；push2 返回 HTTP 502），而详情图表此前只有东方财富一条路径，无备源。
+
+修复（本次提交）：新增 src/markets/us-detail.mjs，美股详情经它取数（src/routes.mjs 的 adapterFor 对 us 改指向它，其余不变）。
+- K 线：东方财富（前复权，主源）→ 腾讯美股 fqkline（备源，未复权，adjust='none'，界面标注「不复权」）；指数（DJI/IXIC/INX）只走东方财富，不回落腾讯。
+- 分时：东方财富 trends2（主源）→ Yahoo chart 1 分钟（备源，昨收取 meta.chartPreviousClose，日期按纽约时区）。
+- 腾讯美股后缀：usNVDA.OQ 返回 180 根、升序；无后缀 usNVDA 只返回 2 根（数据不完整），故后缀按 .OQ → .N → .AM 逐个探测并记住。
+- Yahoo 429、5xx 或网络错误后 120 秒内不再请求 Yahoo（提供方级退避）。
+- 缓存：成功结果 K 线 5 分钟、分时 30 秒，失败不缓存。
+
+测试：tests/us-detail.test.mjs 6 条（东方财富不通回落腾讯、后缀探测与记忆、指数不回落腾讯、分时回落 Yahoo 与昨收/纽约日期、429 退避、K 线缓存）。全量 npm test 350/350/0（EXIT=0）。src/routes.mjs 仅改 adapterFor 一行；lib/client.js 未改动。
+
+未验证与降级（未验证不冒充已验证）：
+1. 本次未重启宿主，新代码尚未加载；详情页活体效果待重启后由主人在浏览器确认。
+2. 腾讯美股分时：休市时返回空数组，开盘时段可用性未验证，故未纳入分时备源。
+3. 腾讯 K 线未复权：周 K、月 K 跨拆股日会出现断点（如 NVDA 2024 年拆股）。界面如实标注「不复权」；东方财富恢复后优先使用其前复权数据。
+4. Yahoo 1 分钟：本机多次连续请求返回 429，备源常被限流；Yahoo 日 K 的 adjclose 本次未能实测（429），故未使用 Yahoo 日 K。
+5. 后缀探测：仅 NVDA（NASDAQ，.OQ）做过实测；NYSE（.N）与 .AM 的后缀路径未实测。
+

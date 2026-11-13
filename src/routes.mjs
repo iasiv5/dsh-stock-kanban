@@ -373,7 +373,7 @@ async function minuteRoute(req, res) {
 }
 
 async function adapterFor(market) {
-  const mod = market === "us" ? "eastmoney" : market === "crypto" ? "okx" : "tencent";
+  const mod = market === "us" ? "us-detail" : market === "crypto" ? "okx" : "tencent";
   return import(`./markets/${mod}.mjs`);
 }
 
