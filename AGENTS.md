@@ -13,7 +13,7 @@ DSH 插件（盯盘胶囊 + 面板 + 分时/K 线）。运行时零 npm 依赖�
 
 - **npm 页 README 来自发布 tarball**：改 GitHub README 不改 npm 页，随下次发版生效；渲染面守卫见 `tests/readme-portability.test.mjs`（禁浮动排版，v0.2.1 错位实录）。
 - i18n 为 zh/en 双字典，parity 与键位对齐有守卫测试——新文案两字典同步加。
-- 市场注册文案同步义务：`dsh-m/registry.json` 条目描述与 `verified` 核对清单见 know-how 008（dsh-workspace 01_docs）；npm 侧描述按「发版时顺带对齐、不为文案单独发版」边界。
+- 市场注册条目（dsh-m/registry.json）：兼容句与 `verified` 的核对是 **DSH 升级动作**（know-how 008），不挂在插件发版上；插件发版仅在兼容句已腐烂时顺带修正。`verified` 只记实测 DSH 运行时版本，**严禁混入插件自身版本**（铁律 022；本地守卫 `tests/registry-verified.test.mjs`，dsh-m 侧 validate-registry 已门禁化为硬错误；2026-11-13 0.3.0 发版实录曾误填）。
 - 验证记录写 `docs/verification.md`（§12.x 追记式，含未验证项与降级——未验证不冒充已验证）。
 - 产物核证探针用 minify 免疫标记：字符串字面量（版本号等）与 `lib/client.js` 逐字节 diff/cmp；局部标识符会被 minify 混淆（2026-11-12 实录：`pullSequence` 计 0 被误读为代码缺失）。`grep -c` 计 0 即 exit 1，禁入 `&&` 链。
 
