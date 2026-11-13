@@ -7,6 +7,7 @@
 | Bob-Bo1/dsh-stock-watch | `8b74366` (2026-08-18) | MIT |
 | Awu12277/dsh-stock-watch | `ea92259` (2026-09-07) | MIT |
 | Justin-Mai/dsh-stock-view | `45d1646` (2026-09-30) | MIT（双行版权：Awu12277 原作 + Justin-Mai 修改） |
+| suifei/dsh-market-lens | `9ed8477` (2026-11-13, v0.34.8) | MIT |
 
 ## 复用（含版权声明，见 NOTICE.md）
 
@@ -22,6 +23,7 @@
 | 目标价触价概念（≤买触发/≥卖触发/标记展示） | Awu12277/Justin-Mai `computeTrigger` | `src/targets.mjs` targetState | **语义修正**：上游 sell 优先静默覆盖 buy → 本插件 both 显式状态 + 保存时 confirm 校验；增加行情新鲜度门（过期/缺失不伪装触价） |
 | SVG 分时/K线绘制思路（价格线/均价线/昨收虚线/成交量柱/MA） | Awu12277 `client.js` SvgMinute/SvgCandles/computeMa | `client/charts.mjs`、`client/chartmath.mjs` | 重写；去掉 CDN lightweight-charts 主路径（纯 SVG 一条路径）；MA 参数沿用参考实现 MA5/10/20/60 |
 | 持仓数据模型惯例（quantity/costPrice 正数校验、原子写文件、同源 POST 校验） | Bob-Bo1 `lib/index.js` normalizeHoldings/savePayload/sameOriginPost | `src/model.mjs`、`src/store.mjs`、`src/access.mjs` | 改造：存储改为 DSH storage hub KV 驱动（实例级共享）+ 文件回退；同源校验吸收 quota-watch 的 Origin/Sec-Fetch 双检实现 |
+| 多源降级链形态（市场分链 + 逐源补位 + 全链失败语义）、Yahoo chart v8 协议（meta 字段/无 crumb/指数符号）、EM push2 https→http 回退与 f124 时间戳口径、指数目录（INDEX_CATALOG 形态）、诊断日志结构与 route.status 门（两分钟一行 + dropped 补记） | suifei `lib/service.js`、`lib/sources/yahoo.js`、`lib/sources/eastmoney.js`、`lib/http.js`、`lib/normalize.js`、`lib/diaglog.js`、`lib/routes.js` | `src/quotes.mjs`、`src/markets/yahoo.mjs`、`src/markets/eastmoney.mjs`、`src/identity.mjs`、`src/diag.mjs`、`src/routes.mjs` | 重写并修正：**保留本仓提供方级指数退避**（lens 无退避，死源会随轮询反复被打）；诊断零依赖手写 config（lens 用 schemastery）；明确不采纳 React 栈/LED 灯墙/localStorage 业务存储（2026-11-13） |
 
 ## 明确不包含（需求排除 + 卫生红线）
 

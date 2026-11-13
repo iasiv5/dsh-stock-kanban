@@ -92,3 +92,24 @@ test("备份导出/导入校验与版本处理（12.1）", () => {
   const dup = { ...backup, symbols: [...backup.symbols, backup.symbols[0]] };
   assert.equal(parseImportPayload(dup).rejected, 1);
 });
+
+/* ---------------- 指数记录（P0-2，2026-11-13） ---------------- */
+
+test("指数记录：normalize 剥除业务字段（导入容忍）；patch 拒绝持仓/目标价", () => {
+  const raw = { id: "cn:sh000001", market: "cn", code: "sh000001", quoteCurrency: "CNY", kind: "index", name: "上证指数", quantity: 100, avgCost: 3000, buyTarget: 3500, addedAt: "2026-11-13T00:00:00.000Z", sort: 1 };
+  const clean = normalizeSymbolRecord(raw);
+  assert.equal(clean.kind, "index");
+  assert.equal(clean.quantity, null);
+  assert.equal(clean.buyTarget, null);
+  const patched = patchSymbolRecord(clean, { quantity: 10 });
+  assert.equal(patched.ok, false);
+  assert.equal(patched.errors[0], "index-no-position");
+  const patched2 = patchSymbolRecord(clean, { buyTarget: 3000, sellTarget: 4000 });
+  assert.equal(patched2.ok, false);
+});
+
+test("指数记录：目录外代码传 kind=index 降级 stock（不绕过校验）", () => {
+  const built = newSymbolRecord("cn", "sh600519", "贵州茅台", { kind: "index" });
+  assert.equal(built.ok, true);
+  assert.equal(built.record.kind, "stock");
+});

@@ -52,7 +52,8 @@ export function parseBatchSnapshot(text) {
   const out = new Map();
   if (typeof text !== "string") return out;
   for (const chunk of text.split(";")) {
-    const m = /v_([a-z]+\d+)=\s*"([^"]*)"/.exec(chunk);
+    // hkHSI/hkHSTECH 指数别名含大写字母（2026-11-13 实测），字符类放宽为字母数字
+    const m = /v_([A-Za-z0-9]+)=\s*"([^"]*)"/.exec(chunk);
     if (!m) continue;
     const code = m[1];
     const f = m[2].split("~");
@@ -72,7 +73,8 @@ export function parseBatchSnapshot(text) {
       volume: num(f[36]),
       amount: num(f[37]) != null ? num(f[37]) * 10000 : null,
       // f[30] 形如 202611061614（交易当地时间）；无则空
-      quoteTimeText: /^\d{12,14}$/.test(f[30] ?? "") ? f[30] : null,
+      // A 股/港股个股为 12~14 位数字；港股指数为 "YYYY/MM/DD HH:mm[:ss]"（2026-11-13 实测），两种都放行
+      quoteTimeText: /^\d{12,14}$|^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}(:\d{2})?$/.test(f[30] ?? "") ? f[30] : null,
     });
   }
   return out;
@@ -82,6 +84,13 @@ export function parseBatchSnapshot(text) {
 export function quoteTimeOf(quote) {
   const text = quote?.quoteTimeText;
   if (!text) return null;
+  // 港股指数时间格式 "2026/11/13 10:30:48"（交易当地时间 = UTC+8，2026-11-13 实测；秒可缺省）
+  const slashed = /^(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(text);
+  if (slashed) {
+    const iso = slashed[1] + "-" + slashed[2] + "-" + slashed[3] + "T" + slashed[4] + ":" + slashed[5] + ":" + (slashed[6] ?? "00") + "+08:00";
+    const t2 = Date.parse(iso);
+    return Number.isFinite(t2) ? t2 : null;
+  }
   const iso = text.length === 12 ? `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}T${text.slice(8, 10)}:${text.slice(10, 12)}:00+08:00`
     : text.length === 14 ? `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}T${text.slice(8, 10)}:${text.slice(10, 12)}:${text.slice(12, 14)}+08:00` : null;
   if (!iso) return null;

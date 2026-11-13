@@ -443,8 +443,8 @@ export function createDetail({ store, win }) {
       paintTargetField(g.buy, st.buyInvalid, st.buy, t("detail.buy-hint"), price);
       paintTargetField(g.sell, st.sellInvalid, st.sell, t("detail.sell-hint"), price);
     }
-    paintDot(live.segs.position.dot, st.hDirty, hasSavedPosition(symbol));
-    paintDot(live.segs.targets.dot, st.tDirty, hasSavedTargets(symbol));
+    if (live.segs?.position) paintDot(live.segs.position.dot, st.hDirty, hasSavedPosition(symbol));
+    if (live.segs?.targets) paintDot(live.segs.targets.dot, st.tDirty, hasSavedTargets(symbol));
   };
 
   /** 持仓段：摘要 + 数量/成本 + 保存/清除/未保存 +（清除时的）确认条；返回 { form, strip, live } */
@@ -718,7 +718,7 @@ export function createDetail({ store, win }) {
     titleCol.className = "skc-detail-titlecol";
     const title = textSpan("skc-detail-title", symbol.name);
     title.title = symbol.name;
-    titleCol.append(title, textSpan("skc-detail-meta", `${symbol.code} · ${t(`market.${symbol.market}`)}${symbol.kind === "etf" ? " · ETF" : ""} · ${symbol.quoteCurrency}`));
+    titleCol.append(title, textSpan("skc-detail-meta", `${symbol.code} · ${t(`market.${symbol.market}`)}${symbol.kind === "etf" ? " · ETF" : ""}${symbol.kind === "index" ? ` · ${t("kind.index")}` : ""} · ${symbol.quoteCurrency}`));
     head.append(back, titleCol);
     // 删除：中性幽灵钮，悬停/聚焦时才转危险色（原红色实心钮在长名称换行后过于突兀）；整行不换行
     const del = document.createElement("button");
@@ -775,47 +775,55 @@ export function createDetail({ store, win }) {
     const chartBox = buildChartBox(symbol, ui);
 
     // 分段（第六轮，方案 B）：持仓 | 目标价 二选一显示；段上打点：有数据（灰）/ 未保存（橙）
+    // 指数（2026-11-13）：无持仓/目标价语义——分段条与两段表单不构建，给一句占位说明
+    const isIndex = symbol.kind === "index";
     const segTabs = document.createElement("div");
-    segTabs.className = "skc-seg-tabs";
-    const segs = {};
-    for (const key of ["position", "targets"]) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = `skc-tab skc-seg${segment === key ? " skc-tab-active" : ""}`;
-      btn.setAttribute("aria-pressed", String(segment === key));
-      btn.append(document.createTextNode(t(key === "position" ? "detail.holdings" : "detail.targets")));
-      const dot = textSpan("skc-seg-dot", "");
-      dot.hidden = true;
-      btn.append(dot);
-      btn.addEventListener("click", () => {
-        if (segment === key) return;
-        segment = key;
-        pending = null;
-        paintSegment();
-        syncPendingStrip();
-      });
-      segTabs.append(btn);
-      segs[key] = { dot, btn };
-    }
-    // 两段同挂一个网格格子（grid-area 1/1）：非当前段 visibility:hidden 仍占位，容器高度取较高者，
-    // 切换分段时页面高度不变、不跳动（第七轮 2026-11-10）；非当前段 inert，键盘与读屏都进不去
-    const holdingsPart = buildHoldingsPanel(symbol, draft);
-    const targetsPart = buildTargetsPanel(symbol, draft);
     const stack = document.createElement("div");
-    stack.className = "skc-seg-stack";
-    for (const [part, key] of [[holdingsPart, "position"], [targetsPart, "targets"]]) {
-      const on = segment === key;
-      part.form.classList.toggle("is-off", !on);
-      part.form.toggleAttribute("inert", !on);
-      part.form.setAttribute("aria-hidden", String(!on));
-      stack.append(part.form);
+    const segs = {};
+    if (isIndex) {
+      stack.className = "skc-index-note";
+      stack.append(textSpan("skc-hint", t("detail.index-note")));
+      live = { segs, strip: null, holdings: null, targets: null };
+    } else {
+      segTabs.className = "skc-seg-tabs";
+      for (const key of ["position", "targets"]) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `skc-tab skc-seg${segment === key ? " skc-tab-active" : ""}`;
+        btn.setAttribute("aria-pressed", String(segment === key));
+        btn.append(document.createTextNode(t(key === "position" ? "detail.holdings" : "detail.targets")));
+        const dot = textSpan("skc-seg-dot", "");
+        dot.hidden = true;
+        btn.append(dot);
+        btn.addEventListener("click", () => {
+          if (segment === key) return;
+          segment = key;
+          pending = null;
+          paintSegment();
+          syncPendingStrip();
+        });
+        segTabs.append(btn);
+        segs[key] = { dot, btn };
+      }
+      // 两段同挂一个网格格子（grid-area 1/1）：非当前段 visibility:hidden 仍占位，容器高度取较高者，
+      // 切换分段时页面高度不变、不跳动（第七轮 2026-11-10）；非当前段 inert，键盘与读屏都进不去
+      const holdingsPart = buildHoldingsPanel(symbol, draft);
+      const targetsPart = buildTargetsPanel(symbol, draft);
+      stack.className = "skc-seg-stack";
+      for (const [part, key] of [[holdingsPart, "position"], [targetsPart, "targets"]]) {
+        const on = segment === key;
+        part.form.classList.toggle("is-off", !on);
+        part.form.toggleAttribute("inert", !on);
+        part.form.setAttribute("aria-hidden", String(!on));
+        stack.append(part.form);
+      }
+      live = {
+        segs,
+        strip: holdingsPart.strip ?? targetsPart.strip,
+        holdings: { ...holdingsPart.live, form: holdingsPart.form },
+        targets: { ...targetsPart.live, form: targetsPart.form },
+      };
     }
-    live = {
-      segs,
-      strip: holdingsPart.strip ?? targetsPart.strip,
-      holdings: { ...holdingsPart.live, form: holdingsPart.form },
-      targets: { ...targetsPart.live, form: targetsPart.form },
-    };
     skeleton = {
       quote: { price: quotePrice, pct: quotePct, meta: quoteMeta },
       periodTabs: periodTabRefs,
@@ -823,7 +831,7 @@ export function createDetail({ store, win }) {
       chartBox,
     };
 
-    el.append(head, quoteLine, periodTabs, periodMeta, chartBox, segTabs, stack);
+    el.append(head, quoteLine, periodTabs, periodMeta, chartBox, ...(isIndex ? [] : [segTabs]), stack);
     paintQuoteLine();
     paintLive();
   };

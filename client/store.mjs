@@ -94,7 +94,7 @@ function deriveChanged(prev, next) {
   return { quotes, business, ui, quoteMetaError };
 }
 
-export function createStore(storage = window.localStorage) {
+export function createStore(storage = window.localStorage, { onEvent } = {}) {
   let state = {
     business: { rev: 0, settings: { privacyMode: false }, symbols: [], driverKind: null, loaded: false },
     quotes: {}, // id → row
@@ -203,8 +203,10 @@ export function createStore(storage = window.localStorage) {
       const quotes = { ...state.quotes };
       for (const [id, row] of Object.entries(data.rows ?? {})) quotes[id] = row;
       set({ quotes, providers: data.providers, quoteMeta: { fetchedAt: Date.now(), error: null } });
+      try { onEvent?.("panel.quotes.ok"); } catch { /* 诊断不影响业务 */ }
     } catch (e) {
       set({ quoteMeta: { fetchedAt: state.quoteMeta.fetchedAt, error: String(e?.message ?? e) } });
+      try { onEvent?.("panel.quotes.fail", { message: String(e?.message ?? e).slice(0, 120) }); } catch { /* 同上 */ }
     }
   }
 

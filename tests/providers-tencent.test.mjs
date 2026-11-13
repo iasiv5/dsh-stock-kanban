@@ -130,3 +130,18 @@ test("parseSmartbox：GBK 解码后的 \\uXXXX 文本 + 类型过滤", () => {
   assert.equal(etf.kind, "etf");
   assert.equal(etf.market, "cn"); // ETF 归入上市市场
 });
+
+test("parseBatchSnapshot + quoteTimeOf：指数别名行（hkHSI 大写代码 + 斜杠时间格式，2026-11-13 实测采样）", () => {
+  const text = 'v_hkHSI="100~恒生指数~HSI~23859.810~24008.550~23871.910~5884113.5615~0~0~23859.810~0~0~0~0~0~0~0~0~0~23859.810~0~0~0~0~0~0~0~0~0~0.0~2026/11/13 10:30:48~-148.740~-0.62~23930.130~23822.130~23859.810/5884113~5884113~58841135~0.45~0~Hang Seng Index~0~28056.100~22518.000~1.58~0.20~0~0~0~0~0~0~0.00~0.00~0.00~0~-6.91~-2.54~ZS";';
+  const rows = parseBatchSnapshot(text);
+  assert.equal(rows.size, 1);
+  const hsi = rows.get("hkHSI");
+  assert.equal(hsi.name, "恒生指数");
+  assert.equal(hsi.price, 23859.81);
+  assert.equal(hsi.prevClose, 24008.55);
+  assert.equal(hsi.changePercent, -0.62);
+  assert.equal(hsi.high, 23930.13);
+  assert.equal(hsi.quoteTimeText, "2026/11/13 10:30:48");
+  const t = quoteTimeOf(hsi);
+  assert.equal(new Date(t).toISOString(), "2026-11-13T02:30:48.000Z"); // 交易当地 UTC+8 → 02:30Z
+});

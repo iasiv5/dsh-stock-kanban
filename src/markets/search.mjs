@@ -8,9 +8,10 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isValidCode, makeIdentity, normalizeCode, normalizeInputCode, normalizeKind } from "../identity.mjs";
+import { INDEX_CATALOG, indexOfCode, isValidCode, makeIdentity, normalizeCode, normalizeInputCode, normalizeKind } from "../identity.mjs";
 import * as tencent from "./tencent.mjs";
 import * as eastmoney from "./eastmoney.mjs";
+import * as yahoo from "./yahoo.mjs";
 import * as okx from "./okx.mjs";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
@@ -163,7 +164,19 @@ export async function search(market, query) {
     rows.push({ ...row, id: identity.id, quoteCurrency: identity.quoteCurrency });
   };
 
+  /** 指数目录本地匹配（零网络，搜索源全挂也可用；先于标的池/上游建议） */
+  const matchCatalog = () => {
+    for (const e of INDEX_CATALOG) {
+      if (e.market !== market) continue;
+      const codeHit = e.code.toLowerCase().includes(lower);
+      const nameHit = e.name.toLowerCase().includes(lower);
+      const aliasHit = e.aliases.some((a) => a.includes(lower));
+      if (codeHit || nameHit || aliasHit) push({ code: e.code, name: e.name, market: e.market, kind: "index", source: "catalog" });
+    }
+  };
+
   if (market === "cn") {
+    matchCatalog();
     const [astocks, etfstocks] = await Promise.all([loadPool("a_stocks.json"), loadPool("etf_stocks.json")]);
     for (const s of astocks) {
       const code = normalizeInputCode("cn", s.code);
@@ -176,6 +189,7 @@ export async function search(market, query) {
       if (rows.length >= MAX_ROWS) return { rows, error };
     }
   } else if (market === "hk") {
+    matchCatalog();
     const hkstocks = await loadPool("hk_stocks.json");
     for (const s of hkstocks) {
       const code = normalizeCode("hk", s.code);
@@ -188,6 +202,7 @@ export async function search(market, query) {
       error = "smartbox-unavailable";
     }
   } else if (market === "us") {
+    matchCatalog();
     try {
       for (const row of await fetchSmartbox(needle)) push(row);
     } catch {
@@ -210,21 +225,47 @@ export async function resolveDirect(market, code) {
   if (!normalized) return { ok: false, error: "invalid-format" };
   const identity = makeIdentity(market, normalized);
   if (!identity) return { ok: false, error: "invalid-format" };
+  const indexEntry = indexOfCode(market, normalized);
   let quote = null;
-  let kind = market === "crypto" ? "coin" : "stock";
-  try {
-    if (market === "cn" || market === "hk") {
-      // cn ETF 代码段（50/51/56/58/15/16/18/159）标记 kind，仅用于展示
-      if (market === "cn" && /^(sh(50|51|56|58)|sz(15|16|18))/.test(identity.code)) kind = "etf";
+  let kind = indexEntry ? "index" : market === "crypto" ? "coin" : "stock";
+  // cn ETF 代码段（50/51/56/58/15/16/18/159）标记 kind，仅用于展示；指数代码不落 ETF 段
+  if (market === "cn" && !indexEntry && /^(sh(50|51|56|58)|sz(15|16|18))/.test(identity.code)) kind = "etf";
+  if (market === "cn" || market === "hk") {
+    // 主源腾讯，失败/漏行交 EM 备源（P0-1；腾讯 WAF 前科见 docs/capability-matrix.md）
+    try {
       const snapshots = await tencent.fetchBatchSnapshots([identity.code]);
       quote = snapshots.get(identity.code) ?? null;
-    } else if (market === "us") {
-      quote = await eastmoney.fetchQuote(identity.code);
-    } else if (market === "crypto") {
-      quote = await okx.fetchQuote(identity.code);
+    } catch {
+      quote = null;
     }
-  } catch {
-    return { ok: false, error: "quote-unavailable" };
+    if (!quote) {
+      try {
+        quote = await eastmoney.fetchQuote(identity.code);
+      } catch {
+        quote = null;
+      }
+    }
+  } else if (market === "us") {
+    // 主源 EM，push2 不可达网络交 Yahoo 备源（P0-1/P0-3；顺带补行情时间戳）
+    try {
+      quote = await eastmoney.fetchQuote(identity.code);
+    } catch {
+      quote = null;
+    }
+    if (!quote) {
+      try {
+        const rows = await yahoo.fetchBatchSnapshots([identity.code]);
+        quote = rows.get(identity.code) ?? null;
+      } catch {
+        quote = null;
+      }
+    }
+  } else if (market === "crypto") {
+    try {
+      quote = await okx.fetchQuote(identity.code);
+    } catch {
+      return { ok: false, error: "quote-unavailable" };
+    }
   }
   if (!quote || !(quote.price > 0)) return { ok: false, error: "symbol-not-found" };
   return { ok: true, identity, name: quote.name || identity.code, kind };

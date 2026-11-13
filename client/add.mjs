@@ -273,6 +273,7 @@ export function createAdd({ store }) {
     code.textContent =
       displayCode(row.code) +
       (row.kind === "etf" ? " · ETF" : "") +
+      (row.kind === "index" ? ` · ${t("kind.index")}` : "") +
       (row.market === "crypto" && row.quoteCurrency ? ` · ${row.quoteCurrency}` : "");
     main.append(name, code);
     btn.append(main);

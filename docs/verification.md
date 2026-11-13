@@ -505,3 +505,26 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 - **活体验证**（chromium-1234 驱动本机宿主页，探针 `.dsh-research/exec-scratch-20261112/probe-qw-0141.mjs`）：`guestVersion 0.1.41`（免重启生效）；合并态 qw pill 隐藏、sk 段 `GLM 48%·Copilot 68%` 与服务器同值；**open-panel 后 overview GET +1（旧代码为 0）且面板渲染 48% === 服务器当前值**；关面板后台 2.5s 零新增请求。
 
 **未验证项与降级**：主人实机手感（浏览器刷新后开卡即新）待确认；`dshm_upgrade` activation 报 restart-required 系保守判定——本轮 diff 纯客户端文件，活体 guestVersion 已证免重启。
+
+## 12.28 多源降级链 / 指数目录 / 美股行情时间戳 / 诊断闭环（2026-11-13；调研 suifei/dsh-market-lens 后 P0-1/2/3 + P1-6 落地）
+
+背景：深度调研 suifei/dsh-market-lens@9ed8477（v0.34.8，本机已装）后按主人拍板落地四项（钢人取舍：不采纳 LED 灯墙 / React 栈 / localStorage 业务存储；复用映射与署名见 NOTICE.md、docs/reuse-mapping.md）：
+
+1. **P0-1 多源降级链**（src/quotes.mjs 重写）：cn/hk 腾讯→东方财富、us 东方财富→Yahoo、crypto OKX 单源；链内逐源补位（含 EM 静默丢行场景），整链失败才标 error；**保留本仓提供方级指数退避**（对参考实现的修正——lens 无退避，死源会随轮询反复被打；本仓退避使源静默期零上游调用）。getQuoteFull 同构分链（cn/hk 腾讯→EM、us EM→Yahoo）。
+2. **P0-2 指数目录**（src/identity.mjs INDEX_CATALOG 10 只）：kind='index' 仅由目录代码裁决，目录外传 kind=index 降级 stock（防绕过持仓校验，model 层 normalize 剥除业务字段 + patch 显式拒绝 index-no-position）；detail 页指数不渲染持仓/目标价表单（占位说明 + i18n 双语）；搜索走目录本地匹配（零网络，上游全挂也搜得到）；直连添加走主备源双链校验。
+3. **P0-3 美股行情时间戳**：EM ulist/stock/get 补 f124 → quoteTimeMs；Yahoo chart meta.regularMarketTime（备源路径）——美股新鲜度从「按拉取时间判定」改为「按行情时间判定」（此前目标价 30 分钟门对美股实际失真）。
+4. **P1-6 诊断闭环**（src/diag.mjs + routes + 客户端上报）：按天 JSONL（~/.dsh/stock-kanban/，超限轮转 .1），diagLevel off/errors（默认）/full（零依赖手写 config：diagLevel/diagDir/diagLogMaxBytes，钳位 64KiB–16MiB）；route.status 门（同 path+status 两分钟一行，dropped 窗口内累计、随下一行补记）；provider.fail（仅真实上游失败，含退避参数；退避快速失败不发）；store.conflict（409 计数）；客户端批量上报（挂载 / 行情失败迁移去重，≥40 行或 2s 或页面隐藏 sendBeacon）；GET/POST /stock-kanban/diag（同源 + 64KiB + ≤200 行，全路由过官方信任检查）。
+
+**验证**：
+
+- 真机上游实测（2026-11-13 上午 curl 直连）：腾讯 qt.gtimg.cn 快照 sh000001/hkHSI/hkHSTECH（指数行存在；港股指数时间为 "2026/11/13 10:30:48" 斜杠格式，解析与回归钉已落 tests/providers-tencent）；fqkline hkHSI/sh000001（day 键、无 qfq → 不复权口径成立）；minute/query hkHSI/sh000001。Yahoo chart AAPL（meta.regularMarketPrice/chartPreviousClose/regularMarketTime；无 crumb + 浏览器 UA/referer 直连可用）。EM push2his kline/trends2 secid=100.DJIA（美股指数预置 secid 成立）。
+- **EM push2 本机故障实录**：push2.eastmoney.com https/http 均 502（nginx 边缘），push2his 正常——现网美股实际由 Yahoo 备源兜底，即 P0-1 链的现实降级场景。EM cn/hk ulist 与 f124 的真机端到端**未验证**（见下）。
+- 单测：新增 tests/providers-eastmoney、providers-yahoo、diag、search-index 四文件 + identity/model/providers-tencent/quotes-service/routes 六文件扩展（多源链补位、整链退避、指数身份/记录/搜索、斜杠时间、diag 三级过滤/轮转/回读、diag 路由同源与 route.status 门）。全量 npm test **326/326/0**（基线 296 + 新增 30，30s 内）；npm run build 重建 lib/client.js（版本维持 0.2.5，未发版增量，下次发版 bump）。
+- 工程教训（测试当场抓获，留档防再犯）：① Object.create(res) 代理 response 破坏 Node 内部槽位 → /state 挂起 300s（HeadersTimeoutError）——route.status 门改为 handler 结束后按 res.statusCode 记账（finally），不做响应代理；② 港股指数时间解析秒段多拼 ":00" → Date.parse NaN（夹具抓出）；③ 嵌套对象字面量闭括号层序（}] } }) 序）heredoc 手写两处笔误，靠 node --check + 逐字节对比工作行坐实——批量生成代码后机械校验不可省。
+
+**未验证项与降级**（未验证不冒充已验证）：
+
+1. EM push2 通道（cn/hk ulist 批量、stock/get f124、美股 ulist 时间戳）真机未通（本机 502）——由单元夹具按 lens 字段口径 + 本机历史实测（2026-11-06 probe 23/23）覆盖；push2 恢复后跑 scripts/probe-markets.mjs 补测并追记本节。
+2. Yahoo 指数符号 ^DJI/^IXIC/^GSPC 未真机实测（仅 AAPL 实测 + 夹具）；Yahoo 地域 403 风险沿 lens 记录，降级路径 = EM 主源（美股双源互补）。
+3. 指数添加/详情/K 线未做真实浏览器端到端（jsdom 单测 + 数据源 curl 已钉）；装机后按仓库纪律补 scripts/cdp-shot.mjs 截图留证。
+4. 诊断闭环真宿主活体（轮转触发、客户端 beacon 到达、route.status 门在真实 502 下的行为）未观察——单测覆盖读写路径；装机后看 ~/.dsh/stock-kanban/*.jsonl（默认 errors 级，push2 故障期间应见 provider.fail eastmoney 行）。

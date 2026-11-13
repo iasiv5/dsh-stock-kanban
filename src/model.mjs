@@ -54,7 +54,7 @@ export function normalizeSymbolRecord(raw) {
     market: raw.market,
     code: String(raw.code),
     quoteCurrency: String(raw.quoteCurrency),
-    kind: normalizeKind(raw.market, raw.kind),
+    kind: normalizeKind(raw.market, raw.kind, raw.code),
     name: sanitizeName(raw.name) ?? raw.code,
     quantity: null,
     avgCost: null,
@@ -63,6 +63,10 @@ export function normalizeSymbolRecord(raw) {
     addedAt: isoOrNull(raw.addedAt) ?? new Date().toISOString(),
     sort: finiteOr(raw.sort, { allowInt: true }) ?? Date.now(),
   };
+  if (record.kind === "index") {
+    // 指数：无持仓/目标价语义，业务字段恒空（导入容忍：历史脏数据剥除而非整条拒绝）
+    return record;
+  }
   const quantity = finiteOr(raw.quantity, { positive: true });
   if (quantity === undefined) return null;
   record.quantity = quantity;
@@ -104,7 +108,7 @@ export function newSymbolRecord(market, code, name, { kind, now = new Date() } =
     ok: true,
     record: normalizeSymbolRecord({
       ...identity,
-      kind: normalizeKind(market, kind),
+      kind: normalizeKind(market, kind, identity.code),
       name: sanitizeName(name) ?? identity.code,
       addedAt: now.toISOString(),
       sort: now.getTime(),
@@ -121,6 +125,10 @@ export function patchSymbolRecord(record, patch) {
   if (!patch || typeof patch !== "object") return { ok: false, errors: ["patch-missing"] };
   const next = { ...record };
   const errors = [];
+  if (next.kind === "index" && ["quantity", "avgCost", "buyTarget", "sellTarget"].some((k) => k in patch && patch[k] !== null)) {
+    // 指数不支持持仓/目标价（2026-11-13）：显式拒绝而非静默剥除——直连添加与表单更新同口径
+    return { ok: false, errors: ["index-no-position"] };
+  }
   const applyNumber = (key, { positive = true } = {}) => {
     if (!(key in patch)) return;
     const v = patch[key];

@@ -15,6 +15,8 @@ import { createBackup } from "./backup.mjs";
 import { createQuotaEmbed } from "./quota-embed.mjs";
 import { mirrorGuestFloatPosition } from "./float-prefs.mjs";
 import { FLOAT_STYLE_TEXT } from "./styles.mjs";
+import { createDiagReporter } from "./diag.mjs";
+import { VERSION_LABEL } from "./version.mjs";
 import { t, resolveLang, setLang } from "./i18n.mjs";
 
 const FLOAT_HOST_SELECTOR = "[data-dsh-stock-kanban-float]";
@@ -56,7 +58,10 @@ export function mountKanban({ doc, win, storage }) {
 
   /* ---------------- store 与视图簇 ---------------- */
 
-  const store = createStore(storage);
+  // 诊断上报（P1-6，2026-11-13）：挂载/行情失败迁移批量上报宿主 JSONL（等级过滤在宿主侧）
+  const diag = createDiagReporter({ win });
+  diag.add("panel.mount", { v: VERSION_LABEL, lang: resolveLang(win?.navigator?.language, doc) });
+  const store = createStore(storage, { onEvent: (ev, data) => diag.add(ev, data) });
   const views = {
     list: createList({ store }),
     detail: createDetail({ store, win }),
@@ -146,6 +151,7 @@ export function mountKanban({ doc, win, storage }) {
 
   return () => {
     unsubscribe();
+    try { diag.flush(); } catch { /* 诊断不影响拆卸 */ }
     store.dispose();
     capsule.dispose();
     quotaEmbed.dispose(); // 挂在 capsule.dispose 之后（S5 装配约定）

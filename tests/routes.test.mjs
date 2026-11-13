@@ -16,14 +16,14 @@ const SYM = {
   name: "贵州茅台", addedAt: "2026-01-01T00:00:00.000Z", sort: 1,
 };
 
-async function startServer({ trust, logger } = {}) {
+async function startServer({ trust, logger, diag } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "sk-routes-"));
   process.env.DSH_STOCK_KANBAN_FILE = join(dir, "data.json");
   const store = new Store({}, { info() {}, warn() {} });
   await store.init();
   await store.addSymbol(SYM);
   const quotes = createQuoteService({});
-  const routes = createRoutes({ store, quotes, logger: logger ?? { info() {}, warn() {} }, trust });
+  const routes = createRoutes({ store, quotes, logger: logger ?? { info() {}, warn() {} }, trust, diag });
   const server = http.createServer((req, res) => {
     const route = routes.find((r) => r.path === (req.url ?? "").split("?")[0]);
     if (!route) { res.writeHead(404); res.end("not found"); return; }
@@ -284,4 +284,49 @@ test("路由：非 import 变更默认 64KiB 体积上限（413）", async () =>
     const res = await t.j("/stock-kanban/settings", { method: "POST", headers: { "content-type": "application/json", origin: t.base, "sec-fetch-site": "same-origin" }, body: big });
     assert.equal(res.status, 413);
   } finally { t.close(); restore(); }
+});
+
+/* ---------------- 诊断闭环（P1-6，2026-11-13） ---------------- */
+
+test("诊断：POST /diag 同源收批量行；跨源 403；GET tail 回读", async () => {
+  const { createDiagLogger } = await import("../src/diag.mjs");
+  const diag = createDiagLogger({ dir: mkdtempSync(join(tmpdir(), "sk-diag-")), level: "full" });
+  const restore = await mockUpstream();
+  const t = await startServer({ diag });
+  try {
+    const cross = await t.j("/stock-kanban/diag", { method: "POST", headers: { "content-type": "application/json", origin: "http://evil.example", "sec-fetch-site": "cross-site" }, body: JSON.stringify({ rows: [{ ev: "panel.mount" }] }) });
+    assert.equal(cross.status, 403);
+
+    const ok = await t.j("/stock-kanban/diag", { method: "POST", headers: H(t.base), body: JSON.stringify({ rows: [{ ev: "panel.quotes.fail", message: "HTTP 502" }] }) });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.stored, 1);
+    await diag.flush();
+
+    const tail = await t.j("/stock-kanban/diag?tail=20");
+    assert.equal(tail.status, 200);
+    assert.ok(tail.body.rows.some((r) => r.ev === "panel.quotes.fail" && r.src === "client"));
+  } finally {
+    t.close();
+    restore();
+  }
+});
+
+test("诊断：route.status 门——同 path+status 两分钟一行 + dropped 计数", async () => {
+  const { createDiagLogger } = await import("../src/diag.mjs");
+  const diag = createDiagLogger({ dir: mkdtempSync(join(tmpdir(), "sk-diag-")), level: "full" });
+  const t = await startServer({ diag });
+  try {
+    const a = await t.j("/stock-kanban/kline?id=cn:missing&period=day");
+    const b = await t.j("/stock-kanban/kline?id=cn:missing2&period=day");
+    assert.equal(a.status, 404);
+    assert.equal(b.status, 404);
+    await diag.flush();
+    const { rows } = await diag.tail(10);
+    const status = rows.filter((r) => r.ev === "route.status" && r.path === "/stock-kanban/kline" && r.status === 404);
+    assert.equal(status.length, 1); // 第二次被门拦下（窗口内不重复落行）
+    // dropped 计数在窗口内只累加在门的状态里，随下一次落行补记（有界日志语义，对齐 lens route.status gate）
+    assert.equal(status[0].dropped, 0);
+  } finally {
+    t.close();
+  }
 });

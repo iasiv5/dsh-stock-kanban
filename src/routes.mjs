@@ -49,8 +49,8 @@ async function readJsonBody(req, maxBytes) {
   }
 }
 
-/** 变更路由公共壳：同源校验 + rev CAS + 错误映射（默认 64KiB；import 用 512KiB） */
-function mutation(handler, maxBytes = MUTATION_BODY_MAX) {
+/** 变更路由公共壳：同源校验 + rev CAS + 错误映射（默认 64KiB；import 用 512KiB；label 供诊断） */
+function mutation(handler, maxBytes = MUTATION_BODY_MAX, label = "(mutation)") {
   return async (req, res) => {
     if (req.method !== "POST") {
       res.setHeader("Allow", "POST");
@@ -70,6 +70,7 @@ function mutation(handler, maxBytes = MUTATION_BODY_MAX) {
     }
     const rev = deps.store.rev;
     if (body.ifRev != null && Number(body.ifRev) !== rev) {
+      note({ ev: "store.conflict", path: label, have: rev, got: Number(body.ifRev) });
       sendJson(res, 409, { error: "rev-conflict", rev, state: statePayload() });
       return;
     }
@@ -85,31 +86,72 @@ function mutation(handler, maxBytes = MUTATION_BODY_MAX) {
 /** 依赖注入（host.mjs 装配） */
 let deps = null;
 
-export function createRoutes({ store, quotes, logger, trust }) {
-  deps = { store, quotes, logger: logger ?? console };
-  /** 官方信任检查壳：rejection 非 undefined → 以该状态码直接拒绝（401/403），读路由不豁免 */
-  const withTrust = (handler) => async (req, res) => {
+/** 诊断出口（deps.diag 可选，P1-6）：等级过滤在 diag 侧；诊断异常不得影响业务 */
+function note(row) {
+  try {
+    deps?.diag?.append?.(row);
+  } catch {
+    /* 诊断失败静默 */
+  }
+}
+
+export function createRoutes({ store, quotes, logger, trust, diag }) {
+  deps = { store, quotes, logger: logger ?? console, diag: diag ?? null };
+  /**
+   * route.status 日志门（P1-6，2026-11-13）：同 path+status 两分钟内最多一行，重复只计 dropped——
+   * 死上游不再刷屏（纪律参考 dsh-market-lens 的 route.status gate，MIT，见 NOTICE）。
+   * 按最终 res.statusCode 记账（处理器结束后 finally 读取）；不包 res 代理——
+   * Node response 的内部槽位不跨代理对象（Object.create 包装曾致 /state 挂起，实测教训）。
+   */
+  const statusLogAt = new Map();
+  const STATUS_LOG_WINDOW_MS = 120000;
+  const noteStatus = (path, status) => {
+    try {
+      if (!(status >= 400)) return;
+      const key = path + "|" + String(status);
+      const at = Date.now();
+      const last = statusLogAt.get(key);
+      if (last === undefined || at - last.at >= STATUS_LOG_WINDOW_MS) {
+        note({ ev: "route.status", path, status, dropped: last === undefined ? 0 : last.dropped });
+        statusLogAt.set(key, { at, dropped: 0 });
+      } else {
+        last.dropped += 1;
+      }
+    } catch {
+      /* 门自身异常不影响响应 */
+    }
+  };
+  /** 官方信任检查壳 + 状态日志门：rejection 非 undefined → 以该状态码直接拒绝（401/403），读路由不豁免 */
+  const withTrust = (path, handler) => async (req, res) => {
     const rejection = typeof trust === "function" ? trust(req) : undefined;
     if (rejection !== undefined) {
+      note({ ev: "route.reject", path, status: rejection });
       sendJson(res, rejection, { error: "untrusted" });
+      noteStatus(path, rejection);
       return;
     }
-    await handler(req, res);
+    try {
+      await handler(req, res);
+    } finally {
+      noteStatus(path, res.statusCode);
+    }
   };
+  const route = (path, handler) => ({ path, handler: withTrust(path, handler) });
   return [
-    { path: `${PREFIX}/state`, handler: withTrust(stateRoute) },
-    { path: `${PREFIX}/symbols/add`, handler: withTrust(mutation(addSymbolRoute)) },
-    { path: `${PREFIX}/symbols/update`, handler: withTrust(mutation(updateSymbolRoute)) },
-    { path: `${PREFIX}/symbols/reorder`, handler: withTrust(mutation(reorderSymbolRoute)) },
-    { path: `${PREFIX}/symbols/remove`, handler: withTrust(mutation(removeSymbolRoute)) },
-    { path: `${PREFIX}/settings`, handler: withTrust(mutation(settingsRoute)) },
-    { path: `${PREFIX}/search`, handler: withTrust(searchRoute) },
-    { path: `${PREFIX}/quotes`, handler: withTrust(quotesRoute) },
-    { path: `${PREFIX}/kline`, handler: withTrust(klineRoute) },
-    { path: `${PREFIX}/minute`, handler: withTrust(minuteRoute) },
-    { path: `${PREFIX}/export`, handler: withTrust(exportRoute) },
-    { path: `${PREFIX}/import`, handler: withTrust(mutation(importRoute, IMPORT_BODY_MAX)) },
-    { path: `${PREFIX}/health`, handler: withTrust(healthRoute) },
+    route(`${PREFIX}/state`, stateRoute),
+    route(`${PREFIX}/symbols/add`, mutation(addSymbolRoute, MUTATION_BODY_MAX, "symbols/add")),
+    route(`${PREFIX}/symbols/update`, mutation(updateSymbolRoute, MUTATION_BODY_MAX, "symbols/update")),
+    route(`${PREFIX}/symbols/reorder`, mutation(reorderSymbolRoute, MUTATION_BODY_MAX, "symbols/reorder")),
+    route(`${PREFIX}/symbols/remove`, mutation(removeSymbolRoute, MUTATION_BODY_MAX, "symbols/remove")),
+    route(`${PREFIX}/settings`, mutation(settingsRoute, MUTATION_BODY_MAX, "settings")),
+    route(`${PREFIX}/search`, searchRoute),
+    route(`${PREFIX}/quotes`, quotesRoute),
+    route(`${PREFIX}/kline`, klineRoute),
+    route(`${PREFIX}/minute`, minuteRoute),
+    route(`${PREFIX}/export`, exportRoute),
+    route(`${PREFIX}/import`, mutation(importRoute, IMPORT_BODY_MAX, "import")),
+    route(`${PREFIX}/health`, healthRoute),
+    route(`${PREFIX}/diag`, diagRoute),
   ];
 }
 
@@ -371,4 +413,37 @@ function healthRoute(_req, res) {
     symbolCount: deps.store.symbols.length,
     providers: deps.quotes.health(),
   });
+}
+
+/** GET /diag?tail=50 回读尾部；POST 批量收客户端诊断行（同源 + JSON + 64KiB + ≤200 行）。P1-6。 */
+async function diagRoute(req, res) {
+  if (req.method === "POST") {
+    if (!isSameOriginRequest(req)) {
+      sendJson(res, 403, { error: "origin-rejected" });
+      return;
+    }
+    try {
+      const body = await readJsonBody(req, MUTATION_BODY_MAX);
+      const rows = Array.isArray(body?.rows)
+        ? body.rows.slice(0, 200).filter((r) => r && typeof r === "object" && typeof r.ev === "string")
+        : [];
+      for (const row of rows) note({ ...row, src: "client" });
+      sendJson(res, 200, { ok: true, stored: rows.length });
+    } catch (e) {
+      sendJson(res, e.status ?? 400, { error: String(e?.message ?? e) });
+    }
+    return;
+  }
+  if (req.method === "GET" || req.method === "HEAD") {
+    if (!deps.diag) {
+      sendJson(res, 200, { file: null, rows: [] });
+      return;
+    }
+    const n = Number(queryOf(req).get("tail") ?? "50");
+    const { file, rows } = await deps.diag.tail(Number.isFinite(n) ? n : 50);
+    sendJson(res, 200, { file, rows });
+    return;
+  }
+  res.setHeader("Allow", "GET, POST");
+  sendJson(res, 405, { error: "method-not-allowed" });
 }

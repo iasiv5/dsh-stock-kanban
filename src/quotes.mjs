@@ -1,26 +1,45 @@
 /**
- * 行情服务：提供方路由 + TTL 缓存 + 在途合并 + 失败退避。
+ * 行情服务：市场分链路由 + TTL 缓存 + 在途合并 + 失败退避 + 失败诊断。
  *
  * - 同一批 codes 在 TTL 内只打一次上游（多页面/多视图轮询在此合并）；
- * - 提供方连续失败进入指数退避（30s 起、翻倍、封顶 5 分钟），退避期内直接返回 stale 缓存或错误态，
- *   不打上游（限流友好）；
- * - 无任何常驻定时器：全部惰性触发，宿主空闲时零后台活动。
+ * - 每市场一条有序提供方链（2026-11-13，P0-1 多源降级；链形态参考 dsh-market-lens，MIT，见 NOTICE）：
+ *     cn/hk: 腾讯 → 东方财富（push2 ulist，含 f124 时间戳）；us: 东方财富 → Yahoo chart
+ *     （EM push2 在部分网络不可达时的兜底，顺带补美股行情时间戳）；crypto: OKX（单源）。
+ *   链内逐源补位：主源失败或漏行（EM 会静默丢弃无效 secid）时，未取到的标的交下一源；
+ *   全链失败 → 该批标的标 error；
+ * - 退避是提供方级的并天然覆盖整链：任一源连续失败进入指数退避（30s 起翻倍、封顶 5 分钟）后，
+ *   退避期内该源直接回退陈旧缓存或快速失败，不再打上游——不会像无退避链那样每拍重试死源
+ *   （这是对参考实现的修正：无退避的链在死源上会随轮询频率反复打上游）；
+ * - 无任何常驻定时器：全部惰性触发，宿主空闲时零后台活动（需求 8.2 不变）；
+ * - 诊断钩子（可选 diag 回调，P1-6）：仅真实上游尝试失败时发 provider.fail
+ *   （退避快速失败不发，死源静默期零日志噪音）。
  */
 
 import { handles as tencentHandles, fetchBatchSnapshots as tencentBatch, quoteTimeOf as tencentQuoteTime } from "./markets/tencent.mjs";
 import { handles as emHandles, fetchBatchSnapshots as emBatch, fetchQuote as emQuote } from "./markets/eastmoney.mjs";
+import { handles as yahooHandles, fetchBatchSnapshots as yahooBatch } from "./markets/yahoo.mjs";
 import { handles as okxHandles, fetchBatchSnapshots as okxBatch, fetchQuote as okxQuote } from "./markets/okx.mjs";
 
 const DEFAULT_TTL_MS = 10 * 1000;
 const BACKOFF_BASE_MS = 30 * 1000;
 const BACKOFF_MAX_MS = 5 * 60 * 1000;
 
-export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.now() } = {}) {
+/** 市场提供方链（顺序即优先级；handles 不符的项跳过） */
+const CHAINS = {
+  cn: ["tencent", "eastmoney"],
+  hk: ["tencent", "eastmoney"],
+  us: ["eastmoney", "yahoo"],
+  crypto: ["okx"],
+};
+
+export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.now(), diag } = {}) {
   const providers = [
     { name: "tencent", handles: tencentHandles, fetch: tencentBatch, quoteTime: tencentQuoteTime },
     { name: "eastmoney", handles: emHandles, fetch: emBatch, quoteTime: null },
+    { name: "yahoo", handles: yahooHandles, fetch: yahooBatch, quoteTime: null },
     { name: "okx", handles: okxHandles, fetch: okxBatch, quoteTime: null },
   ];
+  const byName = new Map(providers.map((p) => [p.name, p]));
 
   /** provider 名 → { cache: Map(batchKey → {at, rows: Map}), inFlight: Map, failures: n, backoffUntil: t } */
   const state = new Map(providers.map((p) => [p.name, { cache: new Map(), inFlight: new Map(), failures: 0, backoffUntil: 0 }]));
@@ -31,7 +50,7 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
 
   /**
    * 单提供方批量取数（带缓存/在途合并/退避）。
-   * @returns Promise<Map(code→quote)> 失败时抛错（调用方逐 provider 兜底）
+   * @returns Promise<Map(code → quote)> 失败时抛错（调用方按链交下一源）
    */
   async function fetchProvider(provider, codes) {
     const s = state.get(provider.name);
@@ -40,8 +59,8 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
     const t = now();
     if (cached && t - cached.at < ttlMs) return cached.rows;
     if (t < s.backoffUntil) {
-      if (cached) return cached.rows; // 退避期内回退陈旧缓存（调用方按 fetchedAt 标 stale）
-      throw new Error(`backoff-${provider.name}`);
+      if (cached) return cached.rows; // 退避期内回退陈旧缓存（行内 quoteTime 保持旧值，客户端按其判 stale）
+      throw new Error("backoff-" + provider.name);
     }
     const inflight = s.inFlight.get(key);
     if (inflight) return inflight;
@@ -54,7 +73,13 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
         return rows;
       } catch (e) {
         s.failures += 1;
-        s.backoffUntil = now() + backoffMs(s);
+        const backoff = backoffMs(s);
+        s.backoffUntil = now() + backoff;
+        try {
+          diag?.({ ev: "provider.fail", provider: provider.name, error: String(e?.message ?? e).slice(0, 120), failures: s.failures, backoffMs: backoff });
+        } catch {
+          /* 诊断不得影响行情 */
+        }
         throw e;
       } finally {
         s.inFlight.delete(key);
@@ -65,73 +90,100 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
   }
 
   /**
-   * 行情快照（跨提供方）。返回 Map(id → row)。
+   * 行情快照（跨提供方，按市场链逐源补位）。返回 Map(id → row)。
    * row: { id, identity, status:'ok'|'error', quote?, fetchedAt, quoteTime?, error? }
-   * 每个标的独立判错：提供方整体失败只影响该提供方下的标的。
+   * 每个标的独立判错：链内未被任何源服务到才标 error。
    */
   async function getQuotes(identities) {
-    const byProvider = new Map();
+    const byMarket = new Map();
     for (const identity of identities) {
-      const provider = providers.find((p) => p.handles(identity.market));
-      if (!provider) continue;
-      if (!byProvider.has(provider)) byProvider.set(provider, []);
-      byProvider.get(provider).push(identity);
+      if (!CHAINS[identity.market]) continue;
+      const group = byMarket.get(identity.market) ?? [];
+      group.push(identity);
+      byMarket.set(identity.market, group);
     }
     const out = new Map();
-    await Promise.all([...byProvider.entries()].map(async ([provider, list]) => {
-      const codes = list.map((i) => i.code);
-      let rows = null;
-      let error = null;
-      try {
-        rows = await fetchProvider(provider, codes);
-      } catch (e) {
-        error = String(e?.message ?? e);
-      }
-      const fetchedAt = now();
-      for (const identity of list) {
-        if (rows) {
-          const quote = rows.get(identity.code) ?? rows.get(identity.code.toUpperCase()) ?? null;
-          if (quote) {
+    await Promise.all([...byMarket.entries()].map(async ([market, list]) => {
+      let pending = list;
+      let lastError = null;
+      for (const name of CHAINS[market] ?? []) {
+        if (pending.length === 0) break;
+        const provider = byName.get(name);
+        if (!provider || !provider.handles(market)) continue;
+        let rows = null;
+        try {
+          rows = await fetchProvider(provider, pending.map((i) => i.code));
+        } catch (e) {
+          lastError = e;
+          continue; // 本源整体失败（含退避快速失败）→ 剩余标的交下一源
+        }
+        const still = [];
+        const fetchedAt = now();
+        for (const identity of pending) {
+          const quote = rows.get(identity.code) ?? rows.get(String(identity.code).toUpperCase());
+          if (quote && quote.price > 0) {
             const quoteTime = provider.quoteTime ? provider.quoteTime(quote) : (quote.quoteTimeMs ?? null);
             out.set(identity.id, { id: identity.id, identity, status: "ok", quote, fetchedAt, quoteTime });
-            continue;
+          } else {
+            still.push(identity);
           }
         }
-        out.set(identity.id, { id: identity.id, identity, status: "error", quote: null, fetchedAt, quoteTime: null, error: error ?? "no-data" });
+        pending = still;
+      }
+      const fetchedAt = now();
+      for (const identity of pending) {
+        out.set(identity.id, {
+          id: identity.id,
+          identity,
+          status: "error",
+          quote: null,
+          fetchedAt,
+          quoteTime: null,
+          error: lastError ? String(lastError.message ?? lastError) : "no-data",
+        });
       }
     }));
     return out;
   }
 
-  /**
-   * 详情页完整快照（high/low/open/prevClose 等全字段；每标的独立请求）。
-   * 返回与 getQuotes 相同形状的 Map(id → row)。
-   */
+  /** 详情页完整快照（高低开收全字段；每标的独立请求，按市场链逐源补位） */
+  const fullAdapter = {
+    tencent: async (code) => {
+      const rows = await tencentBatch([code]);
+      const quote = rows.get(code) ?? rows.get(String(code).toLowerCase()) ?? null;
+      return { quote, quoteTime: quote ? tencentQuoteTime(quote) : null };
+    },
+    eastmoney: async (code) => {
+      const quote = await emQuote(code);
+      return { quote, quoteTime: quote?.quoteTimeMs ?? null };
+    },
+    yahoo: async (code) => {
+      const rows = await yahooBatch([code]);
+      const quote = rows.get(String(code).toUpperCase()) ?? null;
+      return { quote, quoteTime: quote?.quoteTimeMs ?? null };
+    },
+    okx: async (code) => {
+      const quote = await okxQuote(code);
+      return { quote, quoteTime: quote?.quoteTimeMs ?? null };
+    },
+  };
+
   async function getQuoteFull(identities) {
     const out = new Map();
     await Promise.all(identities.map(async (identity) => {
       const fetchedAt = now();
-      try {
-        let quote = null;
-        let quoteTime = null;
-        if (identity.market === "cn" || identity.market === "hk") {
-          const rows = await tencentBatch([identity.code]);
-          quote = rows.get(identity.code) ?? null;
-          if (quote) quoteTime = tencentQuoteTime(quote);
-        } else if (identity.market === "us") {
-          quote = await emQuote(identity.code);
-        } else if (identity.market === "crypto") {
-          quote = await okxQuote(identity.code);
-          if (quote) quoteTime = quote.quoteTimeMs ?? null;
+      for (const name of CHAINS[identity.market] ?? []) {
+        try {
+          const { quote, quoteTime } = await fullAdapter[name](identity.code);
+          if (quote && quote.price > 0) {
+            out.set(identity.id, { id: identity.id, identity, status: "ok", quote, fetchedAt, quoteTime });
+            return;
+          }
+        } catch {
+          /* 下一源 */
         }
-        if (quote && quote.price > 0) {
-          out.set(identity.id, { id: identity.id, identity, status: "ok", quote, fetchedAt, quoteTime });
-        } else {
-          out.set(identity.id, { id: identity.id, identity, status: "error", quote: null, fetchedAt, quoteTime: null, error: "no-data" });
-        }
-      } catch (e) {
-        out.set(identity.id, { id: identity.id, identity, status: "error", quote: null, fetchedAt, quoteTime: null, error: String(e?.message ?? e) });
       }
+      out.set(identity.id, { id: identity.id, identity, status: "error", quote: null, fetchedAt, quoteTime: null, error: "no-data" });
     }));
     return out;
   }
