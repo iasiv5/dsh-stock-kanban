@@ -6,7 +6,8 @@ import { fetchBatchSnapshots } from "../src/markets/yahoo.mjs";
 
 const META = {
   currency: "USD", symbol: "AAPL", regularMarketTime: 1794517201,
-  regularMarketPrice: 354.88, chartPreviousClose: 344.17,
+  regularMarketPrice: 354.88, regularMarketChangePercent: -0.135,
+  chartPreviousClose: 344.17, // 仅 pct 缺失时的回落路径；正路径不得用它（range 漂移坑）
   regularMarketOpen: 346, regularMarketDayHigh: 359.368, regularMarketDayLow: 354.41,
   regularMarketVolume: 30897281, longName: "Apple Inc.", shortName: "Apple Inc.",
 };
@@ -22,9 +23,10 @@ test("fetchBatchSnapshots：meta → 行；regularMarketTime → quoteTimeMs（�
     const rows = await fetchBatchSnapshots(["AAPL"]);
     const q = rows.get("AAPL");
     assert.equal(q.price, 354.88);
-    assert.equal(q.prevClose, 344.17);
+    assert.equal(q.changePercent, -0.135); // 直读 meta.regularMarketChangePercent（当日 vs 昨收口径）
+    assert.ok(Math.abs(q.prevClose - 354.88 / (1 + -0.135 / 100)) < 0.001); // 昨收由 pct 反推（≈355.359）
+    assert.ok(q.changeAmount < 0); // 与当日口径同号（修正前 chartPreviousClose 漂移坑会算出 +3% 假涨）
     assert.equal(q.quoteTimeMs, 1794517201000);
-    assert.ok(Math.abs(q.changePercent - ((354.88 - 344.17) / 344.17) * 100) < 0.01);
     assert.ok(urls[0].includes("/v8/finance/chart/AAPL"));
   } finally {
     globalThis.fetch = originalFetch;

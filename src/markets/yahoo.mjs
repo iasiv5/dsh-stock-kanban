@@ -46,9 +46,23 @@ async function chartMeta(code) {
 function metaToQuote(code, meta) {
   const price = num(meta.regularMarketPrice);
   if (price == null || price <= 0) return null;
-  const prevClose = num(meta.chartPreviousClose) ?? num(meta.previousClose);
-  const changeAmount = prevClose != null ? Math.round((price - prevClose) * 1e4) / 1e4 : null;
-  const changePercent = prevClose != null && prevClose > 0 ? Math.round(((price - prevClose) / prevClose) * 1e6) / 1e4 : null;
+  // 涨跌幅口径（2026-11-13 评审轮1修正）：meta.regularMarketChangePercent 直读（当日 vs 昨收），
+  // 昨收由 price/(1+pct/100) 反推（腾讯分时 prevClose 同款推导先例）。chartPreviousClose 是
+  // range 起点的前收盘、随 range 漂移（实测 range=1mo → 约一个月前收盘），不可当昨收——
+  // 该坑自 dsh-market-lens lib/sources/yahoo.js 原样继承（上游同病）；pct 缺失/≤-100 时才回落。
+  const pct = num(meta.regularMarketChangePercent);
+  let prevClose = null;
+  let changePercent = null;
+  let changeAmount = null;
+  if (pct != null && pct > -100) {
+    changePercent = pct;
+    prevClose = Math.round((price / (1 + pct / 100)) * 1e4) / 1e4;
+    changeAmount = Math.round((price - prevClose) * 1e4) / 1e4;
+  } else {
+    prevClose = num(meta.chartPreviousClose) ?? num(meta.previousClose);
+    changeAmount = prevClose != null ? Math.round((price - prevClose) * 1e4) / 1e4 : null;
+    changePercent = prevClose != null && prevClose > 0 ? Math.round(((price - prevClose) / prevClose) * 1e6) / 1e4 : null;
+  }
   const ts = num(meta.regularMarketTime);
   return {
     code: String(code),

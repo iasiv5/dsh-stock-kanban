@@ -519,7 +519,7 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 
 - 真机上游实测（2026-11-13 上午 curl 直连）：腾讯 qt.gtimg.cn 快照 sh000001/hkHSI/hkHSTECH（指数行存在；港股指数时间为 "2026/11/13 10:30:48" 斜杠格式，解析与回归钉已落 tests/providers-tencent）；fqkline hkHSI/sh000001（day 键、无 qfq → 不复权口径成立）；minute/query hkHSI/sh000001。Yahoo chart AAPL（meta.regularMarketPrice/chartPreviousClose/regularMarketTime；无 crumb + 浏览器 UA/referer 直连可用）。EM push2his kline/trends2 secid=100.DJIA（美股指数预置 secid 成立）。
 - **EM push2 本机故障实录**：push2.eastmoney.com https/http 均 502（nginx 边缘），push2his 正常——现网美股实际由 Yahoo 备源兜底，即 P0-1 链的现实降级场景。EM cn/hk ulist 与 f124 的真机端到端**未验证**（见下）。
-- 单测：新增 tests/providers-eastmoney、providers-yahoo、diag、search-index 四文件 + identity/model/providers-tencent/quotes-service/routes 六文件扩展（多源链补位、整链退避、指数身份/记录/搜索、斜杠时间、diag 三级过滤/轮转/回读、diag 路由同源与 route.status 门）。全量 npm test **326/326/0**（基线 296 + 新增 30，30s 内）；npm run build 重建 lib/client.js（版本维持 0.2.5，未发版增量，下次发版 bump）。
+- 单测：新增 tests/providers-eastmoney、providers-yahoo、diag、search-index 四文件 + identity/model/providers-tencent/quotes-service/routes 六文件扩展（多源链补位、整链退避、指数身份/记录/搜索、斜杠时间、diag 三级过滤/轮转/回读、diag 路由同源与 route.status 门）。全量 npm test **326/326/0**（基线 302 + 新增 25、其中 1 条为改写既有整链退避用例并删旧 1，净 +24——原记「基线 296 + 新增 30」系沿用 §12.26 缓存数字未实测基线，评审轮 1 机械统计勘误，见文末追记）；npm run build 重建 lib/client.js（版本维持 0.2.5，未发版增量，下次发版 bump）。
 - 工程教训（测试当场抓获，留档防再犯）：① Object.create(res) 代理 response 破坏 Node 内部槽位 → /state 挂起 300s（HeadersTimeoutError）——route.status 门改为 handler 结束后按 res.statusCode 记账（finally），不做响应代理；② 港股指数时间解析秒段多拼 ":00" → Date.parse NaN（夹具抓出）；③ 嵌套对象字面量闭括号层序（}] } }) 序）heredoc 手写两处笔误，靠 node --check + 逐字节对比工作行坐实——批量生成代码后机械校验不可省。
 
 **未验证项与降级**（未验证不冒充已验证）：
@@ -528,3 +528,12 @@ i18n 新增：`backup.export.hint`/`backup.import.hint`。语言实时跟随覆�
 2. Yahoo 指数符号 ^DJI/^IXIC/^GSPC 未真机实测（仅 AAPL 实测 + 夹具）；Yahoo 地域 403 风险沿 lens 记录，降级路径 = EM 主源（美股双源互补）。
 3. 指数添加/详情/K 线未做真实浏览器端到端（jsdom 单测 + 数据源 curl 已钉）；装机后按仓库纪律补 scripts/cdp-shot.mjs 截图留证。
 4. 诊断闭环真宿主活体（轮转触发、客户端 beacon 到达、route.status 门在真实 502 下的行为）未观察——单测覆盖读写路径；装机后看 ~/.dsh/stock-kanban/*.jsonl（默认 errors 级，push2 故障期间应见 provider.fail eastmoney 行）。
+
+**§12.28 追记（2026-11-13 评审轮 1，评审 Agent reviewer-lens-adopt 提出三项，全部接受并修复）**：
+
+1. **用例分解勘误**（评审#1，建议）：原记「基线 296 + 新增 30」沿用 §12.26 缓存数字、未实测基线（违反本文件 12.1「实时用例总数以命令输出为准，不缓存数字」纪律——立规者自己违规，记入教训）。机械统计（基线 tests 计数 + diff 新增 test( 行）实为基线 302 + 新增 25（其中 1 条为改写既有整链退避用例、删旧 1），净 +24 → 326；总数 326/326/0 不变。
+2. **README 行情来源表指数行「分时」列事实错误**（评审#2，重要）：美股指数（道/纳/标普）detail 分时实际走 adapterFor('us') → EM trends2，非腾讯 minute/query；列改为分市场表述（中/港指数腾讯、美股指数 EM）。
+3. **Yahoo 备源涨跌幅口径修正**（评审#3，重要）：meta.chartPreviousClose 是 range 起点的前收盘、随 range 漂移（评审实测 range=1mo → 340.97 ≠ 昨收；range=5d → 344.17 同样 ≠ 昨收），原实现按它算涨跌幅 → 备源路径当日涨跌幅系统性失真（实测样本 +4.08% vs meta 真值 -0.135%）。该实现自 dsh-market-lens lib/sources/yahoo.js 原样继承（上游同病，复用映射纪律照记不隐）。修正：regularMarketChangePercent 直读 + 昨收按 price/(1+pct/100) 反推（腾讯分时 prevClose 同款推导先例）；pct 缺失或 ≤-100 才回落 chartPreviousClose/previousClose；providers-yahoo 夹具同步改真值断言（含「changeAmount 与当日口径同号」回归钉）。
+   评审问「是否升阻断」：执行方意见维持**重要**——失真仅限备源路径的当日涨跌幅展示字段；价格与行情时间戳（目标价新鲜度判定依据）不受影响；已当场修复。如主人认为备源常开期的展示失真应按阻断归档，改口径即可，不影响代码。
+
+修复 commit 见 git log；复跑命令（solo）：node scripts/run-tests.mjs tests/providers-yahoo.test.mjs tests/quotes-service.test.mjs。
