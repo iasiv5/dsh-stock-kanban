@@ -348,7 +348,14 @@ export function createDetail({ store, win }) {
     // 不钉高则切周期时卡片先塌后涨（「先变短再涨回去」的残余弹跳根因）
     box.style.height = `${chartHeight(viewportHeight())}px`;
     const chartErrorText = chart.error ? tErr(chart.error, chart.errorDetail) || chart.error : null;
-    if (chart.loading) {
+    const closedMinute = period === "minute" && !isMarketOpen(symbol.market, Date.now()) && !(chart.data?.points?.length > 1);
+    if (closedMinute) {
+      // 休市分时（§12.35 用户反馈：提示出来慢）：立即给安静提示，不等上游；数据到达后本函数重画为图表
+      const closed = document.createElement("div");
+      closed.className = "skc-chart-empty";
+      closed.textContent = t("detail.chart.closed");
+      box.append(closed);
+    } else if (chart.loading) {
       // 骨架态（operate.md：内容区用 skeleton，不用文字 spinner）+ 保留文案供读屏
       const loading = document.createElement("div");
       loading.className = "skc-chart-loading";
@@ -361,12 +368,6 @@ export function createDetail({ store, win }) {
       caption.textContent = t("detail.chart.loading");
       loading.append(price, vol, caption);
       box.append(loading);
-    } else if (chartErrorText && period === "minute" && !isMarketOpen(symbol.market, Date.now())) {
-      // 休市时的分时获取失败（源退避等）不是故障：给安静的休市提示，不标红（§12.34）
-      const closed = document.createElement("div");
-      closed.className = "skc-chart-empty";
-      closed.textContent = t("detail.chart.closed");
-      box.append(closed);
     } else if (chartErrorText) {
       const err = document.createElement("div");
       err.className = "skc-chart-empty skc-chart-error";

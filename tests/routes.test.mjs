@@ -93,6 +93,30 @@ test("路由：行情行包含持仓指标与目标状态", async () => {
   } finally { t.close(); restore(); }
 });
 
+test("路由：分时点位不足 2 个按 no-data 上报（不得伪装成功，§12.35）", async () => {
+  const originalFetch = globalThis.fetch;
+  let lines = ["0930 1453.00 100"];
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.includes("127.0.0.1")) return originalFetch(url, init);
+    if (u.includes("ifzqgtimg") || u.includes("ifzq.gtimg.cn")) {
+      const code = decodeURIComponent((u.match(/code=([^&]+)/) || [])[1] || "sh600519");
+      return { ok: true, json: async () => ({ data: { [code]: { data: { date: "20261113", data: lines }, qt: { [code]: [] } } } }) };
+    }
+    return { ok: false, status: 404 };
+  };
+  const t = await startServer();
+  try {
+    const bad = await t.j(`/stock-kanban/minute?id=${SYM.id}`);
+    assert.equal(bad.status, 200);
+    assert.equal(bad.body.error, "no-data", "单点分时不得伪装成功");
+    lines = ["0930 1453.00 100", "0931 1453.10 200", "0932 1453.20 300"];
+    const good = await t.j(`/stock-kanban/minute?id=${SYM.id}`);
+    assert.equal(good.body.error, null);
+    assert.equal(good.body.points.length, 3);
+  } finally { t.close(); globalThis.fetch = originalFetch; }
+});
+
 test("路由：同源校验 + CAS 冲突 409 + 重复添加 409", async () => {
   const restore = await mockUpstream();
   const t = await startServer();

@@ -360,7 +360,9 @@ async function minuteRoute(req, res) {
     return;
   }
   const adapter = await adapterFor(symbol.market);
-  const result = await adapter.fetchMinuteDetail(symbol.code);
+  let result = await adapter.fetchMinuteDetail(symbol.code);
+  // 空分时不得伪装成功（§12.35 用户反馈：上证指数间歇性空白）：点位不足 2 个按 no-data 上报，客户端据此走休市/错误提示并可重试
+  if (!result.error && (!Array.isArray(result.points) || result.points.length < 2)) result = { ...result, points: Array.isArray(result.points) ? result.points : [], error: "no-data" };
   sendJson(res, 200, {
     id: symbol.id,
     date: result.date,
