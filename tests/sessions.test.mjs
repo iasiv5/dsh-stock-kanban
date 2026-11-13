@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isMarketOpen, targetBadgeKind, pollIntervalMs, chartRefreshDue, POLL_MS, CHART_REFRESH_MS } from "../src/sessions.mjs";
+import { isMarketOpen, isMarketActive, targetBadgeKind, pollIntervalMs, chartRefreshDue, POLL_MS, CHART_REFRESH_MS } from "../src/sessions.mjs";
 
 /* 2026-11-13 开休市简化判断（§12.33）：时段表 + 行情过期状态的复合判断。
    固定真实日历：2026-11 美东为 EST（UTC-5），北京 UTC+8。 */
@@ -19,11 +19,14 @@ test("时段判断：A 股盘中开市；午休与周末休市", () => {
   assert.equal(isMarketOpen("cn", CN_SAT), false);
 });
 
-test("时段判断：港股盘中开市；美股扩展时段（04:00–20:00 ET）含盘前，21:00 后休市", () => {
+test("时段判断（§12.36）：显示按常规时段——美股盘前 06:00 ET 不算开市；轮询活跃窗口含盘前盘后", () => {
   assert.equal(isMarketOpen("hk", HK_FRI_IN), true);
   assert.equal(isMarketOpen("us", US_FRI_IN), true);
-  assert.equal(isMarketOpen("us", US_FRI_PRE), true);
+  assert.equal(isMarketOpen("us", US_FRI_PRE), false);
   assert.equal(isMarketOpen("us", US_FRI_NIGHT), false);
+  assert.equal(isMarketActive("us", US_FRI_PRE), true);
+  assert.equal(isMarketActive("us", US_FRI_IN), true);
+  assert.equal(isMarketActive("us", US_FRI_NIGHT), false);
 });
 
 test("时段判断：加密货币 7×24 恒为开市", () => {
@@ -36,10 +39,12 @@ test("复合标签：行情正常不显示；无行情显示「无」", () => {
   assert.equal(targetBadgeKind({ status: "no-data" }, "cn", CN_SAT), "no-data");
 });
 
-test("复合标签：行情过期时，时段内「旧」，时段外「休」", () => {
+test("复合标签：行情过期时，时段内「旧」，时段外「休」（含美股盘前，§12.36 图一场景）", () => {
   assert.equal(targetBadgeKind({ status: "stale" }, "cn", CN_FRI_IN), "stale");
   assert.equal(targetBadgeKind({ status: "stale" }, "cn", CN_FRI_LUNCH), "closed");
   assert.equal(targetBadgeKind({ status: "stale" }, "us", US_FRI_NIGHT), "closed");
+  assert.equal(targetBadgeKind({ status: "stale" }, "us", US_FRI_PRE), "closed");
+  assert.equal(targetBadgeKind({ status: "no-targets" }, "us", US_FRI_PRE), "closed");
   assert.equal(targetBadgeKind({ status: "stale" }, "crypto", CN_SAT), "stale");
 });
 

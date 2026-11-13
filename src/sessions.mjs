@@ -10,13 +10,19 @@
  * 时段表依据交易所公开规则（来源见 docs/verification.md §12.33）：
  *   cn  Asia/Shanghai     09:30–11:30、13:00–15:00
  *   hk  Asia/Hong_Kong    09:30–12:00、13:00–16:00
- *   us  America/New_York  04:00–20:00（纳斯达克扩展时段；盘前盘后仍有成交与价格变动，故含在内）
+ *   us  America/New_York  09:30–16:00（常规时段；显示语义按常规时段，盘前盘后一律「休」，§12.36）
  * 加密货币 7×24，恒视为开市。
+ * 轮询活跃窗口另有放宽（ACTIVE_WINDOWS）：美股 04:00–20:00 扩展时段仍按开市节奏轮询（盘前后有成交）。
  */
 
 const SESSION_WINDOWS = {
   cn: { tz: "Asia/Shanghai", windows: [[570, 690], [780, 900]] },
   hk: { tz: "Asia/Hong_Kong", windows: [[570, 720], [780, 960]] },
+  us: { tz: "America/New_York", windows: [[570, 960]] },
+};
+
+/** 轮询活跃窗口（§12.36）：显示按常规时段，轮询对美股放宽到纳斯达克扩展时段 04:00–20:00（盘前盘后仍有成交）；未列出的市场跟随常规时段 */
+const ACTIVE_WINDOWS = {
   us: { tz: "America/New_York", windows: [[240, 1200]] },
 };
 
@@ -39,15 +45,26 @@ function minuteOfDay(epoch, tz) {
   return (get("hour") % 24) * 60 + get("minute");
 }
 
-/** 市场是否开市（时间输入）：加密恒开市；其余为周一至周五且落在时段内 */
-export function isMarketOpen(market, now) {
-  if (market === "crypto") return true;
-  const cfg = SESSION_WINDOWS[market];
-  if (!cfg) return false;
+/** 周一至周五且落在时段内（当地墙钟） */
+function inWindows(cfg, now) {
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: cfg.tz, weekday: "short" }).format(new Date(now));
   if (weekday === "Sat" || weekday === "Sun") return false;
   const m = minuteOfDay(now, cfg.tz);
   return cfg.windows.some(([a, b]) => m >= a && m < b);
+}
+
+/** 市场是否开市（显示语义，常规时段 §12.36）：加密恒开市；美股盘前盘后不算开市 */
+export function isMarketOpen(market, now) {
+  if (market === "crypto") return true;
+  const cfg = SESSION_WINDOWS[market];
+  return cfg ? inWindows(cfg, now) : false;
+}
+
+/** 市场是否处于轮询活跃窗口（§12.36）：美股含盘前盘后扩展时段，其余跟随常规时段 */
+export function isMarketActive(market, now) {
+  if (market === "crypto") return true;
+  const cfg = ACTIVE_WINDOWS[market] ?? SESSION_WINDOWS[market];
+  return cfg ? inWindows(cfg, now) : false;
 }
 
 /**
@@ -63,9 +80,9 @@ export function targetBadgeKind(target, market, now) {
   return closed ? "closed" : null;
 }
 
-/** 轮询间隔（毫秒）：任一标的市场开市（或含加密）即按开市节奏；全部休市降频为 60 秒 */
+/** 轮询间隔（毫秒）：任一标的市场处于活跃窗口（含美股盘前盘后，或加密）→ 开市节奏；全部休市降频为 60 秒 */
 export function pollIntervalMs({ panelOpen, markets, now }) {
-  const anyOpen = (markets ?? []).some((m) => isMarketOpen(m, now));
+  const anyOpen = (markets ?? []).some((m) => isMarketActive(m, now));
   if (!anyOpen) return POLL_MS.closed;
   return panelOpen ? POLL_MS.openPanel : POLL_MS.openCollapsed;
 }
