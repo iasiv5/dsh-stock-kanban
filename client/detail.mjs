@@ -901,6 +901,7 @@ export function createDetail({ store, win }) {
       busy = false;
       overlapHint = false;
       chartKey = "";
+      loadedKey = ""; // §12.37：重新打开同一标的详情也立即重新取数（否则 loadedKey 残留会跳过 loadChart）
       chart = { key: "", loading: false, data: null, error: null, errorDetail: null, adjust: null, prevClose: null, date: null };
     }
     if (symbol) {

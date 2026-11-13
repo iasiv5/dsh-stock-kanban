@@ -636,6 +636,36 @@ test("detail · maVisible 变化原位重画图表区（§12.36 修复：MA 开�
   }
 });
 
+test("detail · 重新打开同一标的详情立即重新取分时（§12.37）", async () => {
+  const h = createDomHarness();
+  const prevGlobals = { document: globalThis.document, window: globalThis.window, fetch: globalThis.fetch };
+  globalThis.document = h.document;
+  globalThis.window = h.window;
+  let minuteFetches = 0;
+  globalThis.fetch = async () => { minuteFetches += 1; throw new Error("boom"); };
+  try {
+    const symbol = { id: "cn:sh600519", market: "cn", code: "sh600519", quoteCurrency: "CNY", kind: "stock", name: "贵州茅台", addedAt: "2026-01-01T00:00:00.000Z", sort: 1 };
+    const base = { business: { rev: 1, loaded: true, settings: { privacyMode: false }, symbols: [symbol], driverKind: "file" }, quotes: {}, quoteMeta: { fetchedAt: null, error: null }, providers: null, toast: null };
+    const uiDetail = { panelOpen: true, view: "detail", detailId: "cn:sh600519", showAdd: false, showSettings: false, lastMarket: "cn", holdingsOnly: false, maVisible: { 5: true, 10: true, 20: true, 60: true }, capsuleSymbolId: null };
+    const uiList = { ...uiDetail, view: "list", detailId: null };
+    const detail = createDetail({ store: {} });
+    detail.update({ ...base, ui: uiDetail });
+    await sleep(20);
+    const first = minuteFetches;
+    assert.ok(first >= 1, "首次打开取一次分时");
+    detail.update({ ...base, ui: uiList });
+    detail.update({ ...base, ui: uiDetail });
+    await sleep(20);
+    assert.ok(minuteFetches >= first + 1, `重新打开详情立即重新取数（fetch ${first} → ${minuteFetches}）`);
+    detail.dispose();
+  } finally {
+    globalThis.document = prevGlobals.document;
+    globalThis.window = prevGlobals.window;
+    globalThis.fetch = prevGlobals.fetch;
+    h.cleanup();
+  }
+});
+
 /* ---------------- add/backup（Task 11：对话框 vanilla） ---------------- */
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
