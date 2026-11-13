@@ -555,3 +555,29 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 评审轮 2 收口后全量 npm test **329/329/0**（亲跑 EXIT=0，即代码最后一次改动后的套件；评审 Agent 在副本 review-final=58b8932 亦复跑 329/329/0）。本轮仅改 src/tests/docs，未改 client/，lib/client.js 无需重建；版本仍 0.2.5，未发版（发版与装机均未执行）。
 
 范围外建议（评审提出，未实施，留档）：push2+push2his 同域故障时美股 K线/分时降级面补 capability-matrix 一句；search.mjs 未使用 import normalizeKind 清理；client/diag visibilitychange 监听无 dispose（无害）。
+
+## 12.29 评审收口后的三项落地 + 本机热部署（2026-11-13，轮 3）
+
+依据：§12.28 评审终核遗留的 D1，以及 capability-matrix 补句、search.mjs 未用 import、client/diag.mjs 监听 dispose 三项计划外建议。主人指令：先落地，再本机热部署，手动验证后发 0.3.0。
+
+- **D1 落地**（P2 严重度）：记为「重要」（执行方立场）。评审终核确认修复已落地、不构成发布阻塞；评审方主张阻断的理由已在 §12.28 归档。残余风险（pct 缺失时的回落分支仍按 chartPreviousClose 计算）已消除：备源请求改为固定 `range=1d`（提交 2d76450）。实测（2026-11-13，AAPL）：`range=1d` 时 chartPreviousClose=355.36，与 `regularMarketPrice/(1+pct/100)` 反推的 355.3597 一致；紧随其后的 `range=1mo` 请求返回 HTTP 429「Too Many Requests」，即 Yahoo 对快速连续请求限流，备源路径由提供方级退避兜底。
+- **R3-1（超出评审清单，本轮新发现并修复）** `resolveUSSecid` 负缓存污染（提交 91e38aa）：旧实现把「三交易所全部探测失败（网络/上游故障）」也写成 null 并永久缓存，故障期间首次探测过的美股代码在进程存活期内 K 线/分时一律报 not-found，即使 push2 已恢复。修复：仅当三交易所都明确应答且均无此代码时才负缓存；有任何传输失败则下次重新探测。红灯：修复前新增 3 条中 2 条红（瞬时故障恢复、部分失败），1 条守卫绿（确认不存在仍负缓存，符合预期）。
+- **search.mjs**：删除未使用的 `normalizeKind` import（提交 0dfbb1b；grep 核实该符号仅在 import 行出现）。
+- **client/diag.mjs**：增加 `dispose`（提交 2944dc6）：摘除 visibilitychange 监听并冲掉队列，拆卸后 add 不再入队；main.mjs 拆卸路径改调 dispose。新增 tests/client-diag.test.mjs 两条。
+- **capability-matrix**：补一句，push2 与 push2his 同域故障时美股 K 线/分时无备源。
+- 测试：`npm test` **334/334/0**（EXIT=0；§12.28 收口时为 329，本轮新增 5）。`npm run build` 重建 lib/client.js（134.5 KB），随 2944dc6 入库。
+
+### 本机热部署（执行计划与核验判据）
+
+- **基线**：DSH web profile 中 dsh-stock-kanban 为 **npm 注册表安装 0.2.5**（dshm_list 核实：source=npm）。systemd 基线 `MainPID=1644228`，`ActiveEnterTimestamp=Fri 2026-11-13 13:46:49 CST`，health=200。
+- **切换**：`dsh plugin --profile web add link:/home/ubuntu/workspace/dsh-stock-kanban`（链接安装，sourceKind=link；链接期间升级通道不可用，发 0.3.0 时改回注册表安装）。随后按 AGENTS 恢复 `node_modules`：`npm ci`，npm 缓存指向 `.dsh-research/` 子路径。
+- **重启**：按 know-how 037 §3 的分离式姿势，作为本轮最后一个动作：`nohup bash -c 'sleep 20 && sudo systemctl restart deepseek-harness.service'` 后台排程；排程后不再发工具调用。
+- **下一轮核验**（只读，判据逐条）：
+  1. `systemctl show -p ActiveEnterTimestamp -p MainPID deepseek-harness.service` 晚于基线且 MainPID 变化——否则重启未发生，改由主人在终端执行，或走 dshm_restart（需主人同意）。
+  2. `dshm_list` 中 dsh-stock-kanban 的 source=link。
+  3. `GET /stock-kanban/search?market=cn&q=上证` 返回 kind=index 的 sh000001（目录路径，不依赖上游）。
+  4. `GET /stock-kanban/health` 的 providers 含 yahoo（新主机代码的标志）。
+  5. 构建指纹：页面下发的本插件 client.js 与 lib/client.js 前缀一致（字节比对，不以 HTTP 200 为判据）。
+- **回滚**：若服务重启后异常，先回到注册表安装：`dsh plugin --profile web add dsh-stock-kanban@0.2.5 --registry=https://registry.npmjs.org/`，再重启。
+- **发版 0.3.0**：待主人手动验证通过后执行，本段不包含。
+
