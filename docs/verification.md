@@ -726,5 +726,21 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **测试**：tests/search-index.test.mjs 新增 9 项（串台回归 1 + 本轮 8）；tests/client-restyle.test.mjs 新增 1 项（切换市场清空 / 市场过滤 DOM 用例）。全量 npm test：共 376 项，通过 376，失败 0（exit 0）。
 - **红灯说明**：串台用例按 TDD 先红后绿（红：actual ['hk00001', 'AAPL', 'sh510300']）。其余新增用例与实现同批落地，未逐条做红灯确认；DOM 用例首跑即绿，同样未做红灯确认。
 - **未验证（不冒充已验证）**：未在真实 GUI（127.0.0.1:3080）复现或点验；运行中的插件仍是 npm 0.3.1，其 search.mjs 与修复前一致，修复需发版、升级、重启后生效；点号美股与港股人民币柜台的直连输入路径未处理；smartbox 行为以桩数据与 2026-11-13 实测样本为依据，未做长期回归。
-- **发版**：随 0.3.2 发版（chore(release) 提交 + tag v0.3.2，CI 发布）；发布结果与运行中插件验证待追记。
+- **发版**：0.3.2 已发布（publish 工作流 success；npm 三键 2026-11-13 14:21Z 入账），已 `dshm_upgrade` 安装并重启（主进程 PID 1880917 → 1910086，本机健康检查 200）。主人在 GUI 中验证后反馈「基本没问题」，逐项结果未记录。
+
+## 12.40 retro 指定项落地（第 1 2 3 4 5 8 9 10 项；第 6 7 11 12 13 项未纳入）
+
+- **第 2 项 失效路径**：repo AGENTS 发版链的 release-monitor 路径由 `../../01_docs/…` 改为 `../01_docs/…`（实测：旧路径解析到 `/home/ubuntu/01_docs/…` 缺失，新路径存在）。守卫 `tests/agents-paths.test.mjs` 校验 AGENTS 中反引号包裹的仓库路径，`../` 按仓库根解析；只跳过绝对路径、`~`、`dsh-m/` 与 URL。限制：只检查带扩展名或以 `/` 结尾的路径（如 `data/SHA256SUMS` 不在范围内）；守卫未用旧文本做红灯确认，旧路径缺失以 `test -e` 实测。
+- **第 3 项 数据文件格式**（先分析，结论为不改格式）：三个池文件与本机两份上游副本（`.dsh-research/Justin-Mai-dsh-stock-view`、`.dsh-research/Awu12277-dsh-stock-watch`）字节完全相同；仓库内无生成或下载脚本，git 历史仅初始导入一次；两份上游 README 只描述用途与条目数，未记录来源、抓取日期或刷新方法。改格式会切断字节级的上游可核对性，使未来刷新失去 diff 意义；代码以 `JSON.parse` 读取，格式对功能无影响。落地：`data/SHA256SUMS` 字节指纹、`tests/data-provenance.test.mjs`、`data/README.md`（来源、条目数核对、刷新规则）。条目数：`hk_stocks.json` 2791、`etf_stocks.json` 1650，与 Awu12277 README 一致；A 股为单行，README 声称的 5549 未核对。
+- **第 5 项 错误码文案**：新守卫 `tests/error-codes-i18n.test.mjs` 扫描 `src/` 中的 `error` 码，要求 zh/en 均有 `err.<code>`。首跑报出 4 个缺口；其中 `invalid-format`（直连输入格式错误）用户可见，之前界面会显示裸码。已补齐 zh/en 文案。
+- **第 8 项 pre-commit**：`.githooks/pre-commit` 对暂存的 `.mjs` 做 `node --check`（秒级）；完整测试与产物新鲜度仍在 pre-push。验证：在 `.dsh-research/hook-probe-clone`（scratch 克隆）中，语法错误文件被拦截（退出码 1，SyntaxError），合法文件放行（退出码 0）。
+- **第 9 项 探针**：AGENTS 增「探针必须 import 生产解析函数，不得复制正则」（2026-11-13 手写正则的反转义错误被误读为上游格式）。
+- **第 10 项 导航指针**：AGENTS 增发版约定（轻量 tag；fix 与 chore(release) 分提交；验证编号取末尾 §12.N+1）、搜索入口（`src/markets/search.mjs`、`client/add.mjs`、§12.39）与标的池约定（指向 `data/README.md`）。
+- **第 4 项 npm 缓存（仓库侧）**：AGENTS 增「联网 npm 命令前指 `npm_config_cache`」约定。DSH 侧的默认缓存路径未处理，需在 DSH 配置中完成。
+- **第 1 项 宿主重启规则：未完成**。`/home/ubuntu/.dsh/AGENTS.md` 的编辑被策略拒绝（workspace-write 不允许写 workspace 之外的路径；未重试、未绕过）。待主人将权限切换为 danger-full-access 后执行，或人工替换其中「禁在当轮直接 restart」一段：沙箱内 nohup+sudo 不可达（037 §8），重启走 `dshm_restart`，且必须是本轮最后一个动作。
+- **测试**：`npm test` 379/379 通过（含 3 个新守卫）；`npm run build` 重建 `lib/client.js`。
+- **未验证（不冒充已验证）**：
+  - 未在 GUI 中复验。i18n 文案需随下一版发布并升级后生效；届时在直连输入中填一个无效格式代码，应显示「代码格式无效」而非 `invalid-format`。
+  - 宿主 AGENTS 与 DSH 侧 npm 缓存默认值未改（见第 1、4 项）。
+  - 数据来源仍未知；A 股条目数未核对。
 
