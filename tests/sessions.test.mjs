@@ -1,69 +1,61 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { staleBadgeKind, lastSessionWindow, localDow } from "../src/sessions.mjs";
+import { isMarketOpen, targetBadgeKind, pollIntervalMs, chartRefreshDue, POLL_MS, CHART_REFRESH_MS } from "../src/sessions.mjs";
 
-// 固定时刻（真实日历）：2026-11-06 周五、11-07 周六、11-10 周二、2026-10-05 周一
-const FRI_QT = Date.parse("2026-11-06T08:14:58Z");     // 周五 16:14:58 CST（茅台收盘快照实测值）
-const SAT_NOW = Date.parse("2026-11-07T02:18:00Z");    // 周六 10:18 CST
-const FRI_IN_SESSION = Date.parse("2026-11-06T02:05:00Z"); // 周五 10:05 CST（盘中）
-const FRI_LUNCH = Date.parse("2026-11-06T04:30:00Z");  // 周五 12:30 CST（午间休市）
-const THU_QT = Date.parse("2026-11-05T08:00:00Z");     // 周四 16:00 CST
-const TUE_EVE = Date.parse("2026-11-10T12:00:00Z");    // 周二 20:00 CST
-const TUE_QT = Date.parse("2026-11-10T07:10:00Z");     // 周二 15:10 CST
-const MON_HOL_NOW = Date.parse("2026-10-05T02:00:00Z"); // 周一 10:00 CST（2026-10-05）
-const MON_HOL_QT = Date.parse("2026-10-02T08:00:00Z");  // 前周五 16:00 CST
+/* 2026-11-13 开休市简化判断（§12.33）：时段表 + 行情过期状态的复合判断。
+   固定真实日历：2026-11 美东为 EST（UTC-5），北京 UTC+8。 */
 
-test("周六 + 行情为周五收盘快照 → 精确判定「休」", () => {
-  assert.equal(staleBadgeKind("cn", "stale", FRI_QT, SAT_NOW), "closed");
-  assert.equal(staleBadgeKind("hk", "stale", FRI_QT, SAT_NOW), "closed");
+const CN_FRI_IN = Date.parse("2026-11-06T02:05:00Z");     // 周五 10:05 北京（盘中）
+const CN_FRI_LUNCH = Date.parse("2026-11-06T04:30:00Z");  // 周五 12:30 北京（午休）
+const CN_SAT = Date.parse("2026-11-07T02:18:00Z");        // 周六 10:18 北京
+const HK_FRI_IN = Date.parse("2026-11-06T02:30:00Z");     // 周五 10:30 香港（盘中）
+const US_FRI_IN = Date.parse("2026-11-06T15:00:00Z");     // 周五 10:00 纽约（盘中）
+const US_FRI_PRE = Date.parse("2026-11-06T11:00:00Z");    // 周五 06:00 纽约（扩展时段）
+const US_FRI_NIGHT = Date.parse("2026-11-07T02:00:00Z");  // 周五 21:00 纽约（扩展时段结束）
+
+test("时段判断：A 股盘中开市；午休与周末休市", () => {
+  assert.equal(isMarketOpen("cn", CN_FRI_IN), true);
+  assert.equal(isMarketOpen("cn", CN_FRI_LUNCH), false);
+  assert.equal(isMarketOpen("cn", CN_SAT), false);
 });
 
-test("周六 + 行情早于最近应有交易日 → 保守「旧」（可能是节假日或源异常）", () => {
-  assert.equal(staleBadgeKind("cn", "stale", THU_QT, SAT_NOW), "stale");
+test("时段判断：港股盘中开市；美股扩展时段（04:00–20:00 ET）含盘前，21:00 后休市", () => {
+  assert.equal(isMarketOpen("hk", HK_FRI_IN), true);
+  assert.equal(isMarketOpen("us", US_FRI_IN), true);
+  assert.equal(isMarketOpen("us", US_FRI_PRE), true);
+  assert.equal(isMarketOpen("us", US_FRI_NIGHT), false);
 });
 
-test("盘中行情滞后 → 「旧」不冒称休市", () => {
-  assert.equal(staleBadgeKind("cn", "stale", FRI_QT, FRI_IN_SESSION), "stale");
+test("时段判断：加密货币 7×24 恒为开市", () => {
+  assert.equal(isMarketOpen("crypto", CN_SAT), true);
 });
 
-test("午间休市 + 行情为上午盘 → 「休」", () => {
-  assert.equal(staleBadgeKind("cn", "stale", FRI_QT, FRI_LUNCH), "closed");
+test("复合标签：行情正常不显示；无行情显示「无」", () => {
+  assert.equal(targetBadgeKind({ status: "ok" }, "cn", CN_FRI_IN), null);
+  assert.equal(targetBadgeKind({ status: "no-targets" }, "cn", CN_FRI_IN), null);
+  assert.equal(targetBadgeKind({ status: "no-data" }, "cn", CN_SAT), "no-data");
 });
 
-test("工作日晚间（盘后）+ 当日行情 → 「休」", () => {
-  assert.equal(staleBadgeKind("cn", "stale", TUE_QT, TUE_EVE), "closed");
+test("复合标签：行情过期时，时段内「旧」，时段外「休」", () => {
+  assert.equal(targetBadgeKind({ status: "stale" }, "cn", CN_FRI_IN), "stale");
+  assert.equal(targetBadgeKind({ status: "stale" }, "cn", CN_FRI_LUNCH), "closed");
+  assert.equal(targetBadgeKind({ status: "stale" }, "us", US_FRI_NIGHT), "closed");
+  assert.equal(targetBadgeKind({ status: "stale" }, "crypto", CN_SAT), "stale");
 });
 
-test("疑似节假日（工作日盘中，行情为多日前）→ 保守「旧」", () => {
-  assert.equal(staleBadgeKind("cn", "stale", MON_HOL_QT, MON_HOL_NOW), "stale");
+test("轮询节奏：任一市场开市时展开 15 秒 / 收起 30 秒；全部休市 60 秒", () => {
+  assert.equal(POLL_MS.openPanel, 15000);
+  assert.equal(POLL_MS.openCollapsed, 30000);
+  assert.equal(POLL_MS.closed, 60000);
+  assert.equal(pollIntervalMs({ panelOpen: true, markets: ["cn", "us"], now: US_FRI_PRE }), 15000);
+  assert.equal(pollIntervalMs({ panelOpen: false, markets: ["cn"], now: CN_FRI_IN }), 30000);
+  assert.equal(pollIntervalMs({ panelOpen: true, markets: ["cn"], now: CN_SAT }), 60000);
+  assert.equal(pollIntervalMs({ panelOpen: true, markets: ["cn", "crypto"], now: CN_SAT }), 15000);
 });
 
-test("美股/加密不做休市判定：stale → 旧", () => {
-  assert.equal(staleBadgeKind("us", "stale", FRI_QT, SAT_NOW), "stale");
-  assert.equal(staleBadgeKind("crypto", "stale", FRI_QT, SAT_NOW), "stale");
-});
-
-test("非 stale 状态不产生徽标", () => {
-  assert.equal(staleBadgeKind("cn", "wait", FRI_QT, SAT_NOW), null);
-  assert.equal(staleBadgeKind("cn", "buy", FRI_QT, SAT_NOW), null);
-  assert.equal(staleBadgeKind("cn", "no-targets", FRI_QT, SAT_NOW), null);
-});
-
-test("lastSessionWindow：周六返回最近交易日（周五）已收市窗口", () => {
-  const w = lastSessionWindow("cn", SAT_NOW);
-  assert.equal(w.inSession, false);
-  assert.equal(w.dayOffset, 1);
-  // 窗口应为周五某时段，起点为当地 09:30 或 13:00
-  const startWall = new Date(w.start);
-  assert.ok([9, 13].includes(startWall.getUTCHours() + 8) || [1, 5].includes(startWall.getUTCHours()));
-});
-
-test("lastSessionWindow：盘中返回 inSession=true", () => {
-  const w = lastSessionWindow("cn", FRI_IN_SESSION);
-  assert.equal(w.inSession, true);
-});
-
-test("localDow 基准", () => {
-  assert.equal(localDow(FRI_QT, "Asia/Shanghai"), 5);
-  assert.equal(localDow(SAT_NOW, "Asia/Shanghai"), 6);
+test("图表静默刷新：仅开市时每 60 秒一次；休市不刷新", () => {
+  assert.equal(CHART_REFRESH_MS, 60000);
+  assert.equal(chartRefreshDue("cn", CN_FRI_IN - 61000, CN_FRI_IN), true);
+  assert.equal(chartRefreshDue("cn", CN_FRI_IN - 30000, CN_FRI_IN), false);
+  assert.equal(chartRefreshDue("cn", CN_FRI_IN - 999999, CN_SAT), false);
 });

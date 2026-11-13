@@ -27,7 +27,7 @@ function appendText(parent, className, text) {
 }
 
 /** 触价/休市/过期标记（语义与 React 版一致） */
-function appendTargetBadges(container, target, market, quoteTime) {
+function appendTargetBadges(container, target, market) {
   if (!target || target.status === "no-targets") return;
   if (target.buyTriggered || target.sellTriggered) {
     if (target.buyTriggered) {
@@ -40,7 +40,7 @@ function appendTargetBadges(container, target, market, quoteTime) {
     }
     return;
   }
-  const kind = targetBadgeKind(target, market, quoteTime, Date.now());
+  const kind = targetBadgeKind(target, market, Date.now());
   if (!kind) return;
   if (kind === "closed" || kind === "stale" || kind === "no-data") {
     const el = appendText(container, "skc-badge skc-badge-stale", t(`badge.${kind}`));
@@ -359,7 +359,7 @@ export function createList({ store }) {
     } else {
       tailCol = document.createElement("div");
       tailCol.className = "skc-row-target";
-      appendTargetBadges(tailCol, q?.target, s.market, q?.quoteTime);
+      appendTargetBadges(tailCol, q?.target, s.market);
     }
 
     const gripEl = document.createElement("span");
@@ -408,7 +408,7 @@ export function createList({ store }) {
       const tail = row.querySelector(".skc-row-target");
       if (!tail) return;
       tail.replaceChildren();
-      appendTargetBadges(tail, q?.target, s.market, q?.quoteTime);
+      appendTargetBadges(tail, q?.target, s.market);
     }
   };
 

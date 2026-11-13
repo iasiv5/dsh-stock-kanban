@@ -10,6 +10,7 @@
 
 import { fmtPrice, fmtPct, trendClass } from "./fmt.mjs";
 import { t } from "./i18n.mjs";
+import { targetBadgeKind } from "../src/sessions.mjs";
 import {
   clampPoint,
   loadFloatPosition,
@@ -420,8 +421,9 @@ export function createCapsule({ doc, win, storage, shadow, store, onTogglePanel,
     markBuy.hidden = target?.buyTriggered !== true;
     markSell.hidden = target?.sellTriggered !== true;
     nameEl.textContent = name;
+    const closedNow = paused && quote && targetBadgeKind(target, symbol?.market, Date.now()) === "closed";
     priceEl.textContent =
-      price != null ? fmtPrice(price) : paused && quote ? t("capsule.stale") : "—";
+      price != null ? fmtPrice(price) : paused && quote ? (closedNow ? t("capsule.closed") : t("capsule.stale")) : "—";
     priceEl.className = `skc-capsule-price ${trendClass(pct)}`;
     pctEl.textContent = fmtPct(pct);
     pctEl.className = `skc-capsule-pct ${trendClass(pct)}`;

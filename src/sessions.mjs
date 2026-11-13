@@ -1,116 +1,66 @@
 /**
- * 市场交易时段（纯函数，浏览器/Node 通用）。
+ * 开休市判断（简化版，§12.33）：不是 sk 的核心功能，只做复合判断，不追求逐分钟严谨。
  *
- * 精度原则（用户确认的方案）：只在**可精确确定**休市时才产出 'closed'（休）——
- * 即「现在处于时段表定义的非交易时段，且行情时间已覆盖最近一个应有交易日」。
- * 周末与时段表间隙是精确的；**法定节假日无法在无日历源时判定**，此时保守回退 'stale'（旧）。
- * 美股/加密货币不做 'closed' 判定（美股行情无行情时间戳、加密 7×24）。
+ * 两个输入合并：
+ *   - 时间输入：周一至周五 + 时段表（当地墙钟）。法定节假日、提前收市与长假均不建模，按工作日处理。
+ *   - 行情输入：服务端 targets 给出的行情状态（ok / stale / no-data）。
+ * 合并结果：行情过期时，时段内「旧」、时段外「休」；无行情「无」；行情正常不显示。
  *
- * 时段表（当地墙钟，分钟数）：
- *   cn: Asia/Shanghai      09:30–11:30, 13:00–15:00（周一至周五）
- *   hk: Asia/Hong_Kong     09:30–12:00, 13:00–16:00（周一至周五）
- *   us: America/New_York   09:30–16:00（周一至周五；仅常规时段，不含盘前盘后）
+ * 时段表依据交易所公开规则（来源见 docs/verification.md §12.33）：
+ *   cn  Asia/Shanghai     09:30–11:30、13:00–15:00
+ *   hk  Asia/Hong_Kong    09:30–12:00、13:00–16:00
+ *   us  America/New_York  04:00–20:00（纳斯达克扩展时段；盘前盘后仍有成交与价格变动，故含在内）
+ * 加密货币 7×24，恒视为开市。
  */
 
-export const MARKET_SESSIONS = {
+const SESSION_WINDOWS = {
   cn: { tz: "Asia/Shanghai", windows: [[570, 690], [780, 900]] },
   hk: { tz: "Asia/Hong_Kong", windows: [[570, 720], [780, 960]] },
-  us: { tz: "America/New_York", windows: [[570, 960]] },
+  us: { tz: "America/New_York", windows: [[240, 1200]] },
 };
 
-const MIN = 60 * 1000;
+/** 轮询节奏（毫秒）：任一标的市场开市 → 展开 15 秒 / 收起 30 秒；全部休市 → 60 秒 */
+export const POLL_MS = { openPanel: 15000, openCollapsed: 30000, closed: 60000 };
+/** 盘中图表静默刷新间隔（毫秒）；休市时不刷新 */
+export const CHART_REFRESH_MS = 60000;
 
-/** epoch(ms) 在指定时区的当地墙钟分解 */
-function wallParts(epoch, tz) {
-  const dtf = new Intl.DateTimeFormat("en-GB", {
-    timeZone: tz, hour12: false,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-  });
-  const parts = {};
-  for (const p of dtf.formatToParts(new Date(epoch))) parts[p.type] = p.value;
-  return { y: Number(parts.year), mo: Number(parts.month), d: Number(parts.day) };
+/** 当地墙钟分钟数（0–1439） */
+function minuteOfDay(epoch, tz) {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour12: false, hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(epoch));
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  return (get("hour") % 24) * 60 + get("minute");
 }
 
-/** 指定时区的当地星期（0=周日…6=周六） */
-export function localDow(epoch, tz) {
-  const wd = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(new Date(epoch));
-  return { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[wd];
-}
-
-/** 当地墙钟 → epoch（两 pass 求 offset，分钟级精度足够） */
-export function wallToEpoch(y, mo, d, minutes, tz) {
-  const guess = Date.UTC(y, mo - 1, d, 0, minutes);
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz, hour12: false,
-    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
-  });
-  const offsetFor = (ms) => {
-    const p = Object.fromEntries(dtf.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
-    const asUTC = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute), Number(p.second));
-    return asUTC - ms;
-  };
-  return guess - offsetFor(guess);
+/** 市场是否开市（时间输入）：加密恒开市；其余为周一至周五且落在时段内 */
+export function isMarketOpen(market, now) {
+  if (market === "crypto") return true;
+  const cfg = SESSION_WINDOWS[market];
+  if (!cfg) return false;
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: cfg.tz, weekday: "short" }).format(new Date(now));
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  const m = minuteOfDay(now, cfg.tz);
+  return cfg.windows.some(([a, b]) => m >= a && m < b);
 }
 
 /**
- * 最近交易时段窗口。
- * @returns {{ inSession: boolean, start: number, end: number, dayOffset: number } | null}
- *   inSession=true 表示 now 正处于某时段内（start/end 为该时段边界）；
- *   否则返回最近一个已收市的时段窗口（按当地周末跳过；最多回看 7 天）。
+ * 标签（复合判断）：行情过期时按时段区分「休」与「旧」；无行情为「无」；行情正常不显示。
+ * @returns {null|'stale'|'closed'|'no-data'}
  */
-export function lastSessionWindow(market, now) {
-  const cfg = MARKET_SESSIONS[market];
-  if (!cfg) return null;
-  const { tz, windows } = cfg;
-  const w0 = wallParts(now, tz);
-  for (let offset = 0; offset <= 7; offset++) {
-    const epoch = now - offset * 24 * 60 * MIN;
-    const dow = localDow(epoch, tz);
-    if (dow === 0 || dow === 6) continue;
-    const parts = wallParts(epoch, tz);
-    const dayEpochs = windows
-      .map(([a, b]) => ({ start: wallToEpoch(parts.y, parts.mo, parts.d, a, tz), end: wallToEpoch(parts.y, parts.mo, parts.d, b, tz) }))
-      .sort((x, y2) => x.start - y2.start);
-    // 当天含 now 的时段 → 盘中
-    for (const w of dayEpochs) {
-      if (now >= w.start && now <= w.end) return { inSession: true, ...w, dayOffset: offset };
-    }
-    // 当天已收市的最近时段
-    const completed = dayEpochs.filter((w) => w.end < now);
-    if (completed.length > 0) {
-      const last = completed[completed.length - 1];
-      return { inSession: false, ...last, dayOffset: offset };
-    }
-    // 当天时段尚未开始 → 继续往前一天
-  }
-  return null;
-}
-
-/**
- * stale 徽标细分：仅在可精确确定休市时返回 'closed'（休），否则 'stale'（旧）。
- * @param {string} market 市场名
- * @param {string|null} status targetState.status（只对 'stale' 细分）
- * @param {number|null} quoteTime 行情自身时间（epoch ms）
- * @param {number} now
- * @returns {null|'stale'|'closed'} null = 不需要徽标
- */
-export function staleBadgeKind(market, status, quoteTime, now) {
-  if (status !== "stale") return null;
-  if (market === "crypto" || market === "us") return "stale"; // 7×24 无休市概念 / 无行情时间戳，保守按旧
-  const w = lastSessionWindow(market, now);
-  if (!w) return "stale";
-  if (w.inSession) return "stale"; // 盘中行情滞后 → 真·旧
-  // 非交易时段：行情时间覆盖最近应有交易日 → 可精确确定休市
-  if (Number.isFinite(quoteTime) && quoteTime > 0 && quoteTime >= w.start) return "closed";
-  return "stale"; // 行情早于最近应有交易日：可能是节假日/源异常，不冒称休市
-}
-
-/** 目标徽标统一决策（供客户端）：'buy'|'sell'|'both' 触发不在此层处理 */
-export function targetBadgeKind(target, market, quoteTime, now) {
-  if (!target) return null;
-  if (target.status === "no-targets") return null;
+export function targetBadgeKind(target, market, now) {
+  if (!target || target.status === "no-targets") return null;
   if (target.status === "no-data") return "no-data";
-  if (target.status === "stale") return staleBadgeKind(market, "stale", quoteTime, now);
+  if (target.status === "stale") return isMarketOpen(market, now) ? "stale" : "closed";
   return null;
+}
+
+/** 轮询间隔（毫秒）：任一标的市场开市（或含加密）即按开市节奏；全部休市降频为 60 秒 */
+export function pollIntervalMs({ panelOpen, markets, now }) {
+  const anyOpen = (markets ?? []).some((m) => isMarketOpen(m, now));
+  if (!anyOpen) return POLL_MS.closed;
+  return panelOpen ? POLL_MS.openPanel : POLL_MS.openCollapsed;
+}
+
+/** 图表静默刷新：仅开市时、且距上次加载满 CHART_REFRESH_MS 才刷新 */
+export function chartRefreshDue(market, loadedAt, now) {
+  return isMarketOpen(market, now) && now - (Number(loadedAt) || 0) >= CHART_REFRESH_MS;
 }

@@ -40,6 +40,7 @@ const zh = {  "market.cn": "A 股",
 
   "capsule.empty": "自选",
   "capsule.stale": "行情旧",
+  "capsule.closed": "休市",
   "capsule.tip.stale": "行情已过期：触价标记暂停显示",
 
   "badge.stale": "旧",
@@ -63,6 +64,7 @@ const zh = {  "market.cn": "A 股",
   "detail.quote-time": "行情 {t} · 拉取 {f}",
   "detail.stale": "行情过期",
   "detail.no-data": "行情缺失",
+  "detail.closed": "休市中",
   "detail.index-note": "指数标的仅用于看盘参考，不设持仓与目标价",
   "detail.period.minute": "分时",
   "detail.period.day": "日K",
@@ -207,6 +209,7 @@ const en = {
 
   "capsule.empty": "Watchlist",
   "capsule.stale": "Stale",
+  "capsule.closed": "Closed",
   "capsule.tip.stale": "Quote stale: trigger marks paused",
 
   "badge.stale": "Stale",
@@ -230,6 +233,7 @@ const en = {
   "detail.quote-time": "Quote {t} · Fetched {f}",
   "detail.stale": "Stale",
   "detail.no-data": "No quote",
+  "detail.closed": "Market closed",
   "detail.index-note": "Index instruments are watch-only — no positions or targets",
   "detail.period.minute": "Time",
   "detail.period.day": "Day",

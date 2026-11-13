@@ -14,6 +14,7 @@
 import { api } from "./api.mjs";
 import { t, tErr } from "./i18n.mjs";
 import { compareBySort } from "../src/model.mjs";
+import { pollIntervalMs } from "../src/sessions.mjs";
 
 const UI_KEY = "stock-kanban:ui:v1";
 /** 落盘字段集（会话态 panelOpen/view/detailId/showAdd/showSettings/quotaCapable 不落盘；quotaMerge 第四轮起不落盘：设置开关已隐藏，每次加载默认合并） */
@@ -210,18 +211,23 @@ export function createStore(storage = window.localStorage, { onEvent } = {}) {
     }
   }
 
-  function restartPolling() {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-    const { ui } = state;
-    if (typeof document !== "undefined" && document.hidden) return; // 隐藏期间不轮询，恢复可见时重启
-    let intervalMs;
-    if (!ui.panelOpen) intervalMs = 30000; // 收起：胶囊+目标价轻量刷新
-    else if (ui.view === "detail") intervalMs = 15000;
-    else intervalMs = 15000;
-    pollTimer = setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
+  /** 轮询间隔（§12.33）：随标的的开休市状态变化（任一市场开市：展开 15 秒 / 收起 30 秒；全部休市：60 秒） */
+  function nextPollDelay() {
+    const markets = quoteIdsFor(state).map((id) => String(id).split(":")[0]);
+    return pollIntervalMs({ panelOpen: state.ui.panelOpen, markets, now: Date.now() });
+  }
+  function armPollTimer() {
+    pollTimer = setTimeout(() => {
+      pollTimer = null;
+      if (typeof document !== "undefined" && document.hidden) return; // 隐藏期间停表，恢复可见时由 handleVisibility 重启
       pollQuotes();
-    }, intervalMs);
+      armPollTimer();
+    }, nextPollDelay());
+  }
+  function restartPolling() {
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    if (typeof document !== "undefined" && document.hidden) return; // 隐藏期间不轮询，恢复可见时重启
+    armPollTimer();
     pollQuotes(); // 立即拉一次
   }
 
@@ -247,7 +253,7 @@ export function createStore(storage = window.localStorage, { onEvent } = {}) {
     setUi({ view: "list", detailId: null });
     restartPolling();
   }
-  function setLastMarket(market) { setUi({ lastMarket: market }); }
+  function setLastMarket(market) { setUi({ lastMarket: market }); restartPolling(); } // §12.33：切换市场标签即刻拉取该市场，轮询节奏随其开休市变化
   function setHoldingsOnly(v) { setUi({ holdingsOnly: v }); }
   function setMaVisible(v) { setUi({ maVisible: v }); }
   function setCapsuleSymbol(id) { setUi({ capsuleSymbolId: id }); }
@@ -283,7 +289,7 @@ export function createStore(storage = window.localStorage, { onEvent } = {}) {
 
   /** 释放：清轮询定时器与订阅者（Task 13 dispose 契约） */
   function dispose() {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
     listeners.clear();
   }
 

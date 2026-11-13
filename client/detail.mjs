@@ -15,6 +15,7 @@ import { iconEl } from "./icons.mjs";
 import { t, tErr, getLang } from "./i18n.mjs";
 import { checkTargetRelation } from "../src/identity.mjs";
 import { positionMetrics } from "../src/portfolio.mjs";
+import { chartRefreshDue, targetBadgeKind } from "../src/sessions.mjs";
 
 const PERIODS = [
   { key: "minute", label: () => t("detail.period.minute") },
@@ -111,6 +112,34 @@ export function createDetail({ store, win }) {
     if (Object.keys(base).every((k) => form[k] === base[k])) form = null;
   };
 
+  /** 盘中静默刷新（§12.33）：同一标的与周期，保留现有图表直到新数据到达；刷新失败保留旧数据，不切换为错误态 */
+  const refreshChart = (symbol) => {
+    const key = `${symbol.id}:${period}`;
+    if (chart.loading || chart.key !== key) return;
+    const load = period === "minute" ? api.minute(symbol.id) : api.kline(symbol.id, period);
+    load.then((data) => {
+      if (disposed || chartKey !== key) return;
+      if (data.error) {
+        chart = { ...chart, loadedAt: Date.now() };
+        return;
+      }
+      chart = {
+        ...chart,
+        loadedAt: Date.now(),
+        data: period === "minute" ? data : data.candles,
+        error: null,
+        errorDetail: null,
+        adjust: data.adjust ?? null,
+        prevClose: data.prevClose ?? null,
+        date: data.date ?? null,
+      };
+      paintPeriodMeta();
+      paintChartArea();
+    }).catch(() => {
+      if (disposed || chartKey !== key) return;
+      chart = { ...chart, loadedAt: Date.now() };
+    });
+  };
   /** 图表加载（fetchKey 守卫：响应回来时若 key 已变则丢弃） */
   const loadChart = (symbol) => {
     const key = `${symbol.id}:${period}`;
@@ -122,6 +151,7 @@ export function createDetail({ store, win }) {
       if (disposed || chartKey !== key) return;
       chart = {
         key,
+        loadedAt: Date.now(),
         loading: false,
         data: period === "minute" ? data : data.candles,
         error: data.error ?? null,
@@ -134,7 +164,7 @@ export function createDetail({ store, win }) {
       paintChartArea();
     }).catch((e) => {
       if (disposed || chartKey !== key) return;
-      chart = { key, loading: false, data: null, error: "fetch-failed", errorDetail: String(e?.message ?? e), adjust: null };
+      chart = { key, loadedAt: Date.now(), loading: false, data: null, error: "fetch-failed", errorDetail: String(e?.message ?? e), adjust: null };
       paintPeriodMeta();
       paintChartArea();
     });
@@ -587,13 +617,15 @@ export function createDetail({ store, win }) {
     skeleton.quote.pct.className = `skc-quote-pct ${trendClass(pct)}`;
     const qTime = q?.quoteTime ?? null;
     const fTime = q?.fetchedAt ?? null;
-    const dataStale = q?.target?.status === "stale" || q?.target?.status === "no-data";
+    const badgeKind = symbol ? targetBadgeKind(q?.target, symbol.market, Date.now()) : null;
     const quoteTimeText = q && q.status === "ok" && qTime != null ? fmtClock(qTime) : "—";
     const fetchTimeText = fTime != null ? fmtClockSec(fTime) : "—";
     const meta = skeleton.quote.meta;
     meta.replaceChildren(document.createTextNode(t("detail.quote-time", { t: quoteTimeText, f: fetchTimeText })));
-    if (dataStale) {
-      meta.append(textSpan("skc-badge skc-badge-stale", q?.target?.status === "stale" ? t("detail.stale") : t("detail.no-data")));
+    if (badgeKind) {
+      const badge = textSpan("skc-badge skc-badge-stale", badgeKind === "closed" ? t("detail.closed") : badgeKind === "stale" ? t("detail.stale") : t("detail.no-data"));
+      badge.title = t(`badge.${badgeKind}.tip`);
+      meta.append(badge);
     }
   };
 
@@ -867,6 +899,7 @@ export function createDetail({ store, win }) {
     if (symbol) {
       const key = `${symbol.id}:${period}`;
       if (key !== loadedKey) loadChart(symbol);
+      else if (chartRefreshDue(symbol.market, chart.loadedAt ?? 0, Date.now())) refreshChart(symbol); // §12.33 盘中静默刷新（休市不刷新）
     }
     // 切片门控（渲染切片广播 Task 3）：结构触发 → 骨架重建；quotes-only tick → 报价行 + 派生域
     // 原位写。输入框/图表身份由「tick 不重建」保证（§12.17 契约）——跳绘守卫与光标捕获/恢复退役。
