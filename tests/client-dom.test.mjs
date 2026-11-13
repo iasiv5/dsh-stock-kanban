@@ -611,6 +611,31 @@ test("detail · 空标的走「无此标的」回退文案", () => {
   }
 });
 
+test("detail · maVisible 变化原位重画图表区（§12.36 修复：MA 开关即时生效）", () => {
+  const h = createDomHarness();
+  const prevGlobals = { document: globalThis.document, window: globalThis.window };
+  globalThis.document = h.document;
+  globalThis.window = h.window;
+  try {
+    const symbol = { id: "cn:sh600519", market: "cn", code: "sh600519", quoteCurrency: "CNY", kind: "stock", name: "贵州茅台", addedAt: "2026-01-01T00:00:00.000Z", sort: 1 };
+    const base = { business: { rev: 1, loaded: true, settings: { privacyMode: false }, symbols: [symbol], driverKind: "file" }, quotes: {}, quoteMeta: { fetchedAt: null, error: null }, providers: null, toast: null };
+    const ui = { panelOpen: true, view: "detail", detailId: "cn:sh600519", showAdd: false, showSettings: false, lastMarket: "cn", holdingsOnly: false, maVisible: { 5: true, 10: true, 20: true, 60: true }, capsuleSymbolId: null };
+    const detail = createDetail({ store: {} });
+    detail.update({ ...base, ui });
+    const boxBefore = detail.el.querySelector(".skc-chartbox");
+    assert.ok(boxBefore, "图表区在位");
+    detail.update({ ...base, ui: { ...ui, maVisible: { 5: true, 10: true, 20: false, 60: true } }, changed: { quotes: new Set(), business: false, ui: ["maVisible"], quoteMetaError: false } });
+    const boxAfter = detail.el.querySelector(".skc-chartbox");
+    assert.ok(boxAfter, "重画后图表区仍在");
+    assert.notEqual(boxAfter, boxBefore, "maVisible 变化触发图表区原位重画（MA 开关即时生效）");
+    detail.dispose();
+  } finally {
+    globalThis.document = prevGlobals.document;
+    globalThis.window = prevGlobals.window;
+    h.cleanup();
+  }
+});
+
 /* ---------------- add/backup（Task 11：对话框 vanilla） ---------------- */
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

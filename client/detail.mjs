@@ -907,6 +907,7 @@ export function createDetail({ store, win }) {
       const key = `${symbol.id}:${period}`;
       if (key !== loadedKey) loadChart(symbol);
       else if (chartRefreshDue(symbol.market, chart.loadedAt ?? 0, Date.now())) refreshChart(symbol); // §12.33 盘中静默刷新（休市不刷新）
+      else if (chart.error && period === "minute" && !isMarketOpen(symbol.market, Date.now())) refreshChart(symbol); // §12.37 休市分时后台重试：拿到数据即静默换图（每拍至多一次）
     }
     // 切片门控（渲染切片广播 Task 3）：结构触发 → 骨架重建；quotes-only tick → 报价行 + 派生域
     // 原位写。输入框/图表身份由「tick 不重建」保证（§12.17 契约）——跳绘守卫与光标捕获/恢复退役。
@@ -925,6 +926,10 @@ export function createDetail({ store, win }) {
     }
     paintQuoteLine();
     paintLive();
+    if (Array.isArray(changed && changed.ui) && changed.ui.includes("maVisible")) {
+      paintPeriodMeta(); // MA 显隐即时生效（§12.36 修复：图例芯片态 + 图表区 MA 线原位重画）
+      paintChartArea();
+    }
   };
 
   const dispose = () => {
