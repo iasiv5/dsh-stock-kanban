@@ -98,6 +98,7 @@ export async function resolveUSSecid(code) {
   if (!ticker) return null;
   if (INDEX_SECID[ticker]) return INDEX_SECID[ticker];
   if (SECID_CACHE.has(ticker)) return SECID_CACHE.get(ticker);
+  let transportFailures = 0;
   for (const ex of US_EXCHANGES) {
     const secid = ex + "." + ticker;
     try {
@@ -107,10 +108,12 @@ export async function resolveUSSecid(code) {
         return secid;
       }
     } catch {
+      transportFailures += 1; // 传输失败不计为「确认不存在」，不得负缓存（评审轮3 R3-1）
       /* 试下一个交易所 */
     }
   }
-  SECID_CACHE.set(ticker, null);
+  // 三交易所都明确应答且均无此代码，才确认不存在并负缓存；有任何传输失败则下次重新探测
+  if (transportFailures === 0) SECID_CACHE.set(ticker, null);
   return null;
 }
 
