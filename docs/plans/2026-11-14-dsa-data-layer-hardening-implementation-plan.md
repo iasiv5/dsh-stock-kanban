@@ -78,7 +78,7 @@
 
 - [ ] Step 1: 钩子激活：`git config core.hooksPath` 为空则 `git config core.hooksPath .githooks`（AGENTS.md:7；本克隆 2026-11-14 实测为空）。
 - [ ] Step 2: 依赖恢复（评审 N6 加强判据）：`test -d node_modules` **且** `node -e "require.resolve('jsdom'); require.resolve('esbuild')"`（防空壳目录漏检）；任一失败 → `npm_config_cache=D:/_dsh-workspace/.npm-cache-ws npm ci`（联网 npm 先指缓存，workspace 规则）。
-- [ ] Step 3: data/ 字节 reconciliation（评审 N5）：本机 `core.autocrlf=true`（局部配置，实测）使 data/ 五文件检出为 CRLF（`git ls-files --eol data/` 实测 i/lf w/crlf ×5），data-provenance 字节哈希守卫恒红。修法（不动配置、零跟踪内容变更）：
+- [ ] Step 3: data/ 字节 reconciliation（评审 N5）：本机 `core.autocrlf=true`（**系统级**——Git for Windows 安装器默认，global/local 实测皆空，执行期勘误：原判「局部配置」有误）使 data/ 五文件检出为 CRLF（`git ls-files --eol data/` 实测 i/lf w/crlf ×5），data-provenance 字节哈希守卫恒红。修法（不动配置、零跟踪内容变更）：
   ```bash
   for f in data/README.md data/a_stocks.json data/etf_stocks.json data/hk_stocks.json data/manifest.json; do git cat-file blob HEAD:"$f" > "$f"; done
   ```
