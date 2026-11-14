@@ -837,6 +837,13 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **教训（两条）**：①「停下评审」类指令下的发版边界须显式与主人确认，不得按计划惯性走完；②checkpoint 提交严格按任务步进（R1-1 教训已入 §12.44）。
 - **产出物评审闭环**：三轮（R1 5 项 / R2 0 项 / R3 2 项建议已修），全部数字亲跑取数（基线 401 → 战役 424 → 修复 426 三档全绿；红灯复演三场；产物 BYTE-IDENTICAL）；台账与日志：`.dsh-research/review-dsa-impl-scratch/`。
 
+## 12.51 评审建议落地：/health 强断言 + EOL 治理（.gitattributes * -text）
+
+- **建议 1（/health 强断言）**：routes.test /health 用例升级——先拉一次 `/quotes` 触达 (提供方,市场) 键，再断言 `providers.tencent.cn` 嵌套形态（failures=0、lastOkAt>0）+ /quotes 行 source 断言；解决 R2-1 定性的「计划断言与仅触达键设计自相矛盾」。修正一处初版失误：startServer 已默认种入 SYM，addSymbol 撞 duplicate——直接复用现标的。
+- **建议 2（EOL 治理，战后微战役按主人指令提前落地）**：新增 `.gitattributes` 全仓 `* -text`（EOL 翻译全禁）——检出即精确 blob 字节，`.gitattributes` 优先级高于 `core.autocrlf`（含 Git for Windows **系统级**默认），三类 autocrlf 伪红从根上消除：①data-provenance 字节哈希守卫；②status 幻影 M；③ci-parity 新克隆重灌 CRLF。落地过程实录：`git add --renormalize .` 在 `-text` 新滤镜下会把工作区 CRLF **原样入暂存**（131 文件全行翻转，方向相反）——正确姿势为 reset 后只 add .gitattributes、再 `git checkout -- .` 重写工作区（130 个 CRLF 文件归 LF，全仓 `w/crlf` 归零）。既有 cat-file 写回补丁（§12.44 Task 0）不再需要，未来新克隆天然 LF。
+- **测试**：全量 `npm test` **426/426 通过**（routes 18 含升级后 /health 强断言）。
+- **运行时影响**：零——两项均为测试/仓库基建，不进 npm 包（0.3.5 与 0.3.4 运行时产物一致，如实告知主人）。
+
 
 
 
