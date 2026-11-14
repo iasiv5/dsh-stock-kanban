@@ -788,6 +788,22 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **实测记录**：`sina-parse-recheck` 生产 parser 实网 5/5 码全解析（sh600519/sh510300/sh000001/sz000001/bj920000），price/volume/quoteTimeMs 有效；量纲三方互证 ratios 稳定（0.01/1.00/0.01）。夹具注意：新浪 mock 用 ASCII 名称——GBK 解码 utf8 字节会吞并含中文的字段边界（B3+0x2C 被 GBK 配对），数字字段断言不受扰但结构需保真。
 - **未验证（不冒充已验证）**：GUI 未复验（cn 链降级场景需真实 WAF/502 才可观测，留主人日常观察）；新浪长期限流/WAF 行为未做长时间回归；OKX 不可达为本机网络实录，OKX 功能本身未在本轮验证。
 
+## 12.45 退避键按 (提供方, 市场) 拆分 + 健康载荷嵌套增强
+
+- **实现**（src/quotes.mjs）：退避/缓存/在途状态键由 provider 名改 `name|market`（惰性构建 `stateOf`）——EM 美股失败不再冻结 cn/hk 备源、腾讯 cn 失败不再冻结 hk 主源（跨市场连坐消除，DSA `_daily_health_key` 同思路）；`fetchProvider(provider, market, codes)` / `guardedFull(name, market, code, fn)` 签名携带市场；成功路径记 `lastOkAt`、失败路径记 `lastErrorAt`/`lastError`（slice 120，与 diag 同口径）；`health()` 载荷改嵌套 `{provider: {market: {failures, backoffRemainMs, lastOkAt, lastErrorAt, lastError}}}`，**仅含已触达键**（未触达 provider 为空对象——/health 空载判据须先拉一次行情，见 §12.50 生效判据）；diag `provider.fail` 事件增 `market` 字段。
+- **载荷形状兼容性**：客户端 store 把 providers 当引用型切片（恒 emit 不读内容，B3 基线），形状变更对客户端零破坏（ Glossary「变更切片」条目口径）。
+- **测试**：`tests/quotes-service.test.mjs` 改写两处既有扁平断言（`health.tencent.failures`→`health.tencent.cn.failures` 等）+ 新增 3 项（逐市场隔离：cn 失败后 hk 同源真实重试且 `health.tencent.hk.failures===0`；lastOkAt/lastErrorAt/lastError 记账——**用 `now` 时钟注入拨过退避期**，否则恢复源被快速失败跳过、成功路径不可达；inconclusive 语义钉死：EM 空响应不触发 provider.fail 且 failures=0、真实失败照发）。`tests/routes.test.mjs` providers 断言改 provider 键存在性（未触达为空对象，注释注明触达后形态）。
+- **断言面清单（本轮现存期望值改值全录）**：仅两处扁平→嵌套改写 + routes 一处语义注释化，无其他隐藏断言面（评审 Batch-1 F 组清点 + 本轮 grep 复核）。
+- **测试**：quotes-service 17 项 + routes 全组通过；全量 npm test 通过（计数见 §12.46 末行）。
+
+## 12.46 行情行来源标注（source / fallbackFrom）
+
+- **实现**（src/quotes.mjs + src/routes.mjs）：getQuotes/getQuoteFull 行统一携带 `source`（实际供数方 token，恒有；error 行 null）+ `fallbackFrom`（该标的在链上首个失败/丢弃它的源 token；整源 throw 与「源有响应但无该标的」两种情形都记首败、只记首个；链首直接供数为 null）；routes rowsById 两路径（full/非 full 共用装配点）透传。
+- **口径记录**：error 行 `source`/`fallbackFrom` 均为 null——fallbackFrom 描述「降级供数」的来源，无供数则无从降级（共识 B5「条件有」以此为准，评审 Q13）。
+- **测试**：`tests/quotes-service.test.mjs` +4 项（链首直供 / 整源失败降级 / 稀疏丢码记首个失败源——腾讯先丢码、EM 后丢不覆盖 / error 行 null + 详情路径行 source）。`tests/routes.test.mjs` 「行情行包含持仓指标」用例增 source/fallbackFrom 透传断言。
+- **断言面清单**：inconclusive 用例与「详情路径第三腿」用例因夹具扩展（新浪夹具补 sh600519 行）各做一次语义封链修正（`setSinaFail(true)` / 时钟拨过退避期）——均为测试前提修正，非生产行为变更。
+- **测试**：全量 `npm test` **418/418 通过**（基线 401 + sina 6 + quotes 链 3 + search 1 + 退避/来源标注 7 = +17；中间全量回归 411/411 于 Task 4 后实测）。
+
 
 
 

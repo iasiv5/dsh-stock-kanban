@@ -324,6 +324,8 @@ async function quotesRoute(req, res) {
         amount: row.quote?.amount ?? null,
         fetchedAt: row.fetchedAt,
         quoteTime: row.quoteTime,
+        source: row.source ?? null, // §12.46：实际供数方 token；error 行为 null
+        fallbackFrom: row.fallbackFrom ?? null, // §12.46：首个失败/丢弃该标的的源 token；链首直接供数为 null
         target,
         metrics: metrics.hasPosition ? metrics : null,
       };

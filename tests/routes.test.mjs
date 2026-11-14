@@ -82,6 +82,8 @@ test("路由：行情行包含持仓指标与目标状态", async () => {
     const res = await t.j(`/stock-kanban/quotes?ids=${SYM.id}`);
     const row = res.body.rows[SYM.id];
     assert.equal(row.status, "ok");
+    assert.equal(row.source, "tencent"); // §12.46：行情行携带来源标注（透传）
+    assert.equal(row.fallbackFrom, null);
     assert.equal(row.price, 1453);
     assert.equal(row.metrics.cost, 150000);
     assert.equal(row.metrics.marketValue, 145300);
@@ -192,7 +194,7 @@ test("路由：/health 不含业务数据", async () => {
     const text = JSON.stringify(res.body);
     assert.ok(!text.includes("sh600519"));
     assert.ok(!text.includes("贵州茅台"));
-    assert.ok(res.body.providers.tencent !== undefined);
+    assert.ok(res.body.providers.tencent !== undefined); // §12.45：health 按 (提供方,市场) 嵌套、仅含已触达键——未触达时 provider 键存在但为空对象；触达后为 providers.tencent.cn
   } finally { t.close(); }
 });
 

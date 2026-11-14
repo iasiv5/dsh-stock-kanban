@@ -46,8 +46,18 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
   ];
   const byName = new Map(providers.map((p) => [p.name, p]));
 
-  /** provider 名 → { cache: Map(batchKey → {at, rows: Map}), inFlight: Map, failures: n, backoffUntil: t } */
-  const state = new Map(providers.map((p) => [p.name, { cache: new Map(), inFlight: new Map(), failures: 0, backoffUntil: 0 }]));
+  /** (提供方|市场) → { cache, inFlight, failures, backoffUntil, lastOkAt, lastErrorAt, lastError }。
+   * 2026-11-14 §12.45：键由 provider 名改 (provider, market)——EM 美股失败不再冻结 cn/hk 备源（跨市场连坐消除） */
+  const state = new Map();
+  function stateOf(name, market) {
+    const key = name + "|" + market;
+    let s = state.get(key);
+    if (!s) {
+      s = { cache: new Map(), inFlight: new Map(), failures: 0, backoffUntil: 0, lastOkAt: null, lastErrorAt: null, lastError: null };
+      state.set(key, s);
+    }
+    return s;
+  }
 
   function backoffMs(s) {
     return s.failures === 0 ? 0 : Math.min(BACKOFF_BASE_MS * 2 ** (s.failures - 1), BACKOFF_MAX_MS);
@@ -57,8 +67,8 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
    * 单提供方批量取数（带缓存/在途合并/退避）。
    * @returns Promise<Map(code → quote)> 失败时抛错（调用方按链交下一源）
    */
-  async function fetchProvider(provider, codes) {
-    const s = state.get(provider.name);
+  async function fetchProvider(provider, market, codes) {
+    const s = stateOf(provider.name, market);
     const key = [...codes].sort().join(",");
     const cached = s.cache.get(key);
     const t = now();
@@ -74,14 +84,17 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
         const rows = await provider.fetch(codes);
         s.failures = 0;
         s.backoffUntil = 0;
+        s.lastOkAt = now();
         s.cache.set(key, { at: now(), rows });
         return rows;
       } catch (e) {
         s.failures += 1;
         const backoff = backoffMs(s);
         s.backoffUntil = now() + backoff;
+        s.lastErrorAt = now();
+        s.lastError = String(e?.message ?? e).slice(0, 120);
         try {
-          diag?.({ ev: "provider.fail", provider: provider.name, error: String(e?.message ?? e).slice(0, 120), failures: s.failures, backoffMs: backoff });
+          diag?.({ ev: "provider.fail", provider: provider.name, market, error: s.lastError, failures: s.failures, backoffMs: backoff });
         } catch {
           /* 诊断不得影响行情 */
         }
@@ -111,15 +124,17 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
     await Promise.all([...byMarket.entries()].map(async ([market, list]) => {
       let pending = list;
       let lastError = null;
+      const firstFail = new Map(); // §12.46：标的 → 首个失败/丢弃它的源 token（整源失败与源内静默丢码都记）
       for (const name of CHAINS[market] ?? []) {
         if (pending.length === 0) break;
         const provider = byName.get(name);
         if (!provider || !provider.handles(market)) continue;
         let rows = null;
         try {
-          rows = await fetchProvider(provider, pending.map((i) => i.code));
+          rows = await fetchProvider(provider, market, pending.map((i) => i.code));
         } catch (e) {
           lastError = e;
+          for (const identity of pending) if (!firstFail.has(identity.id)) firstFail.set(identity.id, name);
           continue; // 本源整体失败（含退避快速失败）→ 剩余标的交下一源
         }
         const still = [];
@@ -128,8 +143,9 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
           const quote = rows.get(identity.code) ?? rows.get(String(identity.code).toUpperCase());
           if (quote && quote.price > 0) {
             const quoteTime = provider.quoteTime ? provider.quoteTime(quote) : (quote.quoteTimeMs ?? null);
-            out.set(identity.id, { id: identity.id, identity, status: "ok", quote, fetchedAt, quoteTime });
+            out.set(identity.id, { id: identity.id, identity, status: "ok", quote, fetchedAt, quoteTime, source: name, fallbackFrom: firstFail.get(identity.id) ?? null });
           } else {
+            if (!firstFail.has(identity.id)) firstFail.set(identity.id, name);
             still.push(identity);
           }
         }
@@ -144,6 +160,8 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
           quote: null,
           fetchedAt,
           quoteTime: null,
+          source: null,
+          fallbackFrom: null,
           error: lastError ? String(lastError.message ?? lastError) : "no-data",
         });
       }
@@ -158,8 +176,8 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
    * 东方财富 secid 探测的传输失败经严格模式抛出（§12.32），与快照失败一并计入退避。
    */
   const fullCache = new Map();
-  async function guardedFull(name, code, fn) {
-    const s = state.get(name);
+  async function guardedFull(name, market, code, fn) {
+    const s = stateOf(name, market);
     const key = name + ":" + code;
     const hit = fullCache.get(key);
     if (hit && now() - hit.at < ttlMs) return hit.value;
@@ -168,14 +186,17 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
       const value = await fn(code);
       s.failures = 0;
       s.backoffUntil = 0;
+      s.lastOkAt = now();
       if (value?.quote) fullCache.set(key, { at: now(), value });
       return value;
     } catch (e) {
       s.failures += 1;
       const backoff = backoffMs(s);
       s.backoffUntil = now() + backoff;
+      s.lastErrorAt = now();
+      s.lastError = String(e?.message ?? e).slice(0, 120);
       try {
-        diag?.({ ev: "provider.fail", provider: name, error: String(e?.message ?? e).slice(0, 120), failures: s.failures, backoffMs: backoff });
+        diag?.({ ev: "provider.fail", provider: name, market, error: s.lastError, failures: s.failures, backoffMs: backoff });
       } catch {
         /* 诊断不得影响行情 */
       }
@@ -219,28 +240,37 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
     const out = new Map();
     await Promise.all(identities.map(async (identity) => {
       const fetchedAt = now();
+      let firstFail = null; // §12.46：首个失败/丢弃该标的的源 token（throw 与有响应无数据都记）
       for (const name of CHAINS[identity.market] ?? []) {
         try {
-          const { quote, quoteTime } = await guardedFull(name, identity.code, fullAdapter[name]);
+          const { quote, quoteTime } = await guardedFull(name, identity.market, identity.code, fullAdapter[name]);
           if (quote && quote.price > 0) {
-            out.set(identity.id, { id: identity.id, identity, status: "ok", quote, fetchedAt, quoteTime });
+            out.set(identity.id, { id: identity.id, identity, status: "ok", quote, fetchedAt, quoteTime, source: name, fallbackFrom: firstFail });
             return;
           }
         } catch {
           /* 下一源 */
         }
+        if (!firstFail) firstFail = name;
       }
-      out.set(identity.id, { id: identity.id, identity, status: "error", quote: null, fetchedAt, quoteTime: null, error: "no-data" });
+      out.set(identity.id, { id: identity.id, identity, status: "error", quote: null, fetchedAt, quoteTime: null, source: null, fallbackFrom: null, error: "no-data" });
     }));
     return out;
   }
 
-  /** 诊断：提供方失败计数与退避余量（路由 /health 用，避免输出业务数据） */
+  /** 诊断：提供方失败计数/退避余量/最近成败，按 (提供方, 市场) 嵌套（路由 /health 与 /quotes 的 providers 载荷用；
+   *  仅含已触达的 name|market 键；不触发上游请求、不含业务数据） */
   function health() {
-    return Object.fromEntries(providers.map((p) => {
-      const s = state.get(p.name);
-      return [p.name, { failures: s.failures, backoffRemainMs: Math.max(0, s.backoffUntil - now()) }];
-    }));
+    const out = {};
+    for (const p of providers) out[p.name] = {};
+    for (const [key, s] of state) {
+      const sep = key.indexOf("|");
+      const name = key.slice(0, sep);
+      const market = key.slice(sep + 1);
+      if (!out[name]) continue;
+      out[name][market] = { failures: s.failures, backoffRemainMs: Math.max(0, s.backoffUntil - now()), lastOkAt: s.lastOkAt, lastErrorAt: s.lastErrorAt, lastError: s.lastError };
+    }
+    return out;
   }
 
   return { getQuotes, getQuoteFull, health };
