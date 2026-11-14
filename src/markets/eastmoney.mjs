@@ -16,11 +16,19 @@
 
 const EM_PUSH = "https://push2.eastmoney.com";
 const EM_HIS = "https://push2his.eastmoney.com";
-const HEADERS = {
+/** UA 池轮换（§12.49，DSA efinance_fetcher 同款列表）：每请求随机取用，降低同 UA 连续请求特征 */
+const UA_POOL = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+];
+const emHeaders = () => ({
   accept: "application/json, text/plain, */*",
-  "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "user-agent": UA_POOL[Math.floor(Math.random() * UA_POOL.length)],
   referer: "https://quote.eastmoney.com/",
-};
+});
 const TIMEOUT_MS = 12000;
 const US_EXCHANGES = ["105", "106", "107"];
 const SUFFIX_TO_EXCHANGE = { OQ: "105", N: "106", AM: "107" };
@@ -38,7 +46,7 @@ const num = (v) => {
 };
 
 async function emFetch(url, timeout) {
-  const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(timeout) });
+  const res = await fetch(url, { headers: emHeaders(), signal: AbortSignal.timeout(timeout) });
   if (!res.ok) {
     const e = new Error("HTTP " + res.status);
     e.httpStatus = res.status;
