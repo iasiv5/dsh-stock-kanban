@@ -2,6 +2,8 @@
 // 四市场数据源实测探针 —— 逐端点验证真实可用性，结果输出为 JSON。
 // 仅作调研取证用，不进入生产路径（生产行情适配在 src/markets/）。
 import { writeFileSync } from "node:fs";
+import { parseBatchSnapshot, fetchKline } from "../src/markets/tencent.mjs";
+import { fetchBatchSnapshots as sinaFetch } from "../src/markets/sina.mjs";
 
 const out = { at: new Date().toISOString(), results: [] };
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -109,6 +111,51 @@ for (const q of ["茅台", "00700", "aapl", "沪深300ETF"]) {
 await probe("em-cn-snapshot", async () => {
   const json = await (await fetch("https://push2.eastmoney.com/api/qt/stock/get?secid=1.600519&fields=f43,f57,f58,f170&invt=2&fltt=2", { headers: { "user-agent": UA, referer: "https://quote.eastmoney.com/" }, signal: AbortSignal.timeout(10000) })).json();
   return { name: json?.data?.f58, price: json?.data?.f43, pct: json?.data?.f170 };
+});
+
+// 8) 新浪快照形状取证（2026-11-14 Task 1）：适配器字段位依据。
+//    唯一的「非生产 parser」例外——sina.mjs 尚不存在，先录原始形状；Task 2 落地后由 sina-parse-recheck 复跑接管。
+await probe("sina-cn-snapshot", async () => {
+  const res = await fetch("https://hq.sinajs.cn/list=sh600519,sh510300,sh000001,sz000001", { headers: { "user-agent": UA, referer: "https://finance.sina.com.cn/" }, signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = new TextDecoder("gbk").decode(Buffer.from(await res.arrayBuffer()));
+  const rows = text.split(";").filter((r) => r.includes("="));
+  const f0 = /hq_str_([\w]+)="([^"]*)"/.exec(rows[0] ?? "")?.[2]?.split(",").slice(0, 36).map((s) => s.slice(0, 16)) ?? [];
+  return { bytes: text.length, rows: rows.length, raw0: rows[0]?.slice(0, 120), fields0: f0 };
+});
+
+// 9) 688 量纲三方对照（2026-11-14 Task 1，评审 Q7：bj 独立 try 不拖垮整组）：
+//    同日腾讯 K 线末根 volume vs 腾讯快照 f36（parseBatchSnapshot 生产口径）vs 新浪快照 f8（手）。
+await probe("volume-cn-kline-compare", async () => {
+  const samples = [];
+  for (const code of ["sh600519", "sh688111", "bj920000"]) {
+    try {
+      const k = await fetchKline(code, "day");
+      const klineLast = k.candles.at(-1)?.volume ?? null;
+      const buf = await getText(`https://qt.gtimg.cn/q=${code}`);
+      const q = parseBatchSnapshot(new TextDecoder("gbk").decode(buf)).get(code) ?? null;
+      let sinaName = null, sinaF8 = null, sinaDateF30 = null, sinaTimeF31 = null;
+      try {
+        const res = await fetch(`https://hq.sinajs.cn/list=${code}`, { headers: { "user-agent": UA, referer: "https://finance.sina.com.cn/" }, signal: AbortSignal.timeout(10000) });
+        const f = new TextDecoder("gbk").decode(Buffer.from(await res.arrayBuffer())).match(/hq_str_[\w]+="([^"]*)"/)?.[1]?.split(",") ?? [];
+        sinaName = f[0] ?? null;
+        sinaF8 = f[8] ?? null;
+        sinaDateF30 = f[30] ?? null;
+        sinaTimeF31 = f[31] ?? null;
+      } catch { /* 新浪侧失败不影响腾讯侧量纲证据 */ }
+      samples.push({ code, klineAdjust: k.adjust, klineLast, snapVol: q?.volume ?? null, sinaName, sinaF8, sinaDateF30, sinaTimeF31, klineOverSina: klineLast != null && sinaF8 != null && parseFloat(sinaF8) > 0 ? (klineLast / parseFloat(sinaF8)).toFixed(2) : null });
+    } catch (e) {
+      samples.push({ code, error: String(e?.message ?? e).slice(0, 120) });
+    }
+  }
+  return { samples };
+});
+
+// 10) 新浪 parser 复跑（Task 2 落地后接管组 8 的取证职责）：生产 parser 实测五码覆盖
+await probe("sina-parse-recheck", async () => {
+  const rows = await sinaFetch(["sh600519", "sh510300", "sh000001", "sz000001", "bj920000"]);
+  const q = rows.get("sh600519");
+  return { rows: rows.size, codes: [...rows.keys()], price600519: q?.price ?? null, volume: q?.volume ?? null, quoteTimeMs: q?.quoteTimeMs ?? null };
 });
 
 writeFileSync(new URL("./probe-result.json", import.meta.url), JSON.stringify(out, null, 2));
