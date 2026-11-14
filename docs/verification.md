@@ -777,6 +777,17 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **未验证（不冒充已验证）**：GUI 复验留待主人——A 股 Tab 搜 `payh` 应命中平安银行（拼音走 smartbox）；北交所 `920000` 应可搜可加；直连填无效格式代码应显示「代码格式无效」而非 `invalid-format`；港股池 HKD 口径与人民币柜台不可见的界面表现。
 - **GUI 复验（2026-11-14 收尾）**：主人确认「测试都OK」，对照上列四项检查点（payh 拼音命中 / 北交所可搜可加 / invalid-format 文案 / HKD 口径与柜台不可见）逐项通过（口头确认，未逐项留痕）——v0.3.3 既定验证面全部闭合。
 
+## 12.44 新浪快照第三源（适配器 + cn 链 + 直加腿；DSA 数据层加固战役）
+
+- **背景（Task 0 环境 reconciliation，评审 N5 驱动）**：本机 Windows 克隆基线实测非绿（252 tests / 242 pass / 10 fail：9 个 client 套件缺 jsdom + data-provenance 因 `core.autocrlf=true` 检出 CRLF 致字节哈希守卫恒红）。reconciliation：`git config core.hooksPath .githooks`（此前未激活）→ `npm ci` → `git cat-file blob HEAD:data/<f>` 原字节写回五文件（不动配置、零跟踪内容变更；写回后 `git diff` exit 0、`git add` 刷 stat 后 status 净）。基线复测 **401/401 全绿**（与 §12.42/12.43 计数一致）。细则已沉淀 workspace `01_docs/agent-ops/README.md`「git 幻影 M」（dsh-workspace 仓 9686f17）。
+- **Task 1 probe 取证（组 23→26）**：`sina-cn-snapshot`/`volume-cn-kline-compare`/`sina-parse-recheck` 三组 + EM 一次性对照，证据全文见 `docs/data-source-probe.md`「2026-11-14 增测」节。**量纲裁决（分支 A 成立）**：腾讯 K 线 sh/sz/bj 非 688=手、sh688/689=股（新浪 ratio 1.00 旁证）、hk=股；新浪 f8=股；EM f5=手。**两处计划假定被 probe 修正**：①新浪行前缀 `hq_str_` 非 `v_`；②f30/f31 为 `YYYY-MM-DD`/`HH:MM:SS` 横杠冒号格式非紧凑数字；③新浪实测**服务**北交所 920 号段（原假定不服务——反而加分）。OKX 六组本机网络不可达（环境实录，非代码）。
+- **Task 2 适配器** `src/markets/sina.mjs`：`handles` cn-only；`parseSinaSnapshot`（hq_str_ 行解析、f8 股原样透传、停牌剔除、quoteTimeMs 东八区、f30/f31 畸形→null 行情仍收录）；`fetchBatchSnapshots`（GBK + `Referer: https://finance.sina.com.cn/`、60/请求内部分块顺序请求——链末位不丢码）。测试 `tests/providers-sina.test.mjs` 6 项（标准行/ETF+bj/停牌剔除/畸形时间/Referer 断言/分块 60+60+10）。红灯确认：模块缺失 ERR_MODULE_NOT_FOUND（TDD 红）。
+- **Task 3 链接入** `src/quotes.mjs`：`CHAINS.cn = ["tencent","eastmoney","sina"]`；providers 注册（quoteTimeMs 已在 parser 内解析，provider.quoteTime=null）；`fullAdapter.sina` 详情腿；文件头链形态注释更新。测试 `tests/quotes-service.test.mjs` +3 项（三源两挂→新浪兜住；三源全挂→error；getQuoteFull 第三腿）。**断言面清单（链扩展引发的既有用例语义修正）**：「整链失败进入退避」用例由两源全挂改为三源全挂（`setSinaFail(true)`）——旧语义下第三源会被合法重试致「退避期内零上游调用」断言失效。
+- **Task 4 直加腿** `src/markets/search.mjs`：resolveDirect cn 分支 EM 后追加 `sina.fetchBatchSnapshots` 第三腿（与 CHAINS.cn 同序）；测试 `tests/search-index.test.mjs` +1 项（腾讯 WAF+EM 502 双挂→新浪顶上，identity/kind 断言）。
+- **测试**：全量 `npm test` **411/411 通过**（基线 401 + 新增 10：sina 6 + quotes 3 + search 1）。
+- **实测记录**：`sina-parse-recheck` 生产 parser 实网 5/5 码全解析（sh600519/sh510300/sh000001/sz000001/bj920000），price/volume/quoteTimeMs 有效；量纲三方互证 ratios 稳定（0.01/1.00/0.01）。夹具注意：新浪 mock 用 ASCII 名称——GBK 解码 utf8 字节会吞并含中文的字段边界（B3+0x2C 被 GBK 配对），数字字段断言不受扰但结构需保真。
+- **未验证（不冒充已验证）**：GUI 未复验（cn 链降级场景需真实 WAF/502 才可观测，留主人日常观察）；新浪长期限流/WAF 行为未做长时间回归；OKX 不可达为本机网络实录，OKX 功能本身未在本轮验证。
+
 
 
 

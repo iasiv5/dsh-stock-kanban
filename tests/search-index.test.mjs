@@ -163,6 +163,29 @@ test("直连：指数经腾讯主源校验（hkHSI → kind index）；腾讯挂
   }
 });
 
+test("直连：cn 腾讯+EM 全挂 → 新浪第三腿顶上（§12.44）", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("qt.gtimg.cn")) throw new Error("waf-blocked");
+    if (u.includes("push2")) throw new Error("HTTP 502");
+    if (u.includes("hq.sinajs.cn")) {
+      // 新浪夹具：ASCII 名称（GBK 通道结构保真，同 quotes-service 夹具口径）
+      const text = 'var hq_str_sz000001="PA,10.85,10.88,10.90,10.95,10.80,10.90,10.91,266207,2902063,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2026-11-14,15:30:01,00,00";';
+      return { ok: true, arrayBuffer: async () => Buffer.from(text, "utf8") };
+    }
+    throw new Error("unexpected " + u);
+  };
+  try {
+    const pb = await resolveDirect("cn", "000001");
+    assert.equal(pb.ok, true);
+    assert.equal(pb.identity.code, "sz000001");
+    assert.equal(pb.kind, "stock");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("直连：美股添加校验链 EM 502 → 腾讯美股顶上（2026-11-13 补腿回归：IXIC 指数）", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {

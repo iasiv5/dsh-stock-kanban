@@ -27,6 +27,7 @@ import * as eastmoney from "./eastmoney.mjs";
 import * as tencentUs from "./tencent-us.mjs";
 import * as yahoo from "./yahoo.mjs";
 import * as okx from "./okx.mjs";
+import * as sina from "./sina.mjs";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(MODULE_DIR, "..", "..", "data");
@@ -351,6 +352,15 @@ export async function resolveDirect(market, code) {
     if (!quote) {
       try {
         quote = await eastmoney.fetchQuote(identity.code);
+      } catch {
+        quote = null;
+      }
+    }
+    if (!quote) {
+      // 新浪第三腿（§12.44）：链序与 quotes.mjs CHAINS.cn 一致（腾讯 → 东方财富 → 新浪）
+      try {
+        const rows = await sina.fetchBatchSnapshots([identity.code]);
+        quote = rows.get(identity.code) ?? null;
       } catch {
         quote = null;
       }
