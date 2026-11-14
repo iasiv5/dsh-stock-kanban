@@ -11,6 +11,8 @@ const tail = (date, time) => Array(20).fill("0").join(",") + `,${date},${time},0
 const LINE_600519 = `var hq_str_sh600519="贵州茅台,1450.00,1452.00,1453.00,1457.72,1436.00,1453.00,1453.01,4177984,5959628192,${tail("2026-11-14", "15:00:01")}";`;
 const LINE_510300 = `var hq_str_sh510300="沪深300ETF,4.050,4.051,4.056,4.060,4.045,4.055,4.056,15234567,61728390,${tail("2026-11-14", "15:00:01")}";`;
 const LINE_920000 = `var hq_str_bj920000="安徽凤凰,10.85,10.88,10.90,10.95,10.80,10.90,10.91,266207,2902063,${tail("2026-11-14", "15:30:01")}";`;
+// 指数行（真实采样 2026-11-14：新浪对指数同样返回全量 33+ 字段格式，非 s_ 紧凑型——评审 R1-2 补）
+const LINE_000001 = `var hq_str_sh000001="上证指数,3658.7191,3655.8295,3634.3530,3669.4405,3623.8414,0,0,472293657,770614169984,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2026-11-13,15:43:57,00,";`
 
 test("parseSinaSnapshot：标准 A 股行字段解析（f8=股口径，quoteTimeMs 东八区）", () => {
   const rows = parseSinaSnapshot(LINE_600519);
@@ -37,6 +39,16 @@ test("parseSinaSnapshot：ETF 与北交所行同格式收录（新浪实测服�
   assert.equal(bj.name, "安徽凤凰");
   assert.equal(bj.volume, 266207); // 新浪股口径；与腾讯 K线 2662手 ×100 互证（probe 2026-11-14）
   assert.equal(bj.quoteTimeMs, Date.parse("2026-11-14T15:30:01+08:00"));
+});
+
+test("parseSinaSnapshot：指数行全量格式解析（真实采样 sh000001，评审 R1-2 补计划钉死用例）", () => {
+  const rows = parseSinaSnapshot(LINE_000001);
+  const idx = rows.get("sh000001");
+  assert.equal(idx.name, "上证指数");
+  assert.equal(idx.price, 3634.353); // f3=现价（全量格式，非 s_ 紧凑型的涨跌%位）
+  assert.equal(idx.prevClose, 3655.8295);
+  assert.ok(Math.abs(idx.changePercent - (3634.353 - 3655.8295) / 3655.8295 * 100) < 1e-9);
+  assert.equal(idx.quoteTimeMs, Date.parse("2026-11-13T15:43:57+08:00"));
 });
 
 test("parseSinaSnapshot：停牌/空行剔除 + 空文本空 Map", () => {

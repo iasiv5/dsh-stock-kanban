@@ -787,6 +787,8 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **测试**：全量 `npm test` **411/411 通过**（基线 401 + 新增 10：sina 6 + quotes 3 + search 1）。
 - **实测记录**：`sina-parse-recheck` 生产 parser 实网 5/5 码全解析（sh600519/sh510300/sh000001/sz000001/bj920000），price/volume/quoteTimeMs 有效；量纲三方互证 ratios 稳定（0.01/1.00/0.01）。夹具注意：新浪 mock 用 ASCII 名称——GBK 解码 utf8 字节会吞并含中文的字段边界（B3+0x2C 被 GBK 配对），数字字段断言不受扰但结构需保真。
 - **未验证（不冒充已验证）**：GUI 未复验（cn 链降级场景需真实 WAF/502 才可观测，留主人日常观察）；新浪长期限流/WAF 行为未做长时间回归；OKX 不可达为本机网络实录，OKX 功能本身未在本轮验证。
+- **checkpoint 边界偏差（产出物评审 R1-1，2026-11-14 补记）**：提交 9edae60（标 Task 1）的 probe 脚本已含组 10 `import sina.mjs`（该提交树上 probe 不可运行——ESM 静态 import 解析失败），且 probe-result.json 已含 `sina-parse-recheck` 数据（实为 Task 2 Step 4 产物）——Task 2 Step 4 被无声并入 Task 1 checkpoint，违反计划 Q3 修正与「不无声合并步」纪律。根因：probe 取证横跨 T1/T2 经四次运行迭代（fields0 bug → v_/hq_str_ 前缀修正 → parser 复跑组），T1 checkpoint 时最终文件状态已是跨步产物。**不重排历史**（已推送 + tag v0.3.4，know-how 018 禁重写发版 lineage）；bisect 至 9edae60 时 probe 不可运行属已知，不影响 HEAD。后续 checkpoint 严格按步提交。
+- **夹具偏离说明（评审 R1-2/R1-5 补记）**：计划钉死用例与实际夹具三处差异——①计划「指数行同格式收录」初版夹具缺失，评审期按真实采样补齐（sh000001 全量 33+ 字段格式实测，parser 产出与市场数据吻合；新浪对指数**不**返回 s_ 紧凑型）；②计划「bj 码缺席」经实测修正为「收录」（新浪服务 920 号段）；③计划夹具 volume 注「手」经实测修正为「股」（f8 互证 ratio 0.01/1.00/0.01）。
 
 ## 12.45 退避键按 (提供方, 市场) 拆分 + 健康载荷嵌套增强
 

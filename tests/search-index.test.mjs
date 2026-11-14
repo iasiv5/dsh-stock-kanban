@@ -186,6 +186,24 @@ test("直连：cn 腾讯+EM 全挂 → 新浪第三腿顶上（§12.44）", asyn
   }
 });
 
+test("直连：cn 腾讯+EM+新浪三源全灭 → 维持现状 symbol-not-found（评审 R1-3 补钉两态之「全灭」）", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("qt.gtimg.cn")) throw new Error("waf-blocked");
+    if (u.includes("push2")) throw new Error("HTTP 502");
+    if (u.includes("hq.sinajs.cn")) throw new Error("HTTP 503");
+    throw new Error("unexpected " + u);
+  };
+  try {
+    const dead = await resolveDirect("cn", "000001");
+    assert.equal(dead.ok, false);
+    assert.equal(dead.error, "symbol-not-found"); // cn 分支无 transportFailed 聚合（us 独有），现状语义
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("直连：美股添加校验链 EM 502 → 腾讯美股顶上（2026-11-13 补腿回归：IXIC 指数）", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {

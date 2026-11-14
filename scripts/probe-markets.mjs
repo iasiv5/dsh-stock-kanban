@@ -125,7 +125,8 @@ await probe("sina-cn-snapshot", async () => {
 });
 
 // 9) 688 量纲三方对照（2026-11-14 Task 1，评审 Q7：bj 独立 try 不拖垮整组）：
-//    同日腾讯 K 线末根 volume vs 腾讯快照 f36（parseBatchSnapshot 生产口径）vs 新浪快照 f8（手）。
+//    同日腾讯 K 线末根 volume vs 腾讯快照 f36（parseBatchSnapshot 生产口径）vs 新浪快照 f8（股——实测修正早期「手」假定）。
+//    ratio 语义（Task 7 归一后）：sh/sz/bj 非 688 = 0.01（腾讯手 ↔ 新浪股互证）；sh688/689 与 hk = 1.00（同为股）。
 await probe("volume-cn-kline-compare", async () => {
   const samples = [];
   for (const code of ["sh600519", "sh688111", "bj920000"]) {
