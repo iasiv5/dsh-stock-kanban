@@ -12,7 +12,7 @@ import { api } from "./api.mjs";
 import { fmtPrice, fmtPct, fmtAmount, maskIf, trendClass, parsePositiveInput, fmtClock, fmtClockSec } from "./fmt.mjs";
 import { buildMinuteChart, buildCandleChart, buildMaLegend } from "./charts.mjs";
 import { iconEl } from "./icons.mjs";
-import { t, tErr, getLang } from "./i18n.mjs";
+import { t, tErr, getLang, detailSourceText } from "./i18n.mjs";
 import { checkTargetRelation } from "../src/identity.mjs";
 import { positionMetrics } from "../src/portfolio.mjs";
 import { chartRefreshDue, isMarketOpen, targetBadgeKind } from "../src/sessions.mjs";
@@ -634,6 +634,9 @@ export function createDetail({ store, win }) {
       badge.title = t(`badge.${badgeKind}.tip`);
       meta.append(badge);
     }
+    // §12.48 数据源脚注常显：正常态「数据源：{name}」、降级态附加「（降级自 {from}）」；error/缺 source 时隐藏
+    const srcNote = detailSourceText(q);
+    if (srcNote) meta.append(textSpan("skc-source-note", srcNote));
   };
 
   const paintPeriodTabs = () => {

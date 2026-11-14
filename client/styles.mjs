@@ -192,6 +192,7 @@ export const FLOAT_STYLE_TEXT = `
 /* K 线指标行（MA 图例 + 复权标注）另起一行：不挤占周期分段的宽度，分时模式下隐藏 */
 .skc-period-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin:0 0 8px;min-height:20px} /* min-height = MA chip 高：图例行四档周期常驻等高，切周期卡片零位移（第 12 轮 2026-11-10） */
 .skc-adjust,.skc-meta-note{color:var(--skc-text-2);font-size:12px;line-height:16px;font-variant-numeric:tabular-nums}
+.skc-source-note{color:var(--skc-text-2);font-size:11px;line-height:16px;opacity:.72;white-space:nowrap} /* §12.48 数据源脚注：弱化小字，与 badge 同行 */
 .skc-chartbox{border:1px solid var(--skc-hairline);border-radius:8px;padding:6px;min-height:140px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--skc-surface-deep) 45%,transparent)}
 .skc-chart{display:block;max-width:100%;height:auto}
 .skc-chart-empty{color:var(--skc-text-2);padding:20px;text-align:center;height:100%;display:flex;align-items:center;justify-content:center}

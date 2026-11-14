@@ -62,6 +62,14 @@ const zh = {  "market.cn": "A 股",
   "detail.delete": "删除",
   "detail.missing": "标的不存在或已被删除",
   "detail.quote-time": "行情 {t} · 拉取 {f}",
+  "detail.source": "数据源：{name}",
+  "detail.source.fallback": "数据源：{name}（降级自 {from}）",
+  "provider.tencent": "腾讯",
+  "provider.eastmoney": "东方财富",
+  "provider.tencent-us": "腾讯美股",
+  "provider.yahoo": "Yahoo",
+  "provider.okx": "OKX",
+  "provider.sina": "新浪",
   "detail.stale": "行情过期",
   "detail.no-data": "行情缺失",
   "detail.closed": "休市中",
@@ -239,6 +247,14 @@ const en = {
   "detail.delete": "Delete",
   "detail.missing": "Symbol missing or removed",
   "detail.quote-time": "Quote {t} · Fetched {f}",
+  "detail.source": "Source: {name}",
+  "detail.source.fallback": "Source: {name} (fell back from {from})",
+  "provider.tencent": "Tencent",
+  "provider.eastmoney": "EastMoney",
+  "provider.tencent-us": "Tencent US",
+  "provider.yahoo": "Yahoo",
+  "provider.okx": "OKX",
+  "provider.sina": "Sina",
   "detail.stale": "Stale",
   "detail.no-data": "No quote",
   "detail.closed": "Market closed",
@@ -397,6 +413,14 @@ export function tErr(code, detail) {
     })
     .join(", ");
   return detail ? `${label} (${detail})` : label;
+}
+
+/** 详情页数据源脚注文案（§12.48）：常显来源，降级时附加首个失败源；error/缺 source 返回 null（脚注隐藏） */
+export function detailSourceText(row) {
+  if (!row || row.status !== "ok" || !row.source) return null;
+  const name = t(`provider.${row.source}`);
+  const from = row.fallbackFrom ? t(`provider.${row.fallbackFrom}`) : null;
+  return from ? t("detail.source.fallback", { name, from }) : t("detail.source", { name });
 }
 
 export const DICT_KEYS = { zh: Object.keys(zh).sort(), en: Object.keys(en).sort() };
