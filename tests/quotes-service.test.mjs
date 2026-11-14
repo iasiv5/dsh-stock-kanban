@@ -8,6 +8,8 @@ function mockFetchWorld() {
   const calls = [];
   let tencentFail = false;
   let emFail = false;
+  let sinaFail = false;
+  let tencentSparse = false;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => {
     calls.push(String(url));
@@ -15,7 +17,9 @@ function mockFetchWorld() {
     if (u2.includes("qt.gtimg.cn")) {
       if (tencentFail) throw new Error("upstream-down");
       return { ok: true, json: async () => ({}), arrayBuffer: async () => {
-        const text = 'v_sh600519="1~贵州茅台~600519~1453.00~1452.00~1450.00~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~202611061614~1.00~0.07~1457.72~1436.00~x~42848~619953~0.34~22.11";';
+        const tencentRow = 'v_sh600519="1~贵州茅台~600519~1453.00~1452.00~1450.00~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~202611061614~1.00~0.07~1457.72~1436.00~x~42848~619953~0.34~22.11";';
+        const szRow = 'v_sz000001="2~平安银行~000001~10.90~10.88~10.85~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~202611061614~0.02~0.18~10.95~10.80~x~2662~290206~0.34~22.11";';
+        const text = tencentSparse ? tencentRow : tencentRow + szRow;
         return Buffer.from(text, "utf8");
       } };
     }
@@ -36,12 +40,20 @@ function mockFetchWorld() {
       }
       return { ok: true, json: async () => ({ code: "0", data: [{ instId: "BTC-USDT", last: "75000", open24h: "74000", high24h: "76000", low24h: "73500", vol24h: "1000", volCcy24h: "7.5e7", ts: "1793982337673" }] }) };
     }
+    if (String(url).includes("hq.sinajs.cn")) {
+      if (sinaFail) throw new Error("upstream-down");
+      // 新浪夹具：ASCII 名称（GBK 解码 utf8 字节会吞并含中文的字段边界，数字字段不受影响但结构需保真）
+      const sinaRows = 'var hq_str_sz000001="PA,10.85,10.88,10.90,10.95,10.80,10.90,10.91,266207,2902063,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2026-11-14,15:30:01,00,00";';
+      return { ok: true, json: async () => ({}), arrayBuffer: async () => Buffer.from(sinaRows, "utf8") };
+    }
     return { ok: false, status: 404 };
   };
   return {
     calls,
     setTencentFail: (v) => { tencentFail = v; },
     setEMFail: (v) => { emFail = v; },
+    setSinaFail: (v) => { sinaFail = v; },
+    setTencentSparse: (v) => { tencentSparse = v; },
     restore: () => { globalThis.fetch = originalFetch; },
   };
 }
@@ -86,7 +98,8 @@ test("行情服务：整链失败进入退避，退避期内不打上游且标�
   try {
     const svc = createQuoteService({ ttlMs: 0 }); // TTL=0 强制每次可打上游
     world.setTencentFail(true);
-    world.setEMFail(true); // cn 链两源全挂
+    world.setEMFail(true);
+    world.setSinaFail(true); // cn 链三源全挂（2026-11-14 §12.44 链扩展：原「两源全挂即整链失败」语义随第三源到齐修正）
     const rows1 = await svc.getQuotes(IDS.filter((i) => i.market === "cn"));
     assert.equal(rows1.get("cn:sh600519").status, "error");
     const callsAtFail = world.calls.length;
@@ -171,6 +184,53 @@ test("行情服务：provider.fail 诊断事件随真实上游失败发出（含
     const fail = events.filter((e) => e.ev === "provider.fail" && e.provider === "tencent");
     assert.equal(fail.length, 1);
     assert.ok(fail[0].backoffMs >= 30000);
+  } finally {
+    world.restore();
+  }
+});
+
+/* ---------------- 新浪第三源（§12.44，2026-11-14） ---------------- */
+
+test("行情服务：腾讯+EM 全挂 → 新浪第三腿兜住（cn 链）", async () => {
+  const world = mockFetchWorld();
+  try {
+    const svc = createQuoteService({ ttlMs: 0 });
+    world.setTencentFail(true);
+    world.setEMFail(true);
+    const rows = await svc.getQuotes([{ id: "cn:sz000001", market: "cn", code: "sz000001", quoteCurrency: "CNY" }]);
+    const row = rows.get("cn:sz000001");
+    assert.equal(row.status, "ok");
+    assert.equal(row.quote.price, 10.9);
+    assert.equal(row.quoteTime, Date.parse("2026-11-14T15:30:01+08:00"));
+  } finally {
+    world.restore();
+  }
+});
+
+test("行情服务：cn 链三源全挂 → 标的标 error", async () => {
+  const world = mockFetchWorld();
+  try {
+    const svc = createQuoteService({ ttlMs: 0 });
+    world.setTencentFail(true);
+    world.setEMFail(true);
+    world.setSinaFail(true);
+    const rows = await svc.getQuotes([{ id: "cn:sz000001", market: "cn", code: "sz000001", quoteCurrency: "CNY" }]);
+    assert.equal(rows.get("cn:sz000001").status, "error");
+  } finally {
+    world.restore();
+  }
+});
+
+test("行情服务：详情路径第三腿（getQuoteFull，tencent/em 无数据时 sina 供数）", async () => {
+  const world = mockFetchWorld();
+  try {
+    const svc = createQuoteService({ ttlMs: 0 });
+    world.setTencentSparse(true); // 腾讯只回 sh600519 → sz000001 缺席
+    const rows = await svc.getQuoteFull([{ id: "cn:sz000001", market: "cn", code: "sz000001", quoteCurrency: "CNY" }]);
+    const row = rows.get("cn:sz000001");
+    assert.equal(row.status, "ok");
+    assert.equal(row.quote.price, 10.9);
+    assert.equal(row.quoteTime, Date.parse("2026-11-14T15:30:01+08:00"));
   } finally {
     world.restore();
   }

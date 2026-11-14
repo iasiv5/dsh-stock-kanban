@@ -2,9 +2,10 @@
  * 行情服务：市场分链路由 + TTL 缓存 + 在途合并 + 失败退避 + 失败诊断。
  *
  * - 同一批 codes 在 TTL 内只打一次上游（多页面/多视图轮询在此合并）；
- * - 每市场一条有序提供方链（2026-11-13，P0-1 多源降级；链形态参考 dsh-market-lens，MIT，见 NOTICE）：
- *     cn/hk: 腾讯 → 东方财富（push2 ulist，含 f124 时间戳）；us: 东方财富 → Yahoo chart
- *     （EM push2 在部分网络不可达时的兜底，顺带补美股行情时间戳）；crypto: OKX（单源）。
+ * - 每市场一条有序提供方链（2026-11-13，P0-1 多源降级；链形态参考 dsh-market-lens，MIT，见 NOTICE；
+ *   2026-11-14 §12.44 cn 链增新浪第三源）：
+ *     cn: 腾讯 → 东方财富 → 新浪（hq.sinajs.cn，GBK+Referer，f8=股口径）；hk: 腾讯 → 东方财富；
+ *     us: 东方财富 → Yahoo chart（EM push2 在部分网络不可达时的兜底，顺带补美股行情时间戳）；crypto: OKX（单源）。
  *   链内逐源补位：主源失败或漏行（EM 会静默丢弃无效 secid）时，未取到的标的交下一源；
  *   全链失败 → 该批标的标 error；
  * - 退避是提供方级的并天然覆盖整链：任一源连续失败进入指数退避（30s 起翻倍、封顶 5 分钟）后，
@@ -20,6 +21,7 @@ import { handles as emHandles, fetchBatchSnapshots as emBatch, fetchQuote as emQ
 import { handles as yahooHandles, fetchBatchSnapshots as yahooBatch } from "./markets/yahoo.mjs";
 import { handles as tencentUsHandles, fetchBatchSnapshots as tencentUsBatch, quoteTimeOf as tencentUsQuoteTime } from "./markets/tencent-us.mjs";
 import { handles as okxHandles, fetchBatchSnapshots as okxBatch, fetchQuote as okxQuote } from "./markets/okx.mjs";
+import { handles as sinaHandles, fetchBatchSnapshots as sinaBatch } from "./markets/sina.mjs";
 
 const DEFAULT_TTL_MS = 10 * 1000;
 const BACKOFF_BASE_MS = 30 * 1000;
@@ -27,7 +29,7 @@ const BACKOFF_MAX_MS = 5 * 60 * 1000;
 
 /** 市场提供方链（顺序即优先级；handles 不符的项跳过） */
 const CHAINS = {
-  cn: ["tencent", "eastmoney"],
+  cn: ["tencent", "eastmoney", "sina"], // 2026-11-14 §12.44：新浪第三源（cn-only，含北交所 920 号段实测覆盖）
   hk: ["tencent", "eastmoney"],
   us: ["eastmoney", "tencent-us", "yahoo"], // 2026-11-13：东方财富 → 腾讯美股 → Yahoo（Yahoo 429 时仍有备源）
   crypto: ["okx"],
@@ -40,6 +42,7 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
     { name: "tencent-us", handles: tencentUsHandles, fetch: tencentUsBatch, quoteTime: tencentUsQuoteTime },
     { name: "yahoo", handles: yahooHandles, fetch: yahooBatch, quoteTime: null },
     { name: "okx", handles: okxHandles, fetch: okxBatch, quoteTime: null },
+    { name: "sina", handles: sinaHandles, fetch: sinaBatch, quoteTime: null }, // quoteTimeMs 已在 parser 内按东八区解析
   ];
   const byName = new Map(providers.map((p) => [p.name, p]));
 
@@ -203,6 +206,11 @@ export function createQuoteService({ ttlMs = DEFAULT_TTL_MS, now = () => Date.no
     },
     okx: async (code) => {
       const quote = await okxQuote(code);
+      return { quote, quoteTime: quote?.quoteTimeMs ?? null };
+    },
+    sina: async (code) => {
+      const rows = await sinaBatch([code]);
+      const quote = rows.get(code) ?? null;
       return { quote, quoteTime: quote?.quoteTimeMs ?? null };
     },
   };
