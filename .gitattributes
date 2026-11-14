@@ -1,0 +1,6 @@
+# EOL 翻译全禁（§12.51，2026-11-14）：检出即精确 blob 字节。
+# 动机：字节级哈希守卫（data/manifest.json）与幻影 M/ci-parity 克隆重灌 CRLF 三类 autocrlf 伪红从根上消除——
+# .gitattributes 优先级高于 core.autocrlf（含 Git for Windows 系统级默认），新克隆天然 LF 检出。
+# 落地时 index 已全 LF，renormalize 为空操作；既有 Windows 克隆需一次性重检出（git checkout -- .）。
+# 本仓无任何需要 CRLF 的文件（无 .bat/.cmd）；若未来引入，按路径豁免（如 *.bat text eol=crlf）。
+* -text
