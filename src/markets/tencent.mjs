@@ -7,6 +7,8 @@
  *   - 分时+快照 minute/query（proxy.finance.qq.com 主、web.ifzq.gtimg.cn 备，2026-09-29 WAF 前科）
  *   - K线 fqkline/get（qfq 参数 = 前复权；港股实测无 qfq 键 → 不复权口径）
  *   - K线行序实测 [date, open, close, high, low, volume]
+ *   - K线量纲（2026-11-14 §12.47 probe 三方互证）：sh/sz/bj 为手 → ×100 归股/份；
+ *     科创板 688/689 原生为股（DSA #2350 口径复现，新浪 ratio 1.00）；港股原生为股不换算
  */
 
 const BATCH_HOST = "https://qt.gtimg.cn";
@@ -159,6 +161,19 @@ export async function fetchMinuteDetail(code) {
 const KLINE_COUNT = { day: 180, week: 150, month: 120 };
 
 /**
+ * K线量纲归一（§12.47，2026-11-14 probe 三方互证：腾讯 K线/快照 == EM f5，新浪 f8 = 股）：
+ * sh/sz/bj 为手 → ×100 归股/份；科创板 688/689 原生为股（DSA #2350 口径复现）原样；港股原生为股不换算。
+ */
+function klineVolumeToShares(raw, code) {
+  const v = parseFloat(raw);
+  if (!Number.isFinite(v)) return 0;
+  const c = String(code ?? "").toLowerCase();
+  if (c.startsWith("sh688") || c.startsWith("sh689")) return v;
+  if (c.startsWith("sh") || c.startsWith("sz") || c.startsWith("bj")) return v * 100;
+  return v;
+}
+
+/**
  * K线：{candles:[{time,open,high,low,close,volume}], adjust:'qfq'|'none', error}
  * 实测列序 [date, open, close, high, low, volume]；qfq 键缺失（港股）时回落 day 键 → adjust 'none'。
  */
@@ -194,7 +209,7 @@ export async function fetchKline(code, period = "day") {
     const close = parseFloat(row[2]);
     const high = parseFloat(row[3]);
     const low = parseFloat(row[4]);
-    const volume = parseFloat(row[5]) || 0;
+    const volume = klineVolumeToShares(row[5], apiCode);
     if (!/^\d{4}-\d{2}-\d{2}/.test(time) || !Number.isFinite(open) || !Number.isFinite(close) || !Number.isFinite(high) || !Number.isFinite(low)) continue;
     candles.push({ time: time.slice(0, 10), open, high, low, close, volume });
   }

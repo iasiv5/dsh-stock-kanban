@@ -57,7 +57,43 @@ test("fetchKline：qfq 键存在 → 前复权 + 列序 date,open,close,high,low
     assert.equal(result.error, null);
     assert.equal(result.adjust, "qfq");
     assert.equal(result.candles.length, 2);
-    assert.deepEqual(result.candles[1], { time: "2026-11-06", open: 1450, high: 1457.72, low: 1436, close: 1453, volume: 42848 });
+    // §12.47 量纲归一：普通 A 股 K 线量为手 → ×100 归股（2026-11-14 probe 三方互证；本战役唯一现存期望值改值）
+    assert.deepEqual(result.candles[1], { time: "2026-11-06", open: 1450, high: 1457.72, low: 1436, close: 1453, volume: 4284800 });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("fetchKline：量纲归一（§12.47）——sh/sz/bj ×100、sh688/689 原样、hk 原样（2026-11-14 probe 裁决）", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const code = (String(url).match(/param=([^,]+),/) || [])[1] || "sh600519";
+    return {
+      ok: true,
+      json: async () => ({
+        code: 0,
+        data: {
+          [code]: {
+            qfqday: [["2026-11-14", "1.00", "1.01", "1.02", "0.99", "12345"]],
+            qt: {},
+          },
+        },
+      }),
+    };
+  };
+  try {
+    const expectations = [
+      ["sh600519", 1234500], // 沪市普通 A 股：手 → 股
+      ["sz000001", 1234500], // 深市：手 → 股
+      ["bj920000", 1234500], // 北交所：与腾讯/EM/新浪三方互证为手 → 股（2026-11-14 probe）
+      ["sh688111", 12345], // 科创板：原生股，原样（DSA #2350，新浪 ratio 1.00）
+      ["sh689009", 12345], // CDR：同 688 家族
+      ["hk00700", 12345], // 港股：原生股，原样
+    ];
+    for (const [code, vol] of expectations) {
+      const result = await fetchKline(code, "day");
+      assert.equal(result.candles[0].volume, vol, code);
+    }
   } finally {
     globalThis.fetch = originalFetch;
   }

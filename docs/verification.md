@@ -804,6 +804,26 @@ P6（退避期含陈旧缓存时主源缓存优先于备源新鲜度）维持既
 - **断言面清单**：inconclusive 用例与「详情路径第三腿」用例因夹具扩展（新浪夹具补 sh600519 行）各做一次语义封链修正（`setSinaFail(true)` / 时钟拨过退避期）——均为测试前提修正，非生产行为变更。
 - **测试**：全量 `npm test` **418/418 通过**（基线 401 + sina 6 + quotes 链 3 + search 1 + 退避/来源标注 7 = +17；中间全量回归 411/411 于 Task 4 后实测）。
 
+## 12.47 科创板 688/689 K 线量纲归一（probe 分支 A）
+
+- **门控证据**（Task 1 probe，2026-11-14）：`volume-cn-kline-compare` 三方互证——sh600519 腾讯 K线 41780 手 ↔ 新浪 f8 4177984 股（ratio 0.01）；**sh688111 腾讯 K线 3558749 == 新浪 3558749（ratio 1.00）→ 688 原生为股**；bj920000 腾讯 2662 手 ↔ 新浪 266207 股（ratio 0.01）+ EM ulist 同值旁证 → bj 与普通 A 股同为手。分支 A 成立（DSA #2350 结论当日复现）。
+- **实现**（src/markets/tencent.mjs）：`klineVolumeToShares(raw, code)`——sh/sz/bj 非 688/689 ×100 归股/份；sh688/sh689 原样；hk 原样；fetchKline 接线；文件头协议注释补量纲口径。**快照 volume 不动**（共识 Q3：当前无展示用途；腾讯快照同样存在 688=股 特例，已记录 capability-matrix 待观察）。
+- **测试**：`tests/providers-tencent.test.mjs` 改写既有断言一处（candles[1].volume 42848 → **4284800**，本战役唯一现存数值改值，评审 Q2 清点项）+ 新增 1 项六码参数化（sh600519/sz000001/bj920000 ×100、sh688111/sh689009/hk00700 原样）。分时 volume 明确 non-goal（共识：相对量柱，不改）。
+- **显示影响**：量柱为图内相对高度（charts.mjs maxVol 归一），单图内自洽——归一前后视觉零变化；意义在跨源口径一致（新浪快照=股、K线归一后=股）。
+- **未验证（不冒充已验证）**：688/689 的「原生为股」基于当日 probe 采样（688111 一只标的 + 家族推断 689），689 CDR 未做独立实网采样（测试为离线夹具口径）。
+
+## 12.48 详情页数据源脚注（常显）
+
+- **实现**：`client/i18n.mjs` 导出 `detailSourceText(row)`（ok+有 source → 「数据源：{name}」/降级附加「（降级自 {from}）」；error/缺 source → null 隐藏）+ zh/en 各 8 键（detail.source/detail.source.fallback + provider.* 六 token，文案钉死见计划 Task 8）；`client/detail.mjs` paintQuoteLine 在 badge 之后追加 `skc-source-note`（quotes tick 原位刷新，不重建骨架——活区纪律）；`client/styles.mjs` 弱化小字（11px/opacity .72，与 skc-quote-meta inline-flex 同行）。
+- **测试**：`tests/detail-source.test.mjs` 5 项（zh 两态 / error-null / en 两态 / 六 token 双语 parity）。全绿 + `npm run build` 重建 lib/client.js 138.5 KB（__APP_VERSION__ 注入断言通过）。
+- **未验证（不冒充已验证）**：GUI 渲染效果未复验（shadow DOM 视觉留主人点验）；脚注在窄屏折行表现未实测。
+
+## 12.49 东财 UA 池轮换
+
+- **实现**（src/markets/eastmoney.mjs）：固定 HEADERS 常量改 `emHeaders()`——5 元素 UA 池（DSA efinance_fetcher 同款列表）每请求随机取用；`emFetch` 接线。
+- **改动前检查**：grep 确认既有测试无 UA 头断言（providers-eastmoney 只断 URL/行形状）→ 夹具零改动；行为面仅头轮换，测试 4/4 通过。
+- **未验证（不冒充已验证）**：轮换对 EM 风控的实际效果无限流对照实验（如实标注：仅降低同 UA 连续请求特征）。
+
 
 
 
